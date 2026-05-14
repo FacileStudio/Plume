@@ -84,7 +84,7 @@
 
 <div class="flex min-h-[100dvh] flex-col">
 	<header class="flex items-center gap-3 border-b px-6 py-4">
-		<Icon icon="mdi:file-document-plus" class="h-6 w-6" />
+		<Icon icon="solar:document-add-bold-duotone" class="h-6 w-6" />
 		<span class="text-lg font-bold tracking-tight">Plume</span>
 	</header>
 
@@ -193,7 +193,7 @@
 	</main>
 
 	<footer class="flex items-center justify-center border-t px-6 py-4 text-xs text-muted-foreground">
-		<Icon icon="mdi:file-document-plus" class="mr-1.5 h-3.5 w-3.5" />
+		<Icon icon="solar:document-add-bold-duotone" class="mr-1.5 h-3.5 w-3.5" />
 		Powered by Plume
 	</footer>
 </div>

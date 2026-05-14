@@ -45,7 +45,7 @@
 	<header class="border-b border-border">
 		<div class="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
 			<div class="flex h-14 items-center gap-3">
-				<Icon icon="mdi:file-document-plus" class="w-7 h-7" />
+				<Icon icon="solar:document-add-bold-duotone" class="w-7 h-7" />
 				<span class="text-2xl font-bold tracking-tight">Plume</span>
 			</div>
 			<div class="flex items-center gap-2">
@@ -82,7 +82,7 @@
 				<Card.Root class="border border-border">
 					<Card.Header>
 						<div class="mb-2 flex size-10 items-center justify-center rounded-md border border-border">
-							<Icon icon="mdi:file-document-plus" class="size-5" />
+							<Icon icon="solar:document-add-bold-duotone" class="size-5" />
 						</div>
 						<Card.Title>Upload & place fields</Card.Title>
 						<Card.Description>
