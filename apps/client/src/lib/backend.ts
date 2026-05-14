@@ -1,0 +1,187 @@
+function getToken(): string | null {
+	if (typeof window === 'undefined') return null;
+	return localStorage.getItem('token');
+}
+
+export function setToken(token: string) {
+	localStorage.setItem('token', token);
+}
+
+export function clearToken() {
+	localStorage.removeItem('token');
+}
+
+export function isAuthenticated(): boolean {
+	return getToken() !== null;
+}
+
+async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+	const headers: Record<string, string> = {
+		'Content-Type': 'application/json'
+	};
+
+	const token = getToken();
+	if (token) {
+		headers['Authorization'] = `Bearer ${token}`;
+	}
+
+	const res = await fetch(`/api${path}`, {
+		method,
+		headers,
+		body: body ? JSON.stringify(body) : undefined
+	});
+
+	if (res.status === 204) return undefined as T;
+
+	const data = await res.json();
+	if (!res.ok) {
+		throw new Error(data?.error?.message ?? 'Request failed');
+	}
+	return data as T;
+}
+
+async function upload<T>(method: string, path: string, formData: FormData): Promise<T> {
+	const headers: Record<string, string> = {};
+
+	const token = getToken();
+	if (token) {
+		headers['Authorization'] = `Bearer ${token}`;
+	}
+
+	const res = await fetch(`/api${path}`, {
+		method,
+		headers,
+		body: formData
+	});
+
+	if (res.status === 204) return undefined as T;
+
+	const data = await res.json();
+	if (!res.ok) {
+		throw new Error(data?.error?.message ?? 'Request failed');
+	}
+	return data as T;
+}
+
+export const api = {
+	auth: {
+		register: (email: string, password: string) =>
+			request<{ user_id: string; token: string }>('POST', '/auth/register', { email, password }),
+		login: (email: string, password: string) =>
+			request<{ user_id: string; token: string }>('POST', '/auth/login', { email, password }),
+		me: () => request<UserProfile>('GET', '/auth/me'),
+		updateProfile: (name: string, email: string) =>
+			request<UserProfile>('PUT', '/auth/me', { name, email }),
+		changePassword: (currentPassword: string, newPassword: string) =>
+			request<{ status: string }>('PUT', '/auth/password', {
+				current_password: currentPassword,
+				new_password: newPassword
+			})
+	},
+	documents: {
+		list: () => request<Document[]>('GET', '/documents'),
+		get: (id: number) => request<Document>('GET', `/documents/${id}`),
+		create: (name: string, file: File) => {
+			const formData = new FormData();
+			formData.append('name', name);
+			formData.append('file', file);
+			return upload<Document>('POST', '/documents', formData);
+		},
+		delete: (id: number) => request<void>('DELETE', `/documents/${id}`),
+		send: (id: number) => request<Document>('POST', `/documents/${id}/send`),
+		stats: () => request<DocumentStats>('GET', '/documents/stats')
+	},
+	signers: {
+		list: (documentId: number) => request<Signer[]>('GET', `/documents/${documentId}/signers`),
+		add: (documentId: number, name: string, email: string) =>
+			request<Signer>('POST', `/documents/${documentId}/signers`, { name, email }),
+		remove: (documentId: number, signerId: number) =>
+			request<void>('DELETE', `/documents/${documentId}/signers/${signerId}`)
+	},
+	webhooks: {
+		list: () => request<Webhook[]>('GET', '/webhooks'),
+		create: (data: { url: string; secret: string }) =>
+			request<Webhook>('POST', '/webhooks', data),
+		update: (id: number, data: { url: string; secret: string; enabled: boolean }) =>
+			request<Webhook>('PUT', `/webhooks/${id}`, data),
+		delete: (id: number) => request<void>('DELETE', `/webhooks/${id}`)
+	},
+	signing: {
+		get: (token: string) => request<SigningPayload>('GET', `/sign/${token}`),
+		sign: (token: string, fields: Record<string, string>) =>
+			request<{ status: string }>('POST', `/sign/${token}`, { fields }),
+		decline: (token: string, reason?: string) =>
+			request<{ status: string }>('POST', `/sign/${token}/decline`, { reason })
+	}
+};
+
+export interface UserProfile {
+	id: string;
+	email: string;
+	name: string;
+	created_at: string;
+}
+
+export interface Document {
+	id: number;
+	name: string;
+	status: 'draft' | 'pending' | 'completed' | 'declined';
+	file_name: string;
+	owner_id: number;
+	signer_count?: number;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface DocumentStats {
+	total: number;
+	pending: number;
+	completed: number;
+}
+
+export interface Signer {
+	id: number;
+	document_id: number;
+	name: string;
+	email: string;
+	role: string;
+	status: 'pending' | 'signed' | 'declined';
+	token: string;
+	signed_at: string | null;
+}
+
+export interface Field {
+	id: number;
+	document_id: number;
+	signer_id: number;
+	field_type: 'signature' | 'text' | 'date' | 'checkbox';
+	page: number;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	required: boolean;
+	value: string | null;
+}
+
+export interface Webhook {
+	id: number;
+	url: string;
+	enabled: boolean;
+	last_sent_at: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface SigningPayload {
+	document: {
+		name: string;
+		status: string;
+	};
+	signer: {
+		name: string;
+		email: string;
+		status: string;
+	};
+	fields: Field[];
+}
