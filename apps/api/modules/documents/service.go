@@ -66,14 +66,7 @@ func (s *Service) GetFilePath(ctx context.Context, ownerID string, docID string)
 	if err != nil {
 		return "", err
 	}
-	if record.StoragePath == "" {
-		return "", errors.NotFound("no file uploaded for this document")
-	}
-	originalPath := filepath.Join(s.uploadDir, record.StoragePath)
-	if record.Status == "completed" {
-		return s.getOrCreateSignedFile(ctx, record.ID, originalPath)
-	}
-	return originalPath, nil
+	return s.resolveFilePath(ctx, record)
 }
 
 func (s *Service) GetFilePathByDocID(ctx context.Context, docID int64) (string, error) {
@@ -81,25 +74,29 @@ func (s *Service) GetFilePathByDocID(ctx context.Context, docID int64) (string, 
 	if err != nil {
 		return "", err
 	}
+	return s.resolveFilePath(ctx, record)
+}
+
+func (s *Service) resolveFilePath(ctx context.Context, record *schemas.Document) (string, error) {
 	if record.StoragePath == "" {
 		return "", errors.NotFound("no file uploaded for this document")
 	}
 	originalPath := filepath.Join(s.uploadDir, record.StoragePath)
 	if record.Status == "completed" {
-		return s.getOrCreateSignedFile(ctx, record.ID, originalPath)
+		return s.getOrCreateSignedFile(ctx, record, originalPath)
 	}
 	return originalPath, nil
 }
 
-func (s *Service) getOrCreateSignedFile(ctx context.Context, docID int64, originalPath string) (string, error) {
+func (s *Service) getOrCreateSignedFile(ctx context.Context, doc *schemas.Document, originalPath string) (string, error) {
 	signedPath := strings.TrimSuffix(originalPath, ".pdf") + "_signed.pdf"
 	if _, err := os.Stat(signedPath); err == nil {
-		s.ensureSignedHash(ctx, docID, signedPath)
+		s.fillSignedHash(ctx, doc, signedPath)
 		return signedPath, nil
 	}
 
 	var fields []schemas.Field
-	if err := s.orm.WithContext(ctx).Where("document_id = ? AND value != ''", docID).Find(&fields).Error; err != nil {
+	if err := s.orm.WithContext(ctx).Where("document_id = ? AND value != ''", doc.ID).Find(&fields).Error; err != nil {
 		return "", errors.Internal("failed to load fields", err)
 	}
 
@@ -119,23 +116,22 @@ func (s *Service) getOrCreateSignedFile(ctx context.Context, docID int64, origin
 	if err := pdfutil.FlattenFields(originalPath, signedPath, overlays); err != nil {
 		return "", errors.Internal("failed to generate signed document", err)
 	}
-	s.ensureSignedHash(ctx, docID, signedPath)
+	s.fillSignedHash(ctx, doc, signedPath)
 	return signedPath, nil
 }
 
-func (s *Service) ensureSignedHash(ctx context.Context, docID int64, signedPath string) {
-	var current schemas.Document
-	if err := s.orm.WithContext(ctx).Select("signed_hash").Where("id = ?", docID).First(&current).Error; err != nil {
-		return
-	}
-	if current.SignedHash != "" {
+func (s *Service) fillSignedHash(ctx context.Context, doc *schemas.Document, signedPath string) {
+	if doc.SignedHash != "" {
 		return
 	}
 	hash, err := hashing.SHA256File(signedPath)
 	if err != nil {
 		return
 	}
-	s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("id = ?", docID).Update("signed_hash", hash)
+	if err := s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("id = ?", doc.ID).Update("signed_hash", hash).Error; err != nil {
+		return
+	}
+	doc.SignedHash = hash
 }
 
 func (s *Service) List(ctx context.Context, ownerID string, status string) ([]DocumentResponse, error) {

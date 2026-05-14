@@ -25,6 +25,7 @@
 			return;
 		}
 		error = '';
+		result = null;
 		file = input;
 	}
 

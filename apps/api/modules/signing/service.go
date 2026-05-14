@@ -198,7 +198,7 @@ func (s *Service) generateAuditTrail(docID int64, doc *schemas.Document) error {
 	var owner schemas.User
 	s.orm.Where("id = ?", doc.OwnerID).First(&owner)
 
-	fileHash := s.hashDocumentFile(doc)
+	originalHash, signedHash := s.documentHashes(doc)
 
 	pdf := fpdf.New("P", "mm", "A4", "")
 	pdf.SetAutoPageBreak(true, 25)
@@ -235,8 +235,11 @@ func (s *Service) generateAuditTrail(docID int64, doc *schemas.Document) error {
 	s.drawInfoRow(pdf, "Owner", fmt.Sprintf("%s (%s)", owner.Name, owner.Email))
 	s.drawInfoRow(pdf, "Created", doc.CreatedAt.Format("January 2, 2006 at 15:04 UTC"))
 	s.drawInfoRow(pdf, "Last updated", doc.UpdatedAt.Format("January 2, 2006 at 15:04 UTC"))
-	if fileHash != "" {
-		s.drawInfoRow(pdf, "Document SHA-256", fileHash)
+	if originalHash != "" {
+		s.drawInfoRow(pdf, "Original SHA-256", originalHash)
+	}
+	if signedHash != "" {
+		s.drawInfoRow(pdf, "Signed SHA-256", signedHash)
 	}
 
 	pdf.Ln(6)
@@ -434,16 +437,21 @@ func (s *Service) drawEvent(pdf *fpdf.Fpdf, t time.Time, title, detail string) {
 	pdf.Ln(3)
 }
 
-func (s *Service) hashDocumentFile(doc *schemas.Document) string {
-	if doc.OriginalHash != "" {
-		return doc.OriginalHash
+func (s *Service) documentHashes(doc *schemas.Document) (original string, signed string) {
+	original = doc.OriginalHash
+	signed = doc.SignedHash
+	if original == "" && doc.StoragePath != "" {
+		if hash, err := hashing.SHA256File(filepath.Join(s.uploadDir, doc.StoragePath)); err == nil {
+			original = hash
+		}
 	}
-	if doc.StoragePath == "" {
-		return ""
+	if signed == "" && doc.StoragePath != "" && doc.Status == "completed" {
+		signedPath := strings.TrimSuffix(filepath.Join(s.uploadDir, doc.StoragePath), ".pdf") + "_signed.pdf"
+		if _, err := os.Stat(signedPath); err == nil {
+			if hash, err := hashing.SHA256File(signedPath); err == nil {
+				signed = hash
+			}
+		}
 	}
-	hash, err := hashing.SHA256File(filepath.Join(s.uploadDir, doc.StoragePath))
-	if err != nil {
-		return ""
-	}
-	return hash
+	return original, signed
 }
