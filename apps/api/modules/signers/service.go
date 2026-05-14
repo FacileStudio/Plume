@@ -146,6 +146,41 @@ func (s *Service) GetSigningView(ctx context.Context, token string) (*SigningVie
 		fieldResponses[i] = *toFieldResponse(&fields[i])
 	}
 
+	var completedFields []schemas.Field
+	if err := s.orm.WithContext(ctx).Where("document_id = ? AND signer_id != ? AND value != ''", doc.ID, signer.ID).Find(&completedFields).Error; err != nil {
+		return nil, errors.Internal("failed to load completed fields", err)
+	}
+
+	var otherSignerIDs []int64
+	for _, f := range completedFields {
+		otherSignerIDs = append(otherSignerIDs, f.SignerID)
+	}
+
+	signerNames := make(map[int64]string)
+	if len(otherSignerIDs) > 0 {
+		var otherSigners []schemas.Signer
+		s.orm.WithContext(ctx).Where("id IN ?", otherSignerIDs).Find(&otherSigners)
+		for _, os := range otherSigners {
+			signerNames[os.ID] = os.Name
+		}
+	}
+
+	completedFieldResponses := make([]CompletedFieldResponse, len(completedFields))
+	for i, f := range completedFields {
+		completedFieldResponses[i] = CompletedFieldResponse{
+			ID:         f.ID,
+			SignerName: signerNames[f.SignerID],
+			FieldType:  f.FieldType,
+			Label:      f.Label,
+			Page:       f.Page,
+			X:          f.X,
+			Y:          f.Y,
+			Width:      f.Width,
+			Height:     f.Height,
+			Value:      f.Value,
+		}
+	}
+
 	return &SigningView{
 		Document: DocumentInfo{
 			ID:       doc.ID,
@@ -158,7 +193,8 @@ func (s *Service) GetSigningView(ctx context.Context, token string) (*SigningVie
 			r.Token = ""
 			return r
 		}(),
-		Fields: fieldResponses,
+		Fields:          fieldResponses,
+		CompletedFields: completedFieldResponses,
 	}, nil
 }
 

@@ -228,6 +228,19 @@ export interface Webhook {
 	updated_at: string;
 }
 
+export interface CompletedField {
+	id: number;
+	signer_name: string;
+	field_type: string;
+	label: string;
+	page: number;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	value: string;
+}
+
 export interface SigningPayload {
 	document: {
 		name: string;
@@ -239,4 +252,5 @@ export interface SigningPayload {
 		status: string;
 	};
 	fields: Field[];
+	completed_fields: CompletedField[];
 }

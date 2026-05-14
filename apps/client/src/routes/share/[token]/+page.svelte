@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { api } from '$lib';
-	import type { SigningPayload, Field } from '$lib';
+	import type { SigningPayload, Field, CompletedField } from '$lib';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -25,6 +25,10 @@
 
 	function fieldsForPage(pageNum: number): Field[] {
 		return (payload?.fields ?? []).filter((f) => f.page === pageNum);
+	}
+
+	function completedFieldsForPage(pageNum: number): CompletedField[] {
+		return (payload?.completed_fields ?? []).filter((f) => f.page === pageNum);
 	}
 
 	function scrollToField(fieldId: number) {
@@ -192,6 +196,34 @@
 											</span>
 										</div>
 									{/each}
+									{#each completedFieldsForPage(pg.num) as cf}
+										<div
+											class="absolute rounded-sm flex flex-col items-center justify-center transition-all duration-300"
+											style="
+												left: {cf.x}%;
+												top: {cf.y}%;
+												width: {cf.width}%;
+												height: {cf.height}%;
+												background: rgba(34, 197, 94, 0.12);
+												border: 1.5px solid rgba(34, 197, 94, 0.4);
+											"
+										>
+											<span class="truncate px-1 text-[10px] font-medium text-green-600/70">
+												{cf.signer_name}
+											</span>
+											{#if cf.field_type === 'signature'}
+												<span class="truncate px-1 text-[11px] font-serif italic text-green-700/60">
+													{cf.value}
+												</span>
+											{:else if cf.value && cf.field_type !== 'checkbox'}
+												<span class="truncate px-1 text-[10px] text-green-700/50">
+													{cf.value}
+												</span>
+											{:else if cf.field_type === 'checkbox' && cf.value === 'true'}
+												<span class="text-green-600/60 text-xs">✓</span>
+											{/if}
+										</div>
+									{/each}
 								</div>
 							</div>
 						{/each}
@@ -213,7 +245,7 @@
 							{#each payload.fields as field}
 								<div class="space-y-2">
 									<Label for="field-{field.id}">
-										{fieldLabel(field)}
+										{field.label || fieldLabel(field)}
 										{#if field.required}
 											<span class="text-destructive">*</span>
 										{/if}

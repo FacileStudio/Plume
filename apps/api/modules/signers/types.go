@@ -49,9 +49,23 @@ type FieldResponse struct {
 }
 
 type SigningView struct {
-	Document DocumentInfo    `json:"document"`
-	Signer   SignerResponse  `json:"signer"`
-	Fields   []FieldResponse `json:"fields"`
+	Document        DocumentInfo             `json:"document"`
+	Signer          SignerResponse           `json:"signer"`
+	Fields          []FieldResponse          `json:"fields"`
+	CompletedFields []CompletedFieldResponse `json:"completed_fields"`
+}
+
+type CompletedFieldResponse struct {
+	ID         int64   `json:"id"`
+	SignerName string  `json:"signer_name"`
+	FieldType  string  `json:"field_type"`
+	Label      string  `json:"label"`
+	Page       int     `json:"page"`
+	X          float64 `json:"x"`
+	Y          float64 `json:"y"`
+	Width      float64 `json:"width"`
+	Height     float64 `json:"height"`
+	Value      string  `json:"value"`
 }
 
 type DocumentInfo struct {
