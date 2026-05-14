@@ -137,7 +137,7 @@
 		<span class="text-lg font-bold tracking-tight">Plume</span>
 	</header>
 
-	<main class="flex flex-1 items-start justify-center p-6">
+	<main class="flex flex-1 items-start justify-center p-6" class:items-center={loading || notFound || signed || declined}>
 		{#if loading}
 			<div class="flex flex-col items-center gap-3">
 				<Icon icon="solar:spinner-linear" class="h-8 w-8 animate-spin text-muted-foreground" />
@@ -149,10 +149,20 @@
 				<p class="text-muted-foreground">This signing link may be invalid or expired.</p>
 			</div>
 		{:else if signed}
-			<div class="flex flex-col items-center gap-4 text-center">
+			<div class="flex flex-col items-center gap-6 text-center">
 				<Icon icon="solar:check-circle-bold-duotone" class="h-14 w-14 text-green-600" />
-				<h1 class="text-xl font-semibold">Document signed successfully</h1>
-				<p class="text-muted-foreground">You can close this page.</p>
+				<div>
+					<h1 class="text-xl font-semibold">Document signed successfully</h1>
+					<p class="text-muted-foreground mt-1">You can close this page.</p>
+				</div>
+				<a
+					href={api.signing.fileUrl((page.params as Record<string, string>).token)}
+					download
+					class="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+				>
+					<Icon icon="solar:download-minimalistic-linear" class="h-4 w-4" />
+					Download document
+				</a>
 			</div>
 		{:else if declined}
 			<div class="flex flex-col items-center gap-4 text-center">
@@ -177,23 +187,32 @@
 								<div class="absolute inset-0 pointer-events-none">
 									{#each fieldsForPage(pg.num) as field}
 										{@const isActive = activeFieldId === field.id}
+										{@const val = fieldValues[String(field.id)] || ''}
 										<div
 											data-field-id={field.id}
-											class="absolute rounded-sm flex items-center justify-center text-xs transition-all duration-300"
+											class="absolute rounded-sm flex flex-col items-center justify-center text-xs transition-all duration-300 overflow-hidden"
 											style="
 												left: {field.x}%;
 												top: {field.y}%;
 												width: {field.width}%;
 												height: {field.height}%;
-												background: {isActive ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.1)'};
-												border: 2px {isActive ? 'solid' : 'dashed'} {isActive ? 'rgb(59, 130, 246)' : 'rgba(59, 130, 246, 0.4)'};
+												background: {val ? 'rgba(59, 130, 246, 0.15)' : isActive ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.1)'};
+												border: 2px {isActive ? 'solid' : 'dashed'} {isActive || val ? 'rgb(59, 130, 246)' : 'rgba(59, 130, 246, 0.4)'};
 												color: rgb(59, 130, 246);
 												{isActive ? 'box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);' : ''}
 											"
 										>
-											<span class="truncate px-1 text-[10px] font-medium opacity-70">
-												{field.label || fieldLabel(field)}
-											</span>
+											{#if val && field.field_type === 'signature'}
+												<span class="truncate px-1 text-[11px] font-serif italic">{val}</span>
+											{:else if val && field.field_type === 'checkbox'}
+												<span class="text-sm font-bold">{val === 'true' ? '✓' : ''}</span>
+											{:else if val}
+												<span class="truncate px-1 text-[10px] font-medium">{val}</span>
+											{:else}
+												<span class="truncate px-1 text-[10px] font-medium opacity-70">
+													{field.label || fieldLabel(field)}
+												</span>
+											{/if}
 										</div>
 									{/each}
 									{#each completedFieldsForPage(pg.num) as cf}
