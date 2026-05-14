@@ -7,6 +7,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Separator } from '$lib/components/ui/separator';
+	import SignaturePad from '$lib/components/signature-pad.svelte';
 	import Icon from '@iconify/svelte';
 	let payload = $state<SigningPayload | null>(null);
 	let loading = $state(true);
@@ -205,7 +206,11 @@
 											"
 										>
 											{#if val && field.field_type === 'signature'}
-												<span class="truncate px-1 text-[11px] font-serif italic">{val}</span>
+												{#if val.startsWith('data:image/')}
+													<img src={val} alt="Signature" class="h-full w-full object-contain p-0.5" />
+												{:else}
+													<span class="truncate px-1 text-[11px] font-serif italic">{val}</span>
+												{/if}
 											{:else if val && field.field_type === 'checkbox'}
 												<span class="text-sm font-bold">{val === 'true' ? '✓' : ''}</span>
 											{:else if val}
@@ -233,9 +238,13 @@
 												{cf.signer_name}
 											</span>
 											{#if cf.field_type === 'signature'}
-												<span class="truncate px-1 text-[11px] font-serif italic text-green-700/60">
-													{cf.value}
-												</span>
+												{#if cf.value.startsWith('data:image/')}
+													<img src={cf.value} alt="Signature" class="h-full w-full object-contain p-0.5 opacity-60" />
+												{:else}
+													<span class="truncate px-1 text-[11px] font-serif italic text-green-700/60">
+														{cf.value}
+													</span>
+												{/if}
 											{:else if cf.value && cf.field_type !== 'checkbox'}
 												<span class="truncate px-1 text-[10px] text-green-700/50">
 													{cf.value}
@@ -272,13 +281,9 @@
 										{/if}
 									</Label>
 									{#if field.field_type === 'signature'}
-										<Input
-											id="field-{field.id}"
-											bind:value={fieldValues[String(field.id)]}
-											placeholder="Type your full name as signature"
-											class="font-serif italic text-lg"
-											onfocus={() => scrollToField(field.id)}
-										/>
+										<div onfocusin={() => scrollToField(field.id)}>
+											<SignaturePad bind:value={fieldValues[String(field.id)]} />
+										</div>
 									{:else if field.field_type === 'date'}
 										<div class="flex items-center gap-2">
 											<Input

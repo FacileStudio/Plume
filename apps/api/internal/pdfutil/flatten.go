@@ -1,9 +1,16 @@
 package pdfutil
 
 import (
+	"bytes"
+	"encoding/base64"
+	"fmt"
+	"strings"
+
 	"github.com/go-pdf/fpdf"
 	"github.com/go-pdf/fpdf/contrib/gofpdi"
 )
+
+var sigImgCounter int
 
 type FieldOverlay struct {
 	Page      int
@@ -70,9 +77,13 @@ func drawField(pdf *fpdf.Fpdf, field FieldOverlay, pageW, pageH float64, tr func
 
 	switch field.FieldType {
 	case "signature":
-		fontSize := clampFontSize(h*0.55, 6, 24)
-		pdf.SetFont("Times", "I", fontSize)
-		pdf.Text(x+2, y+h/2+fontSize/3, tr(field.Value))
+		if strings.HasPrefix(field.Value, "data:image/") {
+			drawSignatureImage(pdf, field.Value, x, y, w, h)
+		} else {
+			fontSize := clampFontSize(h*0.55, 6, 24)
+			pdf.SetFont("Times", "I", fontSize)
+			pdf.Text(x+2, y+h/2+fontSize/3, tr(field.Value))
+		}
 
 	case "checkbox":
 		if field.Value == "true" {
@@ -115,4 +126,31 @@ func truncateToFit(pdf *fpdf.Fpdf, text string, maxW float64) string {
 		}
 	}
 	return text
+}
+
+func drawSignatureImage(pdf *fpdf.Fpdf, dataURL string, x, y, w, h float64) {
+	parts := strings.SplitN(dataURL, ",", 2)
+	if len(parts) != 2 {
+		return
+	}
+
+	imgBytes, err := base64.StdEncoding.DecodeString(parts[1])
+	if err != nil {
+		return
+	}
+
+	sigImgCounter++
+	name := fmt.Sprintf("sig_%d", sigImgCounter)
+
+	reader := bytes.NewReader(imgBytes)
+	opts := fpdf.ImageOptions{ImageType: "png"}
+	pdf.RegisterImageOptionsReader(name, opts, reader)
+
+	padding := h * 0.05
+	imgX := x + padding
+	imgY := y + padding
+	imgW := w - padding*2
+	imgH := h - padding*2
+
+	pdf.ImageOptions(name, imgX, imgY, imgW, imgH, false, opts, 0, "")
 }
