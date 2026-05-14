@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { api } from '$lib';
 	import type { Field, Signer, CreateFieldRequest } from '$lib';
 	import { Button } from '$lib/components/ui/button';
@@ -31,6 +31,7 @@
 	let loading = $state(true);
 	let pdfError = $state('');
 	let pagesContainer = $state<HTMLDivElement>();
+	let currentPage = $state(1);
 
 	let pages = $state<{ num: number; width: number; height: number }[]>([]);
 	let pageCanvases = $state<Map<number, HTMLCanvasElement>>(new Map());
@@ -45,7 +46,10 @@
 		origW: number;
 		origH: number;
 		pageNum: number;
+		pointerId: number;
 	} | null>(null);
+
+	let observer: IntersectionObserver | null = null;
 
 	function signerColor(signerId: number): string {
 		const idx = signers.findIndex((s) => s.id === signerId);
@@ -67,18 +71,17 @@
 	async function addField(fieldType: string) {
 		if (!selectedSignerId) return;
 		const defaults = FIELD_DEFAULTS[fieldType];
-		const targetPage = pages[0]?.num ?? 1;
-		const pw = pages[0]?.width ?? 600;
-		const ph = pages[0]?.height ?? 800;
+		const pageInfo = pages.find((p) => p.num === currentPage) ?? pages[0];
+		if (!pageInfo) return;
 
 		const req: CreateFieldRequest = {
 			signer_id: selectedSignerId,
 			field_type: fieldType,
-			page: targetPage,
-			x: (50 / pw) * 100,
-			y: (50 / ph) * 100,
-			width: (defaults.width / pw) * 100,
-			height: (defaults.height / ph) * 100,
+			page: pageInfo.num,
+			x: (50 / pageInfo.width) * 100,
+			y: (50 / pageInfo.height) * 100,
+			width: (defaults.width / pageInfo.width) * 100,
+			height: (defaults.height / pageInfo.height) * 100,
 			required: true
 		};
 
@@ -122,30 +125,53 @@
 			origY: field.y,
 			origW: field.width,
 			origH: field.height,
-			pageNum
+			pageNum,
+			pointerId: e.pointerId
 		};
+	}
 
-		(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+	function findPageUnderPointer(clientX: number, clientY: number): { pageNum: number; rect: DOMRect } | null {
+		if (!pagesContainer) return null;
+		const pageEls = pagesContainer.querySelectorAll<HTMLElement>('[data-page]');
+		for (const el of pageEls) {
+			const rect = el.getBoundingClientRect();
+			if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+				return { pageNum: Number(el.dataset.page), rect };
+			}
+		}
+		return null;
 	}
 
 	function handlePointerMove(e: PointerEvent) {
 		if (!dragState) return;
 		e.preventDefault();
 
-		const pageEl = pagesContainer?.querySelector(`[data-page="${dragState.pageNum}"]`) as HTMLElement;
-		if (!pageEl) return;
-
-		const rect = pageEl.getBoundingClientRect();
-		const dxPct = ((e.clientX - dragState.startX) / rect.width) * 100;
-		const dyPct = ((e.clientY - dragState.startY) / rect.height) * 100;
-
 		const field = fields.find((f) => f.id === dragState!.fieldId);
 		if (!field) return;
 
 		if (dragState.type === 'move') {
-			field.x = Math.max(0, Math.min(100 - field.width, dragState.origX + dxPct));
-			field.y = Math.max(0, Math.min(100 - field.height, dragState.origY + dyPct));
+			const hit = findPageUnderPointer(e.clientX, e.clientY);
+			if (hit) {
+				if (hit.pageNum !== dragState.pageNum) {
+					dragState.startX = e.clientX;
+					dragState.startY = e.clientY;
+					dragState.origX = field.x;
+					dragState.origY = field.y;
+					dragState.pageNum = hit.pageNum;
+					field.page = hit.pageNum;
+				}
+
+				const dxPct = ((e.clientX - dragState.startX) / hit.rect.width) * 100;
+				const dyPct = ((e.clientY - dragState.startY) / hit.rect.height) * 100;
+				field.x = Math.max(0, Math.min(100 - field.width, dragState.origX + dxPct));
+				field.y = Math.max(0, Math.min(100 - field.height, dragState.origY + dyPct));
+			}
 		} else {
+			const pageEl = pagesContainer?.querySelector(`[data-page="${dragState.pageNum}"]`) as HTMLElement;
+			if (!pageEl) return;
+			const rect = pageEl.getBoundingClientRect();
+			const dxPct = ((e.clientX - dragState.startX) / rect.width) * 100;
+			const dyPct = ((e.clientY - dragState.startY) / rect.height) * 100;
 			field.width = Math.max(2, Math.min(100 - field.x, dragState.origW + dxPct));
 			field.height = Math.max(2, Math.min(100 - field.y, dragState.origH + dyPct));
 		}
@@ -171,6 +197,27 @@
 		if (e.target === e.currentTarget) {
 			selectedFieldId = null;
 		}
+	}
+
+	function setupPageObserver() {
+		if (!pagesContainer) return;
+		observer = new IntersectionObserver(
+			(entries) => {
+				let best: { pageNum: number; ratio: number } | null = null;
+				for (const entry of entries) {
+					const pageNum = Number((entry.target as HTMLElement).dataset.page);
+					if (!best || entry.intersectionRatio > best.ratio) {
+						best = { pageNum, ratio: entry.intersectionRatio };
+					}
+				}
+				if (best && best.ratio > 0) {
+					currentPage = best.pageNum;
+				}
+			},
+			{ root: pagesContainer, threshold: [0, 0.25, 0.5, 0.75, 1] }
+		);
+		const pageEls = pagesContainer.querySelectorAll('[data-page]');
+		for (const el of pageEls) observer.observe(el);
 	}
 
 	onMount(async () => {
@@ -215,6 +262,12 @@
 			pdfError = 'Failed to load document';
 		}
 		loading = false;
+
+		requestAnimationFrame(() => setupPageObserver());
+	});
+
+	onDestroy(() => {
+		observer?.disconnect();
 	});
 </script>
 
@@ -222,7 +275,12 @@
 
 <div class="flex flex-col h-[calc(100dvh-4rem)]">
 	<div class="flex items-center justify-between px-4 py-3 border-b bg-background">
-		<h2 class="text-lg font-semibold">Prepare fields</h2>
+		<div class="flex items-center gap-3">
+			<h2 class="text-lg font-semibold">Prepare fields</h2>
+			{#if pages.length > 1}
+				<span class="text-sm text-muted-foreground">Page {currentPage} / {pages.length}</span>
+			{/if}
+		</div>
 		<Button variant="outline" onclick={onclose}>
 			<Icon icon="solar:check-circle-linear" class="h-4 w-4" />
 			Done
@@ -268,10 +326,9 @@
 										top: {field.y}%;
 										width: {field.width}%;
 										height: {field.height}%;
-										background: {color}20;
-										border: 2px solid {color};
+										background: {isSelected ? `${color}30` : `${color}20`};
+										border: 2px {isSelected ? 'dashed' : 'solid'} {color};
 										color: {color};
-										{isSelected ? `outline: 2px solid ${color}; outline-offset: 2px;` : ''}
 									"
 									onpointerdown={(e) => handlePointerDown(e, field, 'move')}
 								>
@@ -282,17 +339,20 @@
 									{#if isSelected}
 										<button
 											class="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center text-xs hover:scale-110 transition-transform"
-											onclick={(e: MouseEvent) => { e.stopPropagation(); deleteField(field.id); }}
+											onpointerdown={(e: PointerEvent) => { e.preventDefault(); e.stopPropagation(); deleteField(field.id); }}
 										>
-											<Icon icon="solar:close-circle-bold" class="h-3.5 w-3.5" />
+											<Icon icon="solar:close-circle-bold" class="h-3.5 w-3.5 pointer-events-none" />
 										</button>
 
 										<!-- svelte-ignore a11y_no_static_element_interactions -->
 										<div
-											class="absolute -bottom-1 -right-1 h-3 w-3 rounded-sm cursor-nwse-resize"
-											style="background: {color};"
+											class="absolute bottom-0 right-0 h-4 w-4 cursor-nwse-resize flex items-end justify-end"
 											onpointerdown={(e) => handlePointerDown(e, field, 'resize')}
-										></div>
+										>
+											<svg width="10" height="10" viewBox="0 0 10 10" class="pointer-events-none">
+												<path d="M10 0 L10 10 L0 10 Z" fill={color} opacity="0.7" />
+											</svg>
+										</div>
 									{/if}
 								</div>
 							{/each}
@@ -344,14 +404,22 @@
 						<div class="flex flex-col gap-1.5">
 							{#each fields as field}
 								{@const color = signerColor(field.signer_id)}
-								<button
-									class="flex items-center gap-2 rounded-md border px-3 py-2 text-sm text-left transition-colors hover:bg-muted"
-									class:bg-muted={selectedFieldId === field.id}
-									onclick={() => (selectedFieldId = field.id)}
-								>
-									<span class="h-2.5 w-2.5 rounded-full shrink-0" style="background: {color};"></span>
-									<span class="truncate">{field.field_type} &middot; p{field.page}</span>
-								</button>
+								<div class="flex items-center gap-1">
+									<button
+										class="flex flex-1 items-center gap-2 rounded-md border px-3 py-2 text-sm text-left transition-colors hover:bg-muted"
+										class:bg-muted={selectedFieldId === field.id}
+										onclick={() => (selectedFieldId = field.id)}
+									>
+										<span class="h-2.5 w-2.5 rounded-full shrink-0" style="background: {color};"></span>
+										<span class="truncate">{field.field_type} &middot; p{field.page}</span>
+									</button>
+									<button
+										class="rounded-md p-1.5 text-muted-foreground transition-colors hover:text-red-500 hover:bg-muted shrink-0"
+										onclick={() => deleteField(field.id)}
+									>
+										<Icon icon="solar:trash-bin-trash-linear" class="h-3.5 w-3.5" />
+									</button>
+								</div>
 							{/each}
 						</div>
 					</div>
@@ -360,4 +428,3 @@
 		</div>
 	{/if}
 </div>
-
