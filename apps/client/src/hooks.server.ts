@@ -15,15 +15,16 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 		headers.set('X-Real-IP', event.getClientAddress());
 
+		let body: ArrayBuffer | undefined;
+		if (event.request.method !== 'GET' && event.request.method !== 'HEAD') {
+			body = await event.request.arrayBuffer();
+		}
+
 		const res = await fetch(url, {
 			method: event.request.method,
 			headers,
-			body: event.request.method !== 'GET' && event.request.method !== 'HEAD'
-				? event.request.body
-				: undefined,
-			redirect: 'manual',
-			// @ts-expect-error duplex needed for streaming request body
-			duplex: 'half'
+			body,
+			redirect: 'manual'
 		});
 
 		const responseHeaders = new Headers();
