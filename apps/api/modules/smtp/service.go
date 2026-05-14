@@ -2,9 +2,11 @@ package smtp
 
 import (
 	"context"
+	"crypto/tls"
 	stderrors "errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/smtp"
 	"time"
 
@@ -13,6 +15,8 @@ import (
 
 	"gorm.io/gorm"
 )
+
+const smtpDialTimeout = 10 * time.Second
 
 type Service struct {
 	orm *gorm.DB
@@ -109,7 +113,10 @@ func (s *Service) testConfig(ctx context.Context, ownerID int64, to string) erro
 </body>
 </html>`
 
-	return sendEmail(record, to, subject, body)
+	if err := sendEmail(record, to, subject, body); err != nil {
+		return errors.Invalid(fmt.Sprintf("SMTP test failed: %s", err.Error()))
+	}
+	return nil
 }
 
 func (s *Service) SendSigningEmail(ownerID int64, signerName string, signerEmail string, documentName string, signingToken string, domain string) {
@@ -213,20 +220,57 @@ func (s *Service) findConfig(ctx context.Context, ownerID int64) (*schemas.SmtpC
 }
 
 func sendEmail(config *schemas.SmtpConfig, to string, subject string, htmlBody string) error {
-	from := config.FromEmail
-	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
+	addr := net.JoinHostPort(config.Host, fmt.Sprintf("%d", config.Port))
 
-	headers := fmt.Sprintf("From: %s <%s>\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=\"UTF-8\"\r\n\r\n",
-		config.FromName, from, to, subject)
+	dialer := &net.Dialer{Timeout: smtpDialTimeout}
+	conn, err := dialer.Dial("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("connect %s: %w", addr, err)
+	}
+	defer conn.Close()
 
-	msg := []byte(headers + htmlBody)
+	client, err := smtp.NewClient(conn, config.Host)
+	if err != nil {
+		return fmt.Errorf("smtp handshake: %w", err)
+	}
+	defer client.Close()
 
-	var auth smtp.Auth
-	if config.Username != "" {
-		auth = smtp.PlainAuth("", config.Username, config.Password, config.Host)
+	if ok, _ := client.Extension("STARTTLS"); ok {
+		if err := client.StartTLS(&tls.Config{ServerName: config.Host}); err != nil {
+			return fmt.Errorf("starttls: %w", err)
+		}
 	}
 
-	return smtp.SendMail(addr, auth, from, []string{to}, msg)
+	if config.Username != "" {
+		auth := smtp.PlainAuth("", config.Username, config.Password, config.Host)
+		if err := client.Auth(auth); err != nil {
+			return fmt.Errorf("authentication: %w", err)
+		}
+	}
+
+	if err := client.Mail(config.FromEmail); err != nil {
+		return fmt.Errorf("from %s: %w", config.FromEmail, err)
+	}
+	if err := client.Rcpt(to); err != nil {
+		return fmt.Errorf("recipient %s: %w", to, err)
+	}
+
+	writer, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("data: %w", err)
+	}
+
+	headers := fmt.Sprintf("From: %s <%s>\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=\"UTF-8\"\r\n\r\n",
+		config.FromName, config.FromEmail, to, subject)
+
+	if _, err := writer.Write([]byte(headers + htmlBody)); err != nil {
+		return fmt.Errorf("write body: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("close data: %w", err)
+	}
+
+	return client.Quit()
 }
 
 func toResponse(record *schemas.SmtpConfig) *ConfigResponse {
