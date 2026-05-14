@@ -413,33 +413,33 @@
 						<div class="flex flex-col gap-1.5">
 							{#each fields as field}
 								{@const color = signerColor(field.signer_id)}
-								<div class="rounded-md border transition-colors" class:border-foreground={selectedFieldId === field.id}>
-									<div class="flex items-center gap-1 px-3 py-2">
-										<button
-											class="flex flex-1 items-center gap-2 text-sm text-left"
-											onclick={() => (selectedFieldId = field.id)}
-										>
-											<span class="h-2.5 w-2.5 rounded-full shrink-0" style="background: {color};"></span>
-											<span class="truncate">{field.label || field.field_type} &middot; p{field.page}</span>
-										</button>
-										<button
-											class="rounded-md p-1.5 text-muted-foreground transition-colors hover:text-red-500 hover:bg-muted shrink-0"
-											onclick={() => deleteField(field.id)}
-										>
-											<Icon icon="solar:trash-bin-trash-linear" class="h-3.5 w-3.5" />
-										</button>
-									</div>
-									{#if selectedFieldId === field.id}
-										<div class="px-3 pb-2">
-											<input
-												type="text"
-												value={field.label || ''}
-												placeholder={field.field_type}
-												class="w-full rounded border bg-background px-2 py-1 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-												onchange={(e) => renameField(field, (e.currentTarget as HTMLInputElement).value)}
-											/>
-										</div>
+								{@const isActive = selectedFieldId === field.id}
+								<div
+									class="flex items-center gap-1.5 rounded-md border px-3 py-2 transition-colors cursor-pointer hover:bg-muted"
+									class:border-foreground={isActive}
+									class:bg-muted={isActive}
+									onclick={() => (selectedFieldId = field.id)}
+								>
+									<span class="h-2.5 w-2.5 rounded-full shrink-0" style="background: {color};"></span>
+									{#if isActive}
+										<input
+											type="text"
+											value={field.label || ''}
+											placeholder={field.field_type}
+											class="flex-1 min-w-0 bg-transparent text-sm border-none outline-none placeholder:text-muted-foreground"
+											onclick={(e) => e.stopPropagation()}
+											onchange={(e) => renameField(field, (e.currentTarget as HTMLInputElement).value)}
+										/>
+									{:else}
+										<span class="flex-1 min-w-0 truncate text-sm">{field.label || field.field_type}</span>
 									{/if}
+									<span class="text-[10px] text-muted-foreground shrink-0">p{field.page}</span>
+									<button
+										class="rounded-md p-1 text-muted-foreground transition-colors hover:text-red-500 shrink-0"
+										onclick={(e) => { e.stopPropagation(); deleteField(field.id); }}
+									>
+										<Icon icon="solar:trash-bin-trash-linear" class="h-3.5 w-3.5" />
+									</button>
 								</div>
 							{/each}
 						</div>
