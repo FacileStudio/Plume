@@ -48,12 +48,12 @@ Self-hosted document signing. Go + SvelteKit. DocuSeal alternative, single-tenan
 - [x] Signature pad (draw signature on canvas)
 - [x] Audit trail PDF generation (full event log per document)
 - [x] Public document verification (SHA-256 fingerprint match, /verify page, rate-limited)
+- [x] Reminders (manual resend endpoint + hourly auto-resend ticker, per-user interval setting)
 - [ ] Document templates (reusable field layouts)
-- [ ] Reminders (automatic re-send for pending signers)
 
 ## Medium-term
 
-- [ ] Multi-signer ordering (sequential signing flow enforcement)
+- [x] Multi-signer ordering (sequential signing flow enforcement)
 - [ ] Bulk send from CSV (batch create documents + signers)
 - [ ] API keys for programmatic access
 - [ ] Digital signatures (PKI, X.509, PKCS#7)
