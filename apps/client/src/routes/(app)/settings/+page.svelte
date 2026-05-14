@@ -91,7 +91,7 @@
 					onclick={() => { resetWebhookForm(); showWebhookForm = true; }}
 					class="flex items-center gap-1.5 rounded-full bg-foreground px-3 py-1 text-sm font-medium text-background transition-colors hover:bg-foreground/90"
 				>
-					<Icon icon="solar:add-circle-linear" class="h-4 w-4" />
+					<Icon icon="mdi:plus-circle-outline" class="h-4 w-4" />
 					Add
 				</button>
 			{/if}
@@ -103,7 +103,7 @@
 				onclick={() => (showWebhookForm = true)}
 				class="flex items-center gap-2 rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:text-foreground w-full justify-center"
 			>
-				<Icon icon="solar:add-circle-linear" class="h-4 w-4" />
+				<Icon icon="mdi:plus-circle-outline" class="h-4 w-4" />
 				Add Webhook
 			</button>
 		{/if}

@@ -114,7 +114,7 @@
 					onclick={addSigner}
 					class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
 				>
-					<Icon icon="solar:add-circle-linear" class="h-4 w-4" />
+					<Icon icon="mdi:plus-circle-outline" class="h-4 w-4" />
 					Add signer
 				</button>
 			</div>
@@ -147,7 +147,7 @@
 				<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
 				Creating...
 			{:else}
-				<Icon icon="solar:document-add-linear" class="h-4 w-4" />
+				<Icon icon="mdi:file-document-plus-outline" class="h-4 w-4" />
 				Create document
 			{/if}
 		</Button>

@@ -38,7 +38,7 @@
 <div class="flex items-center justify-between mb-8">
 	<h1 class="text-2xl font-bold">Documents</h1>
 	<Button href="/documents/new">
-		<Icon icon="solar:add-circle-linear" class="h-4 w-4" />
+		<Icon icon="mdi:plus-circle-outline" class="h-4 w-4" />
 		New document
 	</Button>
 </div>
@@ -52,7 +52,7 @@
 		<Icon icon="solar:document-linear" class="h-10 w-10 text-muted-foreground mb-3" />
 		<p class="text-muted-foreground">No documents yet. Create your first one.</p>
 		<Button href="/documents/new" variant="outline" class="mt-4">
-			<Icon icon="solar:add-circle-linear" class="h-4 w-4" />
+			<Icon icon="mdi:plus-circle-outline" class="h-4 w-4" />
 			New document
 		</Button>
 	</div>

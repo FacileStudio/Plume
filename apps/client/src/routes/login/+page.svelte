@@ -58,7 +58,7 @@
 <div class="flex min-h-screen">
 	<div class="hidden lg:flex lg:w-1/2 flex-col bg-black px-12 py-10">
 		<a href="/" class="flex items-center gap-3 mb-auto">
-			<Icon icon="solar:document-add-bold-duotone" class="w-7 h-7 text-white" />
+			<Icon icon="mdi:file-document-plus" class="w-7 h-7 text-white" />
 			<span class="text-xl font-bold tracking-tight text-white">Plume</span>
 		</a>
 
