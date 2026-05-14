@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"api/internal/errors"
+	"api/internal/hashing"
 	"api/internal/pdfutil"
 	"api/modules/smtp"
 	"api/modules/webhooks"
@@ -49,10 +50,13 @@ func (s *Service) Create(ctx context.Context, ownerID string, name string, fileN
 	return toResponse(record), nil
 }
 
-func (s *Service) UpdateStoragePath(ctx context.Context, docID int64, path string) error {
-	err := s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("id = ?", docID).Update("storage_path", path).Error
+func (s *Service) UpdateStorage(ctx context.Context, docID int64, path string, originalHash string) error {
+	err := s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("id = ?", docID).Updates(map[string]any{
+		"storage_path":  path,
+		"original_hash": originalHash,
+	}).Error
 	if err != nil {
-		return errors.Internal("failed to update storage path", err)
+		return errors.Internal("failed to update storage", err)
 	}
 	return nil
 }
@@ -90,6 +94,7 @@ func (s *Service) GetFilePathByDocID(ctx context.Context, docID int64) (string, 
 func (s *Service) getOrCreateSignedFile(ctx context.Context, docID int64, originalPath string) (string, error) {
 	signedPath := strings.TrimSuffix(originalPath, ".pdf") + "_signed.pdf"
 	if _, err := os.Stat(signedPath); err == nil {
+		s.ensureSignedHash(ctx, docID, signedPath)
 		return signedPath, nil
 	}
 
@@ -114,7 +119,23 @@ func (s *Service) getOrCreateSignedFile(ctx context.Context, docID int64, origin
 	if err := pdfutil.FlattenFields(originalPath, signedPath, overlays); err != nil {
 		return "", errors.Internal("failed to generate signed document", err)
 	}
+	s.ensureSignedHash(ctx, docID, signedPath)
 	return signedPath, nil
+}
+
+func (s *Service) ensureSignedHash(ctx context.Context, docID int64, signedPath string) {
+	var current schemas.Document
+	if err := s.orm.WithContext(ctx).Select("signed_hash").Where("id = ?", docID).First(&current).Error; err != nil {
+		return
+	}
+	if current.SignedHash != "" {
+		return
+	}
+	hash, err := hashing.SHA256File(signedPath)
+	if err != nil {
+		return
+	}
+	s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("id = ?", docID).Update("signed_hash", hash)
 }
 
 func (s *Service) List(ctx context.Context, ownerID string, status string) ([]DocumentResponse, error) {
@@ -266,6 +287,62 @@ func (s *Service) UpdateStatus(ctx context.Context, docID int64, status string) 
 	return s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("id = ?", docID).Update("status", status).Error
 }
 
+func (s *Service) FindByHash(ctx context.Context, hash string) (*schemas.Document, bool, error) {
+	var record schemas.Document
+	err := s.orm.WithContext(ctx).
+		Where("original_hash = ? OR signed_hash = ?", hash, hash).
+		First(&record).Error
+	if stderrors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, errors.Internal("failed to look up document", err)
+	}
+	matchedSigned := record.SignedHash == hash
+	return &record, matchedSigned, nil
+}
+
+func (s *Service) UploadDir() string {
+	return s.uploadDir
+}
+
+func (s *Service) BackfillHashes(ctx context.Context) (int, error) {
+	var docs []schemas.Document
+	if err := s.orm.WithContext(ctx).
+		Where("storage_path <> '' AND (original_hash IS NULL OR original_hash = '')").
+		Find(&docs).Error; err != nil {
+		return 0, errors.Internal("failed to load documents for backfill", err)
+	}
+
+	updated := 0
+	for i := range docs {
+		doc := &docs[i]
+		path := filepath.Join(s.uploadDir, doc.StoragePath)
+		hash, err := hashing.SHA256File(path)
+		if err != nil {
+			continue
+		}
+		if err := s.orm.WithContext(ctx).Model(&schemas.Document{}).
+			Where("id = ?", doc.ID).
+			Update("original_hash", hash).Error; err != nil {
+			continue
+		}
+		updated++
+
+		if doc.Status == "completed" {
+			signedPath := strings.TrimSuffix(path, ".pdf") + "_signed.pdf"
+			if _, statErr := os.Stat(signedPath); statErr == nil {
+				if signedHash, hashErr := hashing.SHA256File(signedPath); hashErr == nil {
+					s.orm.WithContext(ctx).Model(&schemas.Document{}).
+						Where("id = ?", doc.ID).
+						Update("signed_hash", signedHash)
+				}
+			}
+		}
+	}
+	return updated, nil
+}
+
 func generateToken() string {
 	b := make([]byte, 32)
 	rand.Read(b)
@@ -274,12 +351,14 @@ func generateToken() string {
 
 func toResponse(record *schemas.Document) *DocumentResponse {
 	return &DocumentResponse{
-		ID:        record.ID,
-		Name:      record.Name,
-		Status:    record.Status,
-		FileName:  record.FileName,
-		OwnerID:   record.OwnerID,
-		CreatedAt: record.CreatedAt,
-		UpdatedAt: record.UpdatedAt,
+		ID:           record.ID,
+		Name:         record.Name,
+		Status:       record.Status,
+		FileName:     record.FileName,
+		OwnerID:      record.OwnerID,
+		OriginalHash: record.OriginalHash,
+		SignedHash:   record.SignedHash,
+		CreatedAt:    record.CreatedAt,
+		UpdatedAt:    record.UpdatedAt,
 	}
 }

@@ -22,6 +22,7 @@ import (
 	"api/modules/signers"
 	"api/modules/signing"
 	"api/modules/smtp"
+	"api/modules/verify"
 	"api/modules/webhooks"
 	"api/schemas"
 
@@ -66,6 +67,18 @@ func main() {
 	signerService := signers.NewService(db, docService, webhookService, smtpService, appEnv.Domain)
 	fieldService := fields.NewService(db, docService)
 	signingService := signing.NewService(db, appEnv.UploadDir, docService)
+	verifyService := verify.NewService(db, docService)
+
+	go func() {
+		count, err := docService.BackfillHashes(context.Background())
+		if err != nil {
+			appLogger.Warn("hash backfill failed", slog.Any("error", err))
+			return
+		}
+		if count > 0 {
+			appLogger.Info("hash backfill complete", slog.Int("documents", count))
+		}
+	}()
 
 	docs := documentation.Response{
 		Modules: []documentation.Module{
@@ -107,6 +120,9 @@ func main() {
 	signers.RegisterRoutes(router, signerService, authService)
 	webhooks.RegisterRoutes(router, webhookService, authService)
 	smtp.RegisterRoutes(router, smtpService, authService)
+
+	verifyLimiter := middleware.NewRateLimiter(30, 10).Handler()
+	verify.RegisterRoutes(router, verifyService, verifyLimiter)
 
 	addr := ":" + appEnv.Port
 	server := &http.Server{

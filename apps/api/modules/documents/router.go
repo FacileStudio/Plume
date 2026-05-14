@@ -1,6 +1,8 @@
 package documents
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net/http"
@@ -68,16 +70,19 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 			}
 			defer dst.Close()
 
-			if _, err := io.Copy(dst, file); err != nil {
+			hasher := sha256.New()
+			if _, err := io.Copy(io.MultiWriter(dst, hasher), file); err != nil {
 				httpjson.WriteError(w, errors.Internal("failed to write file", err))
 				return
 			}
+			originalHash := hex.EncodeToString(hasher.Sum(nil))
 
 			relativePath := filepath.Join(identity.UserID, storedName)
-			if err := service.UpdateStoragePath(request.Context(), resp.ID, relativePath); err != nil {
+			if err := service.UpdateStorage(request.Context(), resp.ID, relativePath, originalHash); err != nil {
 				httpjson.WriteError(w, err)
 				return
 			}
+			resp.OriginalHash = originalHash
 
 			httpjson.WriteJSON(w, http.StatusCreated, resp)
 		})

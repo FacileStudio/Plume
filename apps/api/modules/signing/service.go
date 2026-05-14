@@ -2,10 +2,7 @@ package signing
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -13,6 +10,7 @@ import (
 	"time"
 
 	"api/internal/errors"
+	"api/internal/hashing"
 	"api/modules/documents"
 	"api/schemas"
 
@@ -437,18 +435,15 @@ func (s *Service) drawEvent(pdf *fpdf.Fpdf, t time.Time, title, detail string) {
 }
 
 func (s *Service) hashDocumentFile(doc *schemas.Document) string {
+	if doc.OriginalHash != "" {
+		return doc.OriginalHash
+	}
 	if doc.StoragePath == "" {
 		return ""
 	}
-	filePath := filepath.Join(s.uploadDir, doc.StoragePath)
-	f, err := os.Open(filePath)
+	hash, err := hashing.SHA256File(filepath.Join(s.uploadDir, doc.StoragePath))
 	if err != nil {
 		return ""
 	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return ""
-	}
-	return hex.EncodeToString(h.Sum(nil))
+	return hash
 }

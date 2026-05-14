@@ -32,10 +32,16 @@
 
 <div class="flex items-center justify-between mb-8">
 	<h1 class="text-2xl font-bold">Dashboard</h1>
-	<Button href="/documents/new">
-		<Icon icon="mdi:plus" class="h-4 w-4" />
-		New document
-	</Button>
+	<div class="flex items-center gap-2">
+		<Button variant="outline" href="/verify">
+			<Icon icon="solar:shield-check-linear" class="h-4 w-4" />
+			Verify a document
+		</Button>
+		<Button href="/documents/new">
+			<Icon icon="mdi:plus" class="h-4 w-4" />
+			New document
+		</Button>
+	</div>
 </div>
 
 {#if loading}

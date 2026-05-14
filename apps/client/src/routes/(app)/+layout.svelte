@@ -11,6 +11,7 @@
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Settings from '@lucide/svelte/icons/settings';
 	import LogOut from '@lucide/svelte/icons/log-out';
+	import ShieldCheck from '@lucide/svelte/icons/shield-check';
 
 	let { children } = $props();
 
@@ -42,6 +43,7 @@
 	const navLinks = [
 		{ href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
 		{ href: '/documents', label: 'Documents', icon: FileText },
+		{ href: '/verify', label: 'Verify', icon: ShieldCheck },
 		{ href: '/settings', label: 'Settings', icon: Settings }
 	];
 </script>

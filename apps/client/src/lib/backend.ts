@@ -40,12 +40,14 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 	return data as T;
 }
 
-async function upload<T>(method: string, path: string, formData: FormData): Promise<T> {
+async function upload<T>(method: string, path: string, formData: FormData, opts?: { auth?: boolean }): Promise<T> {
 	const headers: Record<string, string> = {};
 
-	const token = getToken();
-	if (token) {
-		headers['Authorization'] = `Bearer ${token}`;
+	if (opts?.auth !== false) {
+		const token = getToken();
+		if (token) {
+			headers['Authorization'] = `Bearer ${token}`;
+		}
 	}
 
 	const res = await fetch(`/api${path}`, {
@@ -134,6 +136,20 @@ export const api = {
 			}),
 		decline: (token: string, reason?: string) =>
 			request<{ status: string }>('POST', `/sign/${token}/decline`, { reason })
+	},
+	verify: {
+		check: (file: File) => {
+			const formData = new FormData();
+			formData.append('file', file);
+			return upload<VerifyResponse>('POST', '/verify', formData, { auth: false });
+		},
+		byHash: (hash: string) =>
+			fetch(`/api/verify/${hash}`)
+				.then(async (res) => {
+					const data = await res.json();
+					if (!res.ok) throw new Error(data?.error?.message ?? 'Request failed');
+					return data as VerifyResponse;
+				})
 	}
 };
 
@@ -255,4 +271,27 @@ export interface SigningPayload {
 	};
 	fields: Field[];
 	completed_fields: CompletedField[];
+}
+
+export interface VerifyDocument {
+	name: string;
+	file_name: string;
+	status: 'draft' | 'pending' | 'completed' | 'declined';
+	created_at: string;
+	completed_at?: string;
+}
+
+export interface VerifySigner {
+	name: string;
+	email: string;
+	status: 'pending' | 'signed' | 'declined';
+	signed_at?: string | null;
+}
+
+export interface VerifyResponse {
+	match: boolean;
+	hash: string;
+	variant?: 'original' | 'signed';
+	document?: VerifyDocument;
+	signers?: VerifySigner[];
 }
