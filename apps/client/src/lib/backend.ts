@@ -116,7 +116,9 @@ export const api = {
 	signing: {
 		get: (token: string) => request<SigningPayload>('GET', `/sign/${token}`),
 		sign: (token: string, fields: Record<string, string>) =>
-			request<{ status: string }>('POST', `/sign/${token}`, { fields }),
+			request<{ status: string }>('POST', `/sign/${token}`, {
+				fields: Object.entries(fields).map(([id, value]) => ({ field_id: Number(id), value }))
+			}),
 		decline: (token: string, reason?: string) =>
 			request<{ status: string }>('POST', `/sign/${token}/decline`, { reason })
 	}
