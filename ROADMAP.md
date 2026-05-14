@@ -43,9 +43,8 @@ Self-hosted document signing. Go + SvelteKit. DocuSeal alternative, single-tenan
 
 ## Short-term
 
-- [ ] Signature pad (draw signature on canvas)
-- [ ] Download signed document with embedded field values (stamp onto original PDF)
-- [ ] Audit trail PDF generation (full event log per document)
+- [x] Signature pad (draw signature on canvas)
+- [x] Audit trail PDF generation (full event log per document)
 - [ ] Document templates (reusable field layouts)
 - [ ] Reminders (automatic re-send for pending signers)
 

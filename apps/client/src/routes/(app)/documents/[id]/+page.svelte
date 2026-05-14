@@ -17,6 +17,7 @@
 	let copiedId = $state<number | null>(null);
 	let downloading = $state(false);
 	let downloadingDoc = $state(false);
+	let downloadingAudit = $state(false);
 	let showFieldEditor = $state(false);
 
 	function copySigningLink(signer: Signer) {
@@ -61,6 +62,10 @@
 
 	function downloadDocument() {
 		downloadFile(api.documents.fileUrl(doc!.id), `${doc!.name}.pdf`, (v) => (downloadingDoc = v));
+	}
+
+	function downloadAuditTrail() {
+		downloadFile(api.documents.auditTrailUrl(doc!.id), `${doc!.name}_audit_trail.pdf`, (v) => (downloadingAudit = v));
 	}
 
 	async function sendForSigning() {
@@ -140,6 +145,14 @@
 						<Icon icon="solar:document-linear" class="h-4 w-4" />
 					{/if}
 					Download certificate
+				</Button>
+				<Button variant="outline" onclick={downloadAuditTrail} disabled={downloadingAudit}>
+					{#if downloadingAudit}
+						<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
+					{:else}
+						<Icon icon="solar:shield-check-linear" class="h-4 w-4" />
+					{/if}
+					Audit trail
 				</Button>
 			{/if}
 

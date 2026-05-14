@@ -91,7 +91,8 @@ export const api = {
 		send: (id: number) => request<Document>('POST', `/documents/${id}/send`),
 		stats: () => request<DocumentStats>('GET', '/documents/stats'),
 		certificateUrl: (id: number) => `/api/documents/${id}/certificate`,
-		fileUrl: (id: number) => `/api/documents/${id}/file`
+		fileUrl: (id: number) => `/api/documents/${id}/file`,
+		auditTrailUrl: (id: number) => `/api/documents/${id}/audit-trail`
 	},
 	signers: {
 		list: (documentId: number) => request<Signer[]>('GET', `/documents/${documentId}/signers`),
