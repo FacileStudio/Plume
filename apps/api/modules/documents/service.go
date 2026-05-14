@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"api/internal/errors"
 	"api/internal/hashing"
@@ -231,6 +232,14 @@ func (s *Service) Send(ctx context.Context, ownerID string, docID string) (*Docu
 	}
 
 	uid, _ := strconv.ParseInt(ownerID, 10, 64)
+	now := time.Now().UTC()
+	dispatchInvitation := func(signer *schemas.Signer) {
+		s.orm.WithContext(ctx).Model(&schemas.Signer{}).
+			Where("id = ?", signer.ID).
+			Update("last_reminded_at", now)
+		go s.smtp.SendSigningEmail(uid, signer.Name, signer.Email, record.Name, signer.Token, s.domain)
+	}
+
 	if record.Sequential {
 		minOrder := 0
 		found := false
@@ -246,14 +255,14 @@ func (s *Service) Send(ctx context.Context, ownerID string, docID string) (*Docu
 		if found {
 			for i := range signers {
 				if (signers[i].Role == "signer" || signers[i].Role == "approver") && signers[i].OrderNum == minOrder {
-					go s.smtp.SendSigningEmail(uid, signers[i].Name, signers[i].Email, record.Name, signers[i].Token, s.domain)
+					dispatchInvitation(&signers[i])
 				}
 			}
 		}
 	} else {
 		for i := range signers {
 			if signers[i].Role == "signer" || signers[i].Role == "approver" {
-				go s.smtp.SendSigningEmail(uid, signers[i].Name, signers[i].Email, record.Name, signers[i].Token, s.domain)
+				dispatchInvitation(&signers[i])
 			}
 		}
 	}

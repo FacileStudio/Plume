@@ -347,10 +347,14 @@ func (s *Service) notifyNextSequentialSigners(ctx context.Context, doc *schemas.
 		return
 	}
 	minOrder := nextSigners[0].OrderNum
+	now := time.Now().UTC()
 	for i := range nextSigners {
 		if nextSigners[i].OrderNum != minOrder {
 			continue
 		}
+		s.orm.WithContext(ctx).Model(&schemas.Signer{}).
+			Where("id = ?", nextSigners[i].ID).
+			Update("last_reminded_at", now)
 		go s.smtpSvc.SendSigningEmail(doc.OwnerID, nextSigners[i].Name, nextSigners[i].Email, doc.Name, nextSigners[i].Token, s.domain)
 	}
 }

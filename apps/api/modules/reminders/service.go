@@ -71,6 +71,15 @@ func (s *Service) RemindSigner(ctx context.Context, ownerID string, signerID str
 	if signer.Token == "" {
 		return nil, errors.Invalid("signer has no signing link")
 	}
+	if doc.Sequential {
+		active, err := s.isActiveSequentialSigner(ctx, &doc, &signer)
+		if err != nil {
+			return nil, err
+		}
+		if !active {
+			return nil, errors.Invalid("signer is waiting for an earlier signer to sign first")
+		}
+	}
 
 	now := s.now()
 	if signer.LastRemindedAt != nil && now.Sub(*signer.LastRemindedAt) < manualResendCooldown {
@@ -148,6 +157,13 @@ func (s *Service) runForUser(ctx context.Context, user *schemas.User, now time.T
 		Where("s.role <> ?", "viewer").
 		Where("s.created_at <= ?", minAgeCutoff).
 		Where("s.last_reminded_at IS NULL OR s.last_reminded_at < ?", cutoff).
+		Where(`NOT (d.sequential = true AND EXISTS (
+			SELECT 1 FROM signers s2
+			WHERE s2.document_id = s.document_id
+			  AND s2.status = 'pending'
+			  AND s2.role IN ('signer', 'approver')
+			  AND s2.order_num < s.order_num
+		))`).
 		Scan(&rows).Error
 	if err != nil {
 		return 0, err
@@ -172,6 +188,25 @@ func (s *Service) runForUser(ctx context.Context, user *schemas.User, now time.T
 		sent++
 	}
 	return sent, nil
+}
+
+func (s *Service) isActiveSequentialSigner(ctx context.Context, doc *schemas.Document, signer *schemas.Signer) (bool, error) {
+	if signer.Role != "signer" && signer.Role != "approver" {
+		return true, nil
+	}
+	var minOrder *int
+	err := s.orm.WithContext(ctx).
+		Table("signers").
+		Where("document_id = ? AND status = ? AND role IN ?", doc.ID, "pending", []string{"signer", "approver"}).
+		Select("MIN(order_num)").
+		Scan(&minOrder).Error
+	if err != nil {
+		return false, errors.Internal("failed to evaluate signing order", err)
+	}
+	if minOrder == nil {
+		return true, nil
+	}
+	return signer.OrderNum <= *minOrder, nil
 }
 
 func shouldRemind(createdAt time.Time, lastRemindedAt *time.Time, intervalDays int, now time.Time) bool {
