@@ -39,6 +39,8 @@ Self-hosted document signing. Go + SvelteKit. DocuSeal alternative, single-tenan
 - [x] Today button for date fields (auto-fill current date)
 - [x] Download document button on signing success screen
 - [x] Download document and certificate buttons on document detail page
+- [x] Audit trail download button on document detail page
+- [x] Copy signing link button per signer on document detail page
 - [x] Centered status screens (signed, declined, not found)
 
 ## Short-term
