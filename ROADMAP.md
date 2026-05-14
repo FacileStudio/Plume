@@ -21,26 +21,36 @@ Self-hosted document signing. Go + SvelteKit. DocuSeal alternative, single-tenan
 - [x] Docker Compose deployment (db + api + client, named volumes)
 - [x] Webhook dispatching with HMAC-SHA256 signing
 - [x] Minimalist black & white UI, Solar / Iconify icons
+- [x] Webhook dispatch on document/signer events (sent, signed, declined, completed)
+- [x] Owner notification emails (signed/declined events)
+- [x] Audit trail in API (IP address + user agent on signer responses)
+- [x] PDF viewer on signing page (pdfjs-dist, side-by-side layout)
+- [x] Field CRUD API (create, update, delete fields on draft documents)
+- [x] Drag-and-drop field placement on PDF pages (field editor with cross-page drag)
+- [x] Field labels and renaming in field editor
+- [x] Signer color-coded field overlays (per-signer palette)
+- [x] Field overlays on signing page with scroll-to-field on input focus
+- [x] Signature certificate PDF generation (lazy, on-demand download)
+- [x] Delete confirmation modal (shadcn alert dialog)
+- [x] Field types: signature, text, date, checkbox
 
 ## Short-term
 
-- [ ] PDF viewer (render uploaded PDF pages in browser)
-- [ ] Drag-and-drop field placement on PDF pages
 - [ ] Signature pad (draw signature on canvas)
-- [ ] Audit trail PDF generation (event log per document)
-- [ ] Field types: initials, text, date, checkbox (signature exists)
-- [ ] Download signed document with embedded field values
+- [ ] Download signed document with embedded field values (stamp onto original PDF)
+- [ ] Audit trail PDF generation (full event log per document)
+- [ ] Document templates (reusable field layouts)
+- [ ] Reminders (automatic re-send for pending signers)
 
 ## Medium-term
 
-- [ ] Document templates (reusable field layouts)
 - [ ] Multi-signer ordering (sequential signing flow enforcement)
 - [ ] Bulk send from CSV (batch create documents + signers)
 - [ ] API keys for programmatic access
 - [ ] Digital signatures (PKI, X.509, PKCS#7)
 - [ ] RFC 3161 timestamp server support
 - [ ] Custom PKCS#12 certificate upload
-- [ ] Reminders (automatic re-send for pending signers)
+- [ ] Branding customization (logo, colors in emails and signing page)
 
 ## Long-term
 
@@ -52,4 +62,3 @@ Self-hosted document signing. Go + SvelteKit. DocuSeal alternative, single-tenan
 - [ ] Mobile-optimized signing experience
 - [ ] Data retention policies and auto-cleanup
 - [ ] Import from DocuSign / HelloSign
-- [ ] Branding customization (logo, colors in emails and signing page)
