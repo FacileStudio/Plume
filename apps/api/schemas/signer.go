@@ -9,7 +9,7 @@ type Signer struct {
 	Email      string     `gorm:"column:email"`
 	Role       string     `gorm:"column:role;default:signer"`
 	Status     string     `gorm:"column:status;default:pending"`
-	Token      string     `gorm:"column:token;uniqueIndex"`
+	Token      string     `gorm:"column:token;uniqueIndex:,where:token <> ''"`
 	OrderNum   int        `gorm:"column:order_num;default:0"`
 	SignedAt   *time.Time `gorm:"column:signed_at"`
 	IPAddress  string     `gorm:"column:ip_address"`
