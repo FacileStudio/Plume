@@ -19,6 +19,8 @@ func FlattenFields(inputPath, outputPath string, fields []FieldOverlay) error {
 	pdf := fpdf.New("P", "pt", "A4", "")
 	pdf.SetAutoPageBreak(false, 0)
 
+	tr := pdf.UnicodeTranslatorFromDescriptor("")
+
 	imp := gofpdi.NewImporter()
 
 	tpl1 := imp.ImportPage(pdf, inputPath, 1, "/MediaBox")
@@ -51,14 +53,14 @@ func FlattenFields(inputPath, outputPath string, fields []FieldOverlay) error {
 		imp.UseImportedTemplate(pdf, tplID, 0, 0, w, h)
 
 		for _, field := range fieldsByPage[pageNum] {
-			drawField(pdf, field, w, h)
+			drawField(pdf, field, w, h, tr)
 		}
 	}
 
 	return pdf.OutputFileAndClose(outputPath)
 }
 
-func drawField(pdf *fpdf.Fpdf, field FieldOverlay, pageW, pageH float64) {
+func drawField(pdf *fpdf.Fpdf, field FieldOverlay, pageW, pageH float64, tr func(string) string) {
 	x := field.X / 100 * pageW
 	y := field.Y / 100 * pageH
 	w := field.Width / 100 * pageW
@@ -70,7 +72,7 @@ func drawField(pdf *fpdf.Fpdf, field FieldOverlay, pageW, pageH float64) {
 	case "signature":
 		fontSize := clampFontSize(h*0.55, 6, 24)
 		pdf.SetFont("Times", "I", fontSize)
-		pdf.Text(x+2, y+h/2+fontSize/3, field.Value)
+		pdf.Text(x+2, y+h/2+fontSize/3, tr(field.Value))
 
 	case "checkbox":
 		if field.Value == "true" {
@@ -87,7 +89,7 @@ func drawField(pdf *fpdf.Fpdf, field FieldOverlay, pageW, pageH float64) {
 	default:
 		fontSize := clampFontSize(h*0.55, 6, 14)
 		pdf.SetFont("Helvetica", "", fontSize)
-		text := truncateToFit(pdf, field.Value, w-4)
+		text := truncateToFit(pdf, tr(field.Value), w-4)
 		pdf.Text(x+2, y+h/2+fontSize/3, text)
 	}
 }
