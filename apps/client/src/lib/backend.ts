@@ -89,7 +89,8 @@ export const api = {
 		},
 		delete: (id: number) => request<void>('DELETE', `/documents/${id}`),
 		send: (id: number) => request<Document>('POST', `/documents/${id}/send`),
-		stats: () => request<DocumentStats>('GET', '/documents/stats')
+		stats: () => request<DocumentStats>('GET', '/documents/stats'),
+		certificateUrl: (id: number) => `/api/documents/${id}/certificate`
 	},
 	signers: {
 		list: (documentId: number) => request<Signer[]>('GET', `/documents/${documentId}/signers`),
@@ -97,6 +98,15 @@ export const api = {
 			request<Signer>('POST', `/documents/${documentId}/signers`, { name, email }),
 		remove: (signerId: number) =>
 			request<void>('DELETE', `/signers/${signerId}`)
+	},
+	fields: {
+		list: (documentId: number) => request<Field[]>('GET', `/documents/${documentId}/fields`),
+		create: (documentId: number, data: CreateFieldRequest) =>
+			request<Field>('POST', `/documents/${documentId}/fields`, data),
+		update: (documentId: number, fieldId: number, data: UpdateFieldRequest) =>
+			request<Field>('PUT', `/documents/${documentId}/fields/${fieldId}`, data),
+		delete: (documentId: number, fieldId: number) =>
+			request<void>('DELETE', `/documents/${documentId}/fields/${fieldId}`)
 	},
 	webhooks: {
 		list: () => request<Webhook[]>('GET', '/webhooks'),
@@ -114,6 +124,7 @@ export const api = {
 		test: (to: string) => request<{ status: string }>('POST', '/smtp/test', { to })
 	},
 	signing: {
+		fileUrl: (token: string) => `/api/sign/${token}/file`,
 		get: (token: string) => request<SigningPayload>('GET', `/sign/${token}`),
 		sign: (token: string, fields: Record<string, string>) =>
 			request<{ status: string }>('POST', `/sign/${token}`, {
@@ -166,6 +177,8 @@ export interface Signer {
 	status: 'pending' | 'signed' | 'declined';
 	token: string;
 	signed_at: string | null;
+	ip_address?: string;
+	user_agent?: string;
 }
 
 export interface Field {
@@ -180,6 +193,27 @@ export interface Field {
 	height: number;
 	required: boolean;
 	value: string | null;
+}
+
+export interface CreateFieldRequest {
+	signer_id: number;
+	field_type: string;
+	page: number;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	required: boolean;
+}
+
+export interface UpdateFieldRequest {
+	field_type: string;
+	page: number;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+	required: boolean;
 }
 
 export interface Webhook {

@@ -18,7 +18,9 @@ import (
 	"api/internal/middleware"
 	"api/modules/auth"
 	"api/modules/documents"
+	"api/modules/fields"
 	"api/modules/signers"
+	"api/modules/signing"
 	"api/modules/smtp"
 	"api/modules/webhooks"
 	"api/schemas"
@@ -59,9 +61,11 @@ func main() {
 
 	authService := auth.NewService(db)
 	smtpService := smtp.NewService(db)
-	docService := documents.NewService(db, smtpService, appEnv.Domain, appEnv.UploadDir)
-	signerService := signers.NewService(db, docService)
 	webhookService := webhooks.NewService(db)
+	docService := documents.NewService(db, smtpService, webhookService, appEnv.Domain, appEnv.UploadDir)
+	signerService := signers.NewService(db, docService, webhookService, smtpService, appEnv.Domain)
+	fieldService := fields.NewService(db, docService)
+	signingService := signing.NewService(db, appEnv.UploadDir, docService)
 
 	docs := documentation.Response{
 		Modules: []documentation.Module{
@@ -95,7 +99,11 @@ func main() {
 	})
 
 	auth.RegisterRoutes(router, authService, appEnv)
-	documents.RegisterRoutes(router, docService, authService, signers.DocumentRoutes(signerService))
+	documents.RegisterRoutes(router, docService, authService,
+		signers.DocumentRoutes(signerService),
+		fields.DocumentRoutes(fieldService),
+		signing.DocumentRoutes(signingService),
+	)
 	signers.RegisterRoutes(router, signerService, authService)
 	webhooks.RegisterRoutes(router, webhookService, authService)
 	smtp.RegisterRoutes(router, smtpService, authService)

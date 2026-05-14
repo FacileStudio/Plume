@@ -8,6 +8,8 @@ import (
 
 	"api/internal/errors"
 	"api/modules/documents"
+	"api/modules/smtp"
+	"api/modules/webhooks"
 	"api/schemas"
 
 	"gorm.io/gorm"
@@ -22,10 +24,13 @@ var validRoles = map[string]bool{
 type Service struct {
 	orm        *gorm.DB
 	docService *documents.Service
+	webhookSvc *webhooks.Service
+	smtpSvc    *smtp.Service
+	domain     string
 }
 
-func NewService(orm *gorm.DB, docService *documents.Service) *Service {
-	return &Service{orm: orm, docService: docService}
+func NewService(orm *gorm.DB, docService *documents.Service, webhookSvc *webhooks.Service, smtpSvc *smtp.Service, domain string) *Service {
+	return &Service{orm: orm, docService: docService, webhookSvc: webhookSvc, smtpSvc: smtpSvc, domain: domain}
 }
 
 func (s *Service) ListSigners(ctx context.Context, ownerID string, docID string) ([]SignerResponse, error) {
@@ -201,6 +206,23 @@ func (s *Service) SubmitSignature(ctx context.Context, token string, req *Submit
 		}
 	}
 
+	signerEvent := webhooks.EventPayload{
+		EventType: "signer.signed",
+		Document:  webhooks.EventDocument{ID: doc.ID, Name: doc.Name, Status: doc.Status, FileName: doc.FileName},
+		Signer:    &webhooks.EventSigner{ID: signer.ID, Name: signer.Name, Email: signer.Email, Role: signer.Role},
+	}
+	go s.webhookSvc.Dispatch(doc.OwnerID, signerEvent)
+
+	if pendingCount == 0 {
+		completedEvent := webhooks.EventPayload{
+			EventType: "document.completed",
+			Document:  webhooks.EventDocument{ID: doc.ID, Name: doc.Name, Status: "completed", FileName: doc.FileName},
+		}
+		go s.webhookSvc.Dispatch(doc.OwnerID, completedEvent)
+	}
+
+	go s.smtpSvc.SendNotificationEmail(doc.OwnerID, doc.ID, signer.Name, doc.Name, "signed", s.domain)
+
 	return nil
 }
 
@@ -238,7 +260,43 @@ func (s *Service) DeclineSignature(ctx context.Context, token string, ipAddress 
 		return errors.Internal("failed to update document status", err)
 	}
 
+	signerEvent := webhooks.EventPayload{
+		EventType: "signer.declined",
+		Document:  webhooks.EventDocument{ID: doc.ID, Name: doc.Name, Status: doc.Status, FileName: doc.FileName},
+		Signer:    &webhooks.EventSigner{ID: signer.ID, Name: signer.Name, Email: signer.Email, Role: signer.Role},
+	}
+	go s.webhookSvc.Dispatch(doc.OwnerID, signerEvent)
+
+	declinedEvent := webhooks.EventPayload{
+		EventType: "document.declined",
+		Document:  webhooks.EventDocument{ID: doc.ID, Name: doc.Name, Status: "declined", FileName: doc.FileName},
+	}
+	go s.webhookSvc.Dispatch(doc.OwnerID, declinedEvent)
+
+	go s.smtpSvc.SendNotificationEmail(doc.OwnerID, doc.ID, signer.Name, doc.Name, "declined", s.domain)
+
 	return nil
+}
+
+func (s *Service) GetSigningFilePath(ctx context.Context, token string) (string, error) {
+	var signer schemas.Signer
+	err := s.orm.WithContext(ctx).Where("token = ?", token).First(&signer).Error
+	if stderrors.Is(err, gorm.ErrRecordNotFound) {
+		return "", errors.NotFound("invalid signing link")
+	}
+	if err != nil {
+		return "", errors.Internal("failed to read signer", err)
+	}
+
+	doc, err := s.docService.FindByID(ctx, signer.DocumentID)
+	if err != nil {
+		return "", err
+	}
+	if doc.Status != "pending" {
+		return "", errors.Invalid("document is not available")
+	}
+
+	return s.docService.GetFilePathByDocID(ctx, doc.ID)
 }
 
 func toSignerResponse(record *schemas.Signer) *SignerResponse {
@@ -251,7 +309,9 @@ func toSignerResponse(record *schemas.Signer) *SignerResponse {
 		Status:     record.Status,
 		Token:      record.Token,
 		OrderNum:   record.OrderNum,
-		SignedAt:    record.SignedAt,
+		SignedAt:   record.SignedAt,
+		IPAddress:  record.IPAddress,
+		UserAgent:  record.UserAgent,
 		CreatedAt:  record.CreatedAt,
 	}
 }

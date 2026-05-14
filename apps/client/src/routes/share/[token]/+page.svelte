@@ -8,6 +8,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Separator } from '$lib/components/ui/separator';
 	import Icon from '@iconify/svelte';
+	import PdfViewer from '$lib/components/pdf-viewer.svelte';
 
 	let payload = $state<SigningPayload | null>(null);
 	let loading = $state(true);
@@ -88,7 +89,7 @@
 		<span class="text-lg font-bold tracking-tight">Plume</span>
 	</header>
 
-	<main class="flex flex-1 items-center justify-center p-6">
+	<main class="flex flex-1 items-start justify-center p-6">
 		{#if loading}
 			<div class="flex flex-col items-center gap-3">
 				<Icon icon="solar:spinner-linear" class="h-8 w-8 animate-spin text-muted-foreground" />
@@ -112,81 +113,87 @@
 				<p class="text-muted-foreground">You have declined to sign this document.</p>
 			</div>
 		{:else if payload}
-			<div class="w-full max-w-md space-y-6">
-				<div class="text-center">
-					<h1 class="text-xl font-semibold mb-1">{payload.document.name}</h1>
-					<p class="text-sm text-muted-foreground">
-						Signing as <span class="font-medium text-foreground">{payload.signer.name}</span>
-					</p>
+			<div class="flex w-full max-w-6xl gap-8 flex-col lg:flex-row">
+				<div class="flex-1 min-w-0 max-h-[calc(100dvh-10rem)] overflow-y-auto rounded-lg border bg-muted/30 p-4">
+					<PdfViewer url={api.signing.fileUrl((page.params as Record<string, string>).token)} />
 				</div>
 
-				<Separator />
-
-				{#if payload.fields.length > 0}
-					<div class="space-y-4">
-						{#each payload.fields as field}
-							<div class="space-y-2">
-								<Label for="field-{field.id}">
-									{fieldLabel(field)}
-									{#if field.required}
-										<span class="text-destructive">*</span>
-									{/if}
-								</Label>
-								{#if field.field_type === 'signature'}
-									<Input
-										id="field-{field.id}"
-										bind:value={fieldValues[String(field.id)]}
-										placeholder="Type your full name as signature"
-										class="font-serif italic text-lg"
-									/>
-								{:else if field.field_type === 'date'}
-									<Input
-										id="field-{field.id}"
-										type="date"
-										bind:value={fieldValues[String(field.id)]}
-									/>
-								{:else if field.field_type === 'checkbox'}
-									<label class="flex items-center gap-2 cursor-pointer">
-										<input
-											type="checkbox"
-											checked={fieldValues[String(field.id)] === 'true'}
-											onchange={(e) => {
-												fieldValues[String(field.id)] = (e.currentTarget as HTMLInputElement).checked ? 'true' : 'false';
-											}}
-											class="h-4 w-4 rounded border-border"
-										/>
-										<span class="text-sm">I agree</span>
-									</label>
-								{:else}
-									<Input
-										id="field-{field.id}"
-										bind:value={fieldValues[String(field.id)]}
-										placeholder="Enter text"
-									/>
-								{/if}
-							</div>
-						{/each}
+				<div class="w-full lg:w-80 shrink-0 space-y-6">
+					<div class="text-center">
+						<h1 class="text-xl font-semibold mb-1">{payload.document.name}</h1>
+						<p class="text-sm text-muted-foreground">
+							Signing as <span class="font-medium text-foreground">{payload.signer.name}</span>
+						</p>
 					</div>
 
 					<Separator />
-				{/if}
 
-				{#if error}
-					<p class="text-sm text-destructive">{error}</p>
-				{/if}
+					{#if payload.fields.length > 0}
+						<div class="space-y-4">
+							{#each payload.fields as field}
+								<div class="space-y-2">
+									<Label for="field-{field.id}">
+										{fieldLabel(field)}
+										{#if field.required}
+											<span class="text-destructive">*</span>
+										{/if}
+									</Label>
+									{#if field.field_type === 'signature'}
+										<Input
+											id="field-{field.id}"
+											bind:value={fieldValues[String(field.id)]}
+											placeholder="Type your full name as signature"
+											class="font-serif italic text-lg"
+										/>
+									{:else if field.field_type === 'date'}
+										<Input
+											id="field-{field.id}"
+											type="date"
+											bind:value={fieldValues[String(field.id)]}
+										/>
+									{:else if field.field_type === 'checkbox'}
+										<label class="flex items-center gap-2 cursor-pointer">
+											<input
+												type="checkbox"
+												checked={fieldValues[String(field.id)] === 'true'}
+												onchange={(e) => {
+													fieldValues[String(field.id)] = (e.currentTarget as HTMLInputElement).checked ? 'true' : 'false';
+												}}
+												class="h-4 w-4 rounded border-border"
+											/>
+											<span class="text-sm">I agree</span>
+										</label>
+									{:else}
+										<Input
+											id="field-{field.id}"
+											bind:value={fieldValues[String(field.id)]}
+											placeholder="Enter text"
+										/>
+									{/if}
+								</div>
+							{/each}
+						</div>
 
-				<div class="flex gap-3">
-					<Button onclick={signDocument} disabled={submitting} class="flex-1">
-						{#if submitting}
-							<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
-						{:else}
-							<Icon icon="solar:pen-new-square-linear" class="h-4 w-4" />
-						{/if}
-						Sign & complete
-					</Button>
-					<Button onclick={declineDocument} disabled={submitting} variant="outline">
-						Decline
-					</Button>
+						<Separator />
+					{/if}
+
+					{#if error}
+						<p class="text-sm text-destructive">{error}</p>
+					{/if}
+
+					<div class="flex gap-3">
+						<Button onclick={signDocument} disabled={submitting} class="flex-1">
+							{#if submitting}
+								<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
+							{:else}
+								<Icon icon="solar:pen-new-square-linear" class="h-4 w-4" />
+							{/if}
+							Sign & complete
+						</Button>
+						<Button onclick={declineDocument} disabled={submitting} variant="outline">
+							Decline
+						</Button>
+					</div>
 				</div>
 			</div>
 		{/if}

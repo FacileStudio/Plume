@@ -7,6 +7,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
 	import Icon from '@iconify/svelte';
+	import FieldEditor from '$lib/components/field-editor.svelte';
 
 	let doc = $state<Document | null>(null);
 	let signers = $state<Signer[]>([]);
@@ -14,6 +15,8 @@
 	let sending = $state(false);
 	let error = $state('');
 	let copiedId = $state<number | null>(null);
+	let downloading = $state(false);
+	let showFieldEditor = $state(false);
 
 	function copySigningLink(signer: Signer) {
 		const link = `${window.location.origin}/share/${signer.token}`;
@@ -28,6 +31,27 @@
 			day: 'numeric',
 			year: 'numeric'
 		});
+	}
+
+	async function downloadCertificate() {
+		if (!doc) return;
+		downloading = true;
+		try {
+			const res = await fetch(api.documents.certificateUrl(doc.id), {
+				headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+			});
+			if (!res.ok) throw new Error('Download failed');
+			const blob = await res.blob();
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `${doc.name}_certificate.pdf`;
+			a.click();
+			URL.revokeObjectURL(url);
+		} catch (e: any) {
+			error = e.message;
+		}
+		downloading = false;
 	}
 
 	async function sendForSigning() {
@@ -55,6 +79,10 @@
 </script>
 
 <svelte:head><title>{doc ? `${doc.name} — Plume` : 'Plume'}</title></svelte:head>
+
+{#if showFieldEditor && doc}
+	<FieldEditor documentId={doc.id} {signers} onclose={() => (showFieldEditor = false)} />
+{:else}
 
 <a href="/documents" class="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6">
 	<Icon icon="solar:arrow-left-linear" class="h-4 w-4" />
@@ -86,17 +114,35 @@
 			{/if}
 		</div>
 
-		{#if doc.status === 'draft'}
-			<Button onclick={sendForSigning} disabled={sending || signers.length === 0}>
-				{#if sending}
-					<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
-					Sending...
-				{:else}
-					<Icon icon="solar:plain-linear" class="h-4 w-4" />
-					Send for signing
-				{/if}
-			</Button>
-		{/if}
+		<div class="flex items-center gap-2">
+			{#if doc.status === 'completed'}
+				<Button variant="outline" onclick={downloadCertificate} disabled={downloading}>
+					{#if downloading}
+						<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
+						Downloading...
+					{:else}
+						<Icon icon="solar:document-linear" class="h-4 w-4" />
+						Download certificate
+					{/if}
+				</Button>
+			{/if}
+
+			{#if doc.status === 'draft'}
+				<Button variant="outline" onclick={() => (showFieldEditor = true)} disabled={signers.length === 0}>
+					<Icon icon="solar:layers-linear" class="h-4 w-4" />
+					Prepare fields
+				</Button>
+				<Button onclick={sendForSigning} disabled={sending || signers.length === 0}>
+					{#if sending}
+						<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
+						Sending...
+					{:else}
+						<Icon icon="solar:plain-linear" class="h-4 w-4" />
+						Send for signing
+					{/if}
+				</Button>
+			{/if}
+		</div>
 	</div>
 
 	{#if error}
@@ -144,4 +190,6 @@
 			{/if}
 		</Card.Content>
 	</Card.Root>
+{/if}
+
 {/if}

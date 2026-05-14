@@ -81,6 +81,15 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 		httpjson.WriteJSON(w, http.StatusOK, map[string]string{"status": "signed"})
 	})
 
+	router.Get("/sign/{token}/file", func(w http.ResponseWriter, request *http.Request) {
+		filePath, err := service.GetSigningFilePath(request.Context(), chi.URLParam(request, "token"))
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		http.ServeFile(w, request, filePath)
+	})
+
 	router.Post("/sign/{token}/decline", func(w http.ResponseWriter, request *http.Request) {
 		ip := request.RemoteAddr
 		if forwarded := request.Header.Get("X-Real-IP"); forwarded != "" {

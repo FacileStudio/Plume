@@ -28,6 +28,8 @@ type SignerResponse struct {
 	Token      string     `json:"token,omitempty"`
 	OrderNum   int        `json:"order_num"`
 	SignedAt   *time.Time `json:"signed_at"`
+	IPAddress  string     `json:"ip_address,omitempty"`
+	UserAgent  string     `json:"user_agent,omitempty"`
 	CreatedAt  time.Time  `json:"created_at"`
 }
 

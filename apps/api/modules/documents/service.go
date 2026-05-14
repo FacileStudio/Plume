@@ -11,20 +11,22 @@ import (
 
 	"api/internal/errors"
 	"api/modules/smtp"
+	"api/modules/webhooks"
 	"api/schemas"
 
 	"gorm.io/gorm"
 )
 
 type Service struct {
-	orm       *gorm.DB
-	smtp      *smtp.Service
-	domain    string
-	uploadDir string
+	orm        *gorm.DB
+	smtp       *smtp.Service
+	webhookSvc *webhooks.Service
+	domain     string
+	uploadDir  string
 }
 
-func NewService(orm *gorm.DB, smtpService *smtp.Service, domain string, uploadDir string) *Service {
-	return &Service{orm: orm, smtp: smtpService, domain: domain, uploadDir: uploadDir}
+func NewService(orm *gorm.DB, smtpService *smtp.Service, webhookSvc *webhooks.Service, domain string, uploadDir string) *Service {
+	return &Service{orm: orm, smtp: smtpService, webhookSvc: webhookSvc, domain: domain, uploadDir: uploadDir}
 }
 
 func (s *Service) Create(ctx context.Context, ownerID string, name string, fileName string) (*DocumentResponse, error) {
@@ -55,6 +57,17 @@ func (s *Service) UpdateStoragePath(ctx context.Context, docID int64, path strin
 
 func (s *Service) GetFilePath(ctx context.Context, ownerID string, docID string) (string, error) {
 	record, err := s.findOwned(ctx, ownerID, docID)
+	if err != nil {
+		return "", err
+	}
+	if record.StoragePath == "" {
+		return "", errors.NotFound("no file uploaded for this document")
+	}
+	return filepath.Join(s.uploadDir, record.StoragePath), nil
+}
+
+func (s *Service) GetFilePathByDocID(ctx context.Context, docID int64) (string, error) {
+	record, err := s.FindByID(ctx, docID)
 	if err != nil {
 		return "", err
 	}
@@ -161,6 +174,12 @@ func (s *Service) Send(ctx context.Context, ownerID string, docID string) (*Docu
 			go s.smtp.SendSigningEmail(uid, signers[i].Name, signers[i].Email, record.Name, signers[i].Token, s.domain)
 		}
 	}
+
+	sentEvent := webhooks.EventPayload{
+		EventType: "document.sent",
+		Document:  webhooks.EventDocument{ID: record.ID, Name: record.Name, Status: record.Status, FileName: record.FileName},
+	}
+	go s.webhookSvc.Dispatch(uid, sentEvent)
 
 	return toResponse(record), nil
 }

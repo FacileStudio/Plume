@@ -150,6 +150,56 @@ func (s *Service) SendSigningEmail(ownerID int64, signerName string, signerEmail
 	}
 }
 
+func (s *Service) SendNotificationEmail(ownerID int64, docID int64, signerName string, documentName string, eventType string, domain string) {
+	var config schemas.SmtpConfig
+	err := s.orm.Where("owner_id = ?", ownerID).First(&config).Error
+	if err != nil {
+		if !stderrors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Error("failed to load smtp config for notification email", slog.Any("error", err))
+		}
+		return
+	}
+
+	var user schemas.User
+	if err := s.orm.Where("id = ?", ownerID).First(&user).Error; err != nil {
+		slog.Error("failed to load owner for notification email", slog.Any("error", err))
+		return
+	}
+
+	var action string
+	if eventType == "signed" {
+		action = "signed"
+	} else {
+		action = "declined"
+	}
+
+	subject := fmt.Sprintf("Document %s — %s", action, documentName)
+	docURL := fmt.Sprintf("%s/documents/%d", domain, docID)
+	body := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px 20px; background: #f4f4f5;">
+  <div style="max-width: 480px; margin: 0 auto; background: #fff; border-radius: 8px; padding: 32px; border: 1px solid #e4e4e7;">
+    <h2 style="margin: 0 0 8px; color: #18181b;">Document %s</h2>
+    <p style="margin: 0 0 24px; color: #71717a; font-size: 14px;">via Plume</p>
+    <p style="margin: 0 0 8px; color: #3f3f46; line-height: 1.6;">Hi %s,</p>
+    <p style="margin: 0 0 24px; color: #3f3f46; line-height: 1.6;"><strong>%s</strong> has %s <strong>%s</strong>.</p>
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="%s" style="display: inline-block; background: #18181b; color: #fff; text-decoration: none; padding: 12px 32px; border-radius: 6px; font-weight: 500; font-size: 15px;">View Document</a>
+    </div>
+    <p style="margin: 0; color: #a1a1aa; font-size: 13px; line-height: 1.5;">If the button above doesn't work, copy and paste this link into your browser:<br/>%s</p>
+  </div>
+</body>
+</html>`, action, user.Name, signerName, action, documentName, docURL, docURL)
+
+	if err := sendEmail(&config, user.Email, subject, body); err != nil {
+		slog.Error("failed to send notification email",
+			slog.String("owner_email", user.Email),
+			slog.Int64("owner_id", ownerID),
+			slog.Any("error", err),
+		)
+	}
+}
+
 func (s *Service) findConfig(ctx context.Context, ownerID int64) (*schemas.SmtpConfig, error) {
 	var record schemas.SmtpConfig
 	err := s.orm.WithContext(ctx).Where("owner_id = ?", ownerID).First(&record).Error
