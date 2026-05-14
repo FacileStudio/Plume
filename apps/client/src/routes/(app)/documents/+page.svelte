@@ -111,7 +111,7 @@
 				Cancel
 			</AlertDialog.Cancel>
 			<AlertDialog.Action
-				class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+				class="!bg-red-600 !text-white hover:!bg-red-700"
 				onclick={confirmDelete}
 				disabled={deleting}
 			>
