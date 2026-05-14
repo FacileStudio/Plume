@@ -1,10 +1,12 @@
 package smtp
 
 import (
+	stderrors "errors"
 	"net/http"
 	"strconv"
 
 	"api/internal/authcontext"
+	"api/internal/errors"
 	"api/internal/httpjson"
 	"api/internal/middleware"
 
@@ -21,6 +23,11 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 
 			resp, err := service.getConfig(request.Context(), ownerID)
 			if err != nil {
+				var appErr *errors.Error
+				if stderrors.As(err, &appErr) && appErr.Code == "not_found" {
+					httpjson.WriteJSON(w, http.StatusOK, nil)
+					return
+				}
 				httpjson.WriteError(w, err)
 				return
 			}

@@ -28,6 +28,10 @@
 	async function loadSmtp() {
 		try {
 			const config = await api.smtp.get();
+			if (!config) {
+				smtpConfigured = false;
+				return;
+			}
 			smtpHost = config.host;
 			smtpPort = config.port;
 			smtpUsername = config.username;
