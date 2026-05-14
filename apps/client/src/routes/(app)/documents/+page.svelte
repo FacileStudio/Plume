@@ -3,11 +3,13 @@
 	import { api } from '$lib';
 	import type { Document } from '$lib';
 	import { Button } from '$lib/components/ui/button';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import Icon from '@iconify/svelte';
 
 	let documents = $state<Document[]>([]);
 	let loading = $state(true);
-	let deletingId = $state<number | null>(null);
+	let deleteTarget = $state<Document | null>(null);
+	let deleting = $state(false);
 
 	function formatDate(iso: string): string {
 		return new Date(iso).toLocaleDateString('en-US', {
@@ -17,12 +19,15 @@
 		});
 	}
 
-	async function deleteDocument(id: number) {
+	async function confirmDelete() {
+		if (!deleteTarget) return;
+		deleting = true;
 		try {
-			await api.documents.delete(id);
-			documents = documents.filter((d) => d.id !== id);
+			await api.documents.delete(deleteTarget.id);
+			documents = documents.filter((d) => d.id !== deleteTarget!.id);
+			deleteTarget = null;
 		} catch {}
-		deletingId = null;
+		deleting = false;
 	}
 
 	onMount(async () => {
@@ -80,27 +85,44 @@
 						{doc.status === 'completed' ? 'bg-green-500/10 text-green-700 dark:text-green-400' : ''}
 						{doc.status === 'declined' ? 'bg-red-500/10 text-red-700 dark:text-red-400' : ''}
 					">{doc.status}</span>
-					{#if deletingId === doc.id}
-						<div class="flex items-center gap-1.5">
-							<button
-								onclick={() => deleteDocument(doc.id)}
-								class="rounded-full bg-red-500 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-red-600"
-							>Delete</button>
-							<button
-								onclick={() => (deletingId = null)}
-								class="rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-							>Cancel</button>
-						</div>
-					{:else}
-						<button
-							onclick={() => (deletingId = doc.id)}
-							class="rounded-md p-1.5 text-muted-foreground transition-colors hover:text-red-500 hover:bg-muted"
-						>
-							<Icon icon="solar:trash-bin-trash-linear" class="h-4 w-4" />
-						</button>
-					{/if}
+					<button
+						onclick={() => (deleteTarget = doc)}
+						class="rounded-md p-1.5 text-muted-foreground transition-colors hover:text-red-500 hover:bg-muted"
+					>
+						<Icon icon="solar:trash-bin-trash-linear" class="h-4 w-4" />
+					</button>
 				</div>
 			</div>
 		{/each}
 	</div>
 {/if}
+
+<AlertDialog.Root open={deleteTarget !== null} onOpenChange={(open) => { if (!open) deleteTarget = null; }}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Delete document</AlertDialog.Title>
+			<AlertDialog.Description>
+				Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This action cannot be undone. The document and all associated signers and fields will be permanently removed.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel disabled={deleting}>
+				<Icon icon="solar:close-circle-linear" class="h-4 w-4" />
+				Cancel
+			</AlertDialog.Cancel>
+			<AlertDialog.Action
+				class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+				onclick={confirmDelete}
+				disabled={deleting}
+			>
+				{#if deleting}
+					<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
+					Deleting...
+				{:else}
+					<Icon icon="solar:trash-bin-trash-linear" class="h-4 w-4" />
+					Delete
+				{/if}
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
