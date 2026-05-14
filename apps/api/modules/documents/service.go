@@ -5,31 +5,37 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	stderrors "errors"
+	"os"
+	"path/filepath"
 	"strconv"
 
 	"api/internal/errors"
+	"api/modules/smtp"
 	"api/schemas"
 
 	"gorm.io/gorm"
 )
 
 type Service struct {
-	orm *gorm.DB
+	orm       *gorm.DB
+	smtp      *smtp.Service
+	domain    string
+	uploadDir string
 }
 
-func NewService(orm *gorm.DB) *Service {
-	return &Service{orm: orm}
+func NewService(orm *gorm.DB, smtpService *smtp.Service, domain string, uploadDir string) *Service {
+	return &Service{orm: orm, smtp: smtpService, domain: domain, uploadDir: uploadDir}
 }
 
-func (s *Service) Create(ctx context.Context, ownerID string, req *CreateRequest) (*DocumentResponse, error) {
-	if req.Name == "" {
+func (s *Service) Create(ctx context.Context, ownerID string, name string, fileName string) (*DocumentResponse, error) {
+	if name == "" {
 		return nil, errors.Invalid("name is required")
 	}
 
 	uid, _ := strconv.ParseInt(ownerID, 10, 64)
 	record := &schemas.Document{
-		Name:     req.Name,
-		FileName: req.FileName,
+		Name:     name,
+		FileName: fileName,
 		Status:   "draft",
 		OwnerID:  uid,
 	}
@@ -37,6 +43,25 @@ func (s *Service) Create(ctx context.Context, ownerID string, req *CreateRequest
 		return nil, errors.Internal("failed to create document", err)
 	}
 	return toResponse(record), nil
+}
+
+func (s *Service) UpdateStoragePath(ctx context.Context, docID int64, path string) error {
+	err := s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("id = ?", docID).Update("storage_path", path).Error
+	if err != nil {
+		return errors.Internal("failed to update storage path", err)
+	}
+	return nil
+}
+
+func (s *Service) GetFilePath(ctx context.Context, ownerID string, docID string) (string, error) {
+	record, err := s.findOwned(ctx, ownerID, docID)
+	if err != nil {
+		return "", err
+	}
+	if record.StoragePath == "" {
+		return "", errors.NotFound("no file uploaded for this document")
+	}
+	return filepath.Join(s.uploadDir, record.StoragePath), nil
 }
 
 func (s *Service) List(ctx context.Context, ownerID string, status string) ([]DocumentResponse, error) {
@@ -91,6 +116,10 @@ func (s *Service) Delete(ctx context.Context, ownerID string, docID string) erro
 	if err != nil {
 		return err
 	}
+	if record.StoragePath != "" {
+		fullPath := filepath.Join(s.uploadDir, record.StoragePath)
+		os.Remove(fullPath)
+	}
 	if err := s.orm.WithContext(ctx).Delete(record).Error; err != nil {
 		return errors.Internal("failed to delete document", err)
 	}
@@ -125,6 +154,14 @@ func (s *Service) Send(ctx context.Context, ownerID string, docID string) (*Docu
 	if err := s.orm.WithContext(ctx).Save(record).Error; err != nil {
 		return nil, errors.Internal("failed to update document status", err)
 	}
+
+	uid, _ := strconv.ParseInt(ownerID, 10, 64)
+	for i := range signers {
+		if signers[i].Role == "signer" || signers[i].Role == "approver" {
+			go s.smtp.SendSigningEmail(uid, signers[i].Name, signers[i].Email, record.Name, signers[i].Token, s.domain)
+		}
+	}
+
 	return toResponse(record), nil
 }
 

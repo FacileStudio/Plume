@@ -2,11 +2,6 @@ package documents
 
 import "time"
 
-type CreateRequest struct {
-	Name     string `json:"name"`
-	FileName string `json:"file_name"`
-}
-
 type UpdateRequest struct {
 	Name     string `json:"name"`
 	FileName string `json:"file_name"`

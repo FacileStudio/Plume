@@ -1,14 +1,21 @@
 package documents
 
 import (
+	"fmt"
+	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"api/internal/authcontext"
+	"api/internal/errors"
 	"api/internal/httpjson"
 	"api/internal/middleware"
 
 	"github.com/go-chi/chi/v5"
 )
+
+const maxUploadSize = 50 << 20
 
 func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator) {
 	router.Route("/documents", func(router chi.Router) {
@@ -16,16 +23,58 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 
 		router.Post("/", func(w http.ResponseWriter, request *http.Request) {
 			identity, _ := authcontext.IdentityFromContext(request.Context())
-			var req CreateRequest
-			if err := httpjson.DecodeJSON(w, request, &req); err != nil {
-				httpjson.WriteError(w, err)
+
+			if err := request.ParseMultipartForm(maxUploadSize); err != nil {
+				httpjson.WriteError(w, errors.Invalid("invalid multipart form"))
 				return
 			}
-			resp, err := service.Create(request.Context(), identity.UserID, &req)
+
+			name := request.FormValue("name")
+			if name == "" {
+				httpjson.WriteError(w, errors.Invalid("name is required"))
+				return
+			}
+
+			file, header, err := request.FormFile("file")
+			if err != nil {
+				httpjson.WriteError(w, errors.Invalid("file is required"))
+				return
+			}
+			defer file.Close()
+
+			resp, err := service.Create(request.Context(), identity.UserID, name, header.Filename)
 			if err != nil {
 				httpjson.WriteError(w, err)
 				return
 			}
+
+			ownerDir := filepath.Join(service.uploadDir, identity.UserID)
+			if err := os.MkdirAll(ownerDir, 0o755); err != nil {
+				httpjson.WriteError(w, errors.Internal("failed to create upload directory", err))
+				return
+			}
+
+			storedName := fmt.Sprintf("%d_%s", resp.ID, header.Filename)
+			fullPath := filepath.Join(ownerDir, storedName)
+
+			dst, err := os.Create(fullPath)
+			if err != nil {
+				httpjson.WriteError(w, errors.Internal("failed to save file", err))
+				return
+			}
+			defer dst.Close()
+
+			if _, err := io.Copy(dst, file); err != nil {
+				httpjson.WriteError(w, errors.Internal("failed to write file", err))
+				return
+			}
+
+			relativePath := filepath.Join(identity.UserID, storedName)
+			if err := service.UpdateStoragePath(request.Context(), resp.ID, relativePath); err != nil {
+				httpjson.WriteError(w, err)
+				return
+			}
+
 			httpjson.WriteJSON(w, http.StatusCreated, resp)
 		})
 
@@ -58,6 +107,16 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 				return
 			}
 			httpjson.WriteJSON(w, http.StatusOK, resp)
+		})
+
+		router.Get("/{id}/file", func(w http.ResponseWriter, request *http.Request) {
+			identity, _ := authcontext.IdentityFromContext(request.Context())
+			filePath, err := service.GetFilePath(request.Context(), identity.UserID, chi.URLParam(request, "id"))
+			if err != nil {
+				httpjson.WriteError(w, err)
+				return
+			}
+			http.ServeFile(w, request, filePath)
 		})
 
 		router.Put("/{id}", func(w http.ResponseWriter, request *http.Request) {

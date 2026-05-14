@@ -114,7 +114,7 @@
 					onclick={addSigner}
 					class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
 				>
-					<Icon icon="mdi:plus-circle-outline" class="h-4 w-4" />
+					<Icon icon="mdi:plus" class="h-4 w-4" />
 					Add signer
 				</button>
 			</div>

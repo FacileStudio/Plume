@@ -19,6 +19,7 @@ import (
 	"api/modules/auth"
 	"api/modules/documents"
 	"api/modules/signers"
+	"api/modules/smtp"
 	"api/modules/webhooks"
 	"api/schemas"
 
@@ -57,7 +58,8 @@ func main() {
 	}()
 
 	authService := auth.NewService(db)
-	docService := documents.NewService(db)
+	smtpService := smtp.NewService(db)
+	docService := documents.NewService(db, smtpService, appEnv.Domain, appEnv.UploadDir)
 	signerService := signers.NewService(db, docService)
 	webhookService := webhooks.NewService(db)
 
@@ -96,6 +98,7 @@ func main() {
 	documents.RegisterRoutes(router, docService, authService)
 	signers.RegisterRoutes(router, signerService, authService)
 	webhooks.RegisterRoutes(router, webhookService, authService)
+	smtp.RegisterRoutes(router, smtpService, authService)
 
 	addr := ":" + appEnv.Port
 	server := &http.Server{

@@ -106,6 +106,13 @@ export const api = {
 			request<Webhook>('PUT', `/webhooks/${id}`, data),
 		delete: (id: number) => request<void>('DELETE', `/webhooks/${id}`)
 	},
+	smtp: {
+		get: () => request<SmtpConfig>('GET', '/smtp'),
+		save: (data: { host: string; port: number; username: string; password: string; from_email: string; from_name: string }) =>
+			request<SmtpConfig>('PUT', '/smtp', data),
+		delete: () => request<void>('DELETE', '/smtp'),
+		test: (to: string) => request<{ status: string }>('POST', '/smtp/test', { to })
+	},
 	signing: {
 		get: (token: string) => request<SigningPayload>('GET', `/sign/${token}`),
 		sign: (token: string, fields: Record<string, string>) =>
@@ -114,6 +121,15 @@ export const api = {
 			request<{ status: string }>('POST', `/sign/${token}/decline`, { reason })
 	}
 };
+
+export interface SmtpConfig {
+	host: string;
+	port: number;
+	username: string;
+	from_email: string;
+	from_name: string;
+	updated_at: string;
+}
 
 export interface UserProfile {
 	id: string;

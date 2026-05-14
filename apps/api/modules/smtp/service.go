@@ -1,0 +1,191 @@
+package smtp
+
+import (
+	"context"
+	stderrors "errors"
+	"fmt"
+	"log/slog"
+	"net/smtp"
+	"time"
+
+	"api/internal/errors"
+	"api/schemas"
+
+	"gorm.io/gorm"
+)
+
+type Service struct {
+	orm *gorm.DB
+}
+
+func NewService(orm *gorm.DB) *Service {
+	return &Service{orm: orm}
+}
+
+func (s *Service) getConfig(ctx context.Context, ownerID int64) (*ConfigResponse, error) {
+	record, err := s.findConfig(ctx, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	return toResponse(record), nil
+}
+
+func (s *Service) saveConfig(ctx context.Context, ownerID int64, req *SaveConfigRequest) (*ConfigResponse, error) {
+	if req.Host == "" {
+		return nil, errors.Invalid("host is required")
+	}
+	if req.Port == 0 {
+		return nil, errors.Invalid("port is required")
+	}
+	if req.FromEmail == "" {
+		return nil, errors.Invalid("from_email is required")
+	}
+
+	var record schemas.SmtpConfig
+	err := s.orm.WithContext(ctx).Where("owner_id = ?", ownerID).First(&record).Error
+	if stderrors.Is(err, gorm.ErrRecordNotFound) {
+		record = schemas.SmtpConfig{
+			OwnerID:   ownerID,
+			Host:      req.Host,
+			Port:      req.Port,
+			Username:  req.Username,
+			Password:  req.Password,
+			FromEmail: req.FromEmail,
+			FromName:  req.FromName,
+		}
+		if err := s.orm.WithContext(ctx).Create(&record).Error; err != nil {
+			return nil, errors.Internal("failed to create smtp config", err)
+		}
+		return toResponse(&record), nil
+	}
+	if err != nil {
+		return nil, errors.Internal("failed to read smtp config", err)
+	}
+
+	record.Host = req.Host
+	record.Port = req.Port
+	record.Username = req.Username
+	if req.Password != "" {
+		record.Password = req.Password
+	}
+	record.FromEmail = req.FromEmail
+	record.FromName = req.FromName
+
+	if err := s.orm.WithContext(ctx).Save(&record).Error; err != nil {
+		return nil, errors.Internal("failed to update smtp config", err)
+	}
+	return toResponse(&record), nil
+}
+
+func (s *Service) deleteConfig(ctx context.Context, ownerID int64) error {
+	result := s.orm.WithContext(ctx).Where("owner_id = ?", ownerID).Delete(&schemas.SmtpConfig{})
+	if result.Error != nil {
+		return errors.Internal("failed to delete smtp config", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return errors.NotFound("smtp config not found")
+	}
+	return nil
+}
+
+func (s *Service) testConfig(ctx context.Context, ownerID int64, to string) error {
+	if to == "" {
+		return errors.Invalid("to is required")
+	}
+
+	record, err := s.findConfig(ctx, ownerID)
+	if err != nil {
+		return err
+	}
+
+	subject := "Plume — SMTP Configuration Test"
+	body := `<!DOCTYPE html>
+<html>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px 20px; background: #f4f4f5;">
+  <div style="max-width: 480px; margin: 0 auto; background: #fff; border-radius: 8px; padding: 32px; border: 1px solid #e4e4e7;">
+    <h2 style="margin: 0 0 16px; color: #18181b;">SMTP Test Successful</h2>
+    <p style="margin: 0; color: #3f3f46; line-height: 1.6;">Your SMTP configuration is working correctly. Plume can now send emails on your behalf.</p>
+  </div>
+</body>
+</html>`
+
+	return sendEmail(record, to, subject, body)
+}
+
+func (s *Service) SendSigningEmail(ownerID int64, signerName string, signerEmail string, documentName string, signingToken string, domain string) {
+	var record schemas.SmtpConfig
+	err := s.orm.Where("owner_id = ?", ownerID).First(&record).Error
+	if err != nil {
+		if !stderrors.Is(err, gorm.ErrRecordNotFound) {
+			slog.Error("failed to load smtp config for signing email", slog.Any("error", err))
+		}
+		return
+	}
+
+	signingURL := fmt.Sprintf("%s/share/%s", domain, signingToken)
+
+	subject := fmt.Sprintf("Signature requested — %s", documentName)
+	body := fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; padding: 40px 20px; background: #f4f4f5;">
+  <div style="max-width: 480px; margin: 0 auto; background: #fff; border-radius: 8px; padding: 32px; border: 1px solid #e4e4e7;">
+    <h2 style="margin: 0 0 8px; color: #18181b;">Signature Requested</h2>
+    <p style="margin: 0 0 24px; color: #71717a; font-size: 14px;">via Plume</p>
+    <p style="margin: 0 0 8px; color: #3f3f46; line-height: 1.6;">Hi %s,</p>
+    <p style="margin: 0 0 24px; color: #3f3f46; line-height: 1.6;">You have been invited to review and sign <strong>%s</strong>.</p>
+    <div style="text-align: center; margin: 32px 0;">
+      <a href="%s" style="display: inline-block; background: #18181b; color: #fff; text-decoration: none; padding: 12px 32px; border-radius: 6px; font-weight: 500; font-size: 15px;">Review &amp; Sign</a>
+    </div>
+    <p style="margin: 0; color: #a1a1aa; font-size: 13px; line-height: 1.5;">If the button above doesn't work, copy and paste this link into your browser:<br/>%s</p>
+  </div>
+</body>
+</html>`, signerName, documentName, signingURL, signingURL)
+
+	if err := sendEmail(&record, signerEmail, subject, body); err != nil {
+		slog.Error("failed to send signing email",
+			slog.String("signer_email", signerEmail),
+			slog.Int64("owner_id", ownerID),
+			slog.Any("error", err),
+		)
+	}
+}
+
+func (s *Service) findConfig(ctx context.Context, ownerID int64) (*schemas.SmtpConfig, error) {
+	var record schemas.SmtpConfig
+	err := s.orm.WithContext(ctx).Where("owner_id = ?", ownerID).First(&record).Error
+	if stderrors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, errors.NotFound("smtp config not found")
+	}
+	if err != nil {
+		return nil, errors.Internal("failed to read smtp config", err)
+	}
+	return &record, nil
+}
+
+func sendEmail(config *schemas.SmtpConfig, to string, subject string, htmlBody string) error {
+	from := config.FromEmail
+	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
+
+	headers := fmt.Sprintf("From: %s <%s>\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=\"UTF-8\"\r\n\r\n",
+		config.FromName, from, to, subject)
+
+	msg := []byte(headers + htmlBody)
+
+	var auth smtp.Auth
+	if config.Username != "" {
+		auth = smtp.PlainAuth("", config.Username, config.Password, config.Host)
+	}
+
+	return smtp.SendMail(addr, auth, from, []string{to}, msg)
+}
+
+func toResponse(record *schemas.SmtpConfig) *ConfigResponse {
+	return &ConfigResponse{
+		Host:      record.Host,
+		Port:      record.Port,
+		Username:  record.Username,
+		FromEmail: record.FromEmail,
+		FromName:  record.FromName,
+		UpdatedAt: record.UpdatedAt.Format(time.RFC3339),
+	}
+}
