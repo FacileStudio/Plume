@@ -90,7 +90,8 @@ export const api = {
 		delete: (id: number) => request<void>('DELETE', `/documents/${id}`),
 		send: (id: number) => request<Document>('POST', `/documents/${id}/send`),
 		stats: () => request<DocumentStats>('GET', '/documents/stats'),
-		certificateUrl: (id: number) => `/api/documents/${id}/certificate`
+		certificateUrl: (id: number) => `/api/documents/${id}/certificate`,
+		fileUrl: (id: number) => `/api/documents/${id}/file`
 	},
 	signers: {
 		list: (documentId: number) => request<Signer[]>('GET', `/documents/${documentId}/signers`),

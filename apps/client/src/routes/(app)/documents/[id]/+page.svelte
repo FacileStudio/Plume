@@ -16,6 +16,7 @@
 	let error = $state('');
 	let copiedId = $state<number | null>(null);
 	let downloading = $state(false);
+	let downloadingDoc = $state(false);
 	let showFieldEditor = $state(false);
 
 	function copySigningLink(signer: Signer) {
@@ -33,11 +34,11 @@
 		});
 	}
 
-	async function downloadCertificate() {
+	async function downloadFile(urlPath: string, filename: string, setLoading: (v: boolean) => void) {
 		if (!doc) return;
-		downloading = true;
+		setLoading(true);
 		try {
-			const res = await fetch(api.documents.certificateUrl(doc.id), {
+			const res = await fetch(urlPath, {
 				headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
 			});
 			if (!res.ok) throw new Error('Download failed');
@@ -45,13 +46,21 @@
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement('a');
 			a.href = url;
-			a.download = `${doc.name}_certificate.pdf`;
+			a.download = filename;
 			a.click();
 			URL.revokeObjectURL(url);
 		} catch (e: any) {
 			error = e.message;
 		}
-		downloading = false;
+		setLoading(false);
+	}
+
+	function downloadCertificate() {
+		downloadFile(api.documents.certificateUrl(doc!.id), `${doc!.name}_certificate.pdf`, (v) => (downloading = v));
+	}
+
+	function downloadDocument() {
+		downloadFile(api.documents.fileUrl(doc!.id), `${doc!.name}.pdf`, (v) => (downloadingDoc = v));
 	}
 
 	async function sendForSigning() {
@@ -116,14 +125,21 @@
 
 		<div class="flex items-center gap-2">
 			{#if doc.status === 'completed'}
+				<Button variant="outline" onclick={downloadDocument} disabled={downloadingDoc}>
+					{#if downloadingDoc}
+						<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
+					{:else}
+						<Icon icon="solar:download-minimalistic-linear" class="h-4 w-4" />
+					{/if}
+					Download document
+				</Button>
 				<Button variant="outline" onclick={downloadCertificate} disabled={downloading}>
 					{#if downloading}
 						<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
-						Downloading...
 					{:else}
 						<Icon icon="solar:document-linear" class="h-4 w-4" />
-						Download certificate
 					{/if}
+					Download certificate
 				</Button>
 			{/if}
 

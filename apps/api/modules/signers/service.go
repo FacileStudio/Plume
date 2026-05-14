@@ -328,7 +328,7 @@ func (s *Service) GetSigningFilePath(ctx context.Context, token string) (string,
 	if err != nil {
 		return "", err
 	}
-	if doc.Status != "pending" {
+	if doc.Status == "draft" {
 		return "", errors.Invalid("document is not available")
 	}
 

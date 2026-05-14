@@ -137,7 +137,7 @@
 		<span class="text-lg font-bold tracking-tight">Plume</span>
 	</header>
 
-	<main class="flex flex-1 items-start justify-center p-6" class:items-center={loading || notFound || signed || declined}>
+	<main class="flex flex-1 justify-center p-6 {loading || notFound || signed || declined ? 'items-center' : 'items-start'}">
 		{#if loading}
 			<div class="flex flex-col items-center gap-3">
 				<Icon icon="solar:spinner-linear" class="h-8 w-8 animate-spin text-muted-foreground" />
@@ -150,7 +150,9 @@
 			</div>
 		{:else if signed}
 			<div class="flex flex-col items-center gap-6 text-center">
-				<Icon icon="solar:check-circle-bold-duotone" class="h-14 w-14 text-green-600" />
+				<div class="h-14 w-14 rounded-full bg-green-100 flex items-center justify-center">
+					<Icon icon="solar:check-read-linear" class="h-8 w-8 text-green-600" />
+				</div>
 				<div>
 					<h1 class="text-xl font-semibold">Document signed successfully</h1>
 					<p class="text-muted-foreground mt-1">You can close this page.</p>
@@ -347,6 +349,6 @@
 
 	<footer class="flex items-center justify-center border-t px-6 py-4 text-xs text-muted-foreground">
 		<Icon icon="solar:document-add-bold-duotone" class="mr-1.5 h-3.5 w-3.5" />
-		Powered by Plume
+		Powered by <a href="/" class="ml-0.5 font-medium text-foreground/70 hover:text-foreground transition-colors">Plume</a>
 	</footer>
 </div>
