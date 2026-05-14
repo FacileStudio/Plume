@@ -278,12 +278,23 @@
 											onfocus={() => scrollToField(field.id)}
 										/>
 									{:else if field.field_type === 'date'}
-										<Input
-											id="field-{field.id}"
-											type="date"
-											bind:value={fieldValues[String(field.id)]}
-											onfocus={() => scrollToField(field.id)}
-										/>
+										<div class="flex items-center gap-2">
+											<Input
+												id="field-{field.id}"
+												type="date"
+												bind:value={fieldValues[String(field.id)]}
+												onfocus={() => scrollToField(field.id)}
+												class="flex-1"
+											/>
+											<button
+												type="button"
+												onclick={() => { fieldValues[String(field.id)] = new Date().toISOString().split('T')[0]; scrollToField(field.id); }}
+												class="inline-flex items-center gap-1 shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+											>
+												<Icon icon="solar:calendar-mark-linear" class="h-3.5 w-3.5" />
+												Today
+											</button>
+										</div>
 									{:else if field.field_type === 'checkbox'}
 										<label class="flex items-center gap-2 cursor-pointer">
 											<input
