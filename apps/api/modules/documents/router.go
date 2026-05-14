@@ -17,9 +17,13 @@ import (
 
 const maxUploadSize = 50 << 20
 
-func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator) {
+func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator, nested ...func(chi.Router)) {
 	router.Route("/documents", func(router chi.Router) {
 		router.Use(middleware.RequireAuth(authService))
+
+		for _, fn := range nested {
+			fn(router)
+		}
 
 		router.Post("/", func(w http.ResponseWriter, request *http.Request) {
 			identity, _ := authcontext.IdentityFromContext(request.Context())

@@ -95,7 +95,7 @@ func main() {
 	})
 
 	auth.RegisterRoutes(router, authService, appEnv)
-	documents.RegisterRoutes(router, docService, authService)
+	documents.RegisterRoutes(router, docService, authService, signers.DocumentRoutes(signerService))
 	signers.RegisterRoutes(router, signerService, authService)
 	webhooks.RegisterRoutes(router, webhookService, authService)
 	smtp.RegisterRoutes(router, smtpService, authService)

@@ -95,8 +95,8 @@ export const api = {
 		list: (documentId: number) => request<Signer[]>('GET', `/documents/${documentId}/signers`),
 		add: (documentId: number, name: string, email: string) =>
 			request<Signer>('POST', `/documents/${documentId}/signers`, { name, email }),
-		remove: (documentId: number, signerId: number) =>
-			request<void>('DELETE', `/documents/${documentId}/signers/${signerId}`)
+		remove: (signerId: number) =>
+			request<void>('DELETE', `/signers/${signerId}`)
 	},
 	webhooks: {
 		list: () => request<Webhook[]>('GET', '/webhooks'),

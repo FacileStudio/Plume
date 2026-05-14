@@ -10,11 +10,9 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator) {
-	router.Route("/documents/{docId}/signers", func(router chi.Router) {
-		router.Use(middleware.RequireAuth(authService))
-
-		router.Get("/", func(w http.ResponseWriter, request *http.Request) {
+func DocumentRoutes(service *Service) func(chi.Router) {
+	return func(router chi.Router) {
+		router.Get("/{docId}/signers", func(w http.ResponseWriter, request *http.Request) {
 			identity, _ := authcontext.IdentityFromContext(request.Context())
 			resp, err := service.ListSigners(request.Context(), identity.UserID, chi.URLParam(request, "docId"))
 			if err != nil {
@@ -24,7 +22,7 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 			httpjson.WriteJSON(w, http.StatusOK, resp)
 		})
 
-		router.Post("/", func(w http.ResponseWriter, request *http.Request) {
+		router.Post("/{docId}/signers", func(w http.ResponseWriter, request *http.Request) {
 			identity, _ := authcontext.IdentityFromContext(request.Context())
 			var req AddSignerRequest
 			if err := httpjson.DecodeJSON(w, request, &req); err != nil {
@@ -38,8 +36,10 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 			}
 			httpjson.WriteJSON(w, http.StatusCreated, resp)
 		})
-	})
+	}
+}
 
+func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator) {
 	router.Route("/signers", func(router chi.Router) {
 		router.Use(middleware.RequireAuth(authService))
 
