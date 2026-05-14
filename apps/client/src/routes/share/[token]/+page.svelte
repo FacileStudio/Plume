@@ -8,8 +8,6 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Separator } from '$lib/components/ui/separator';
 	import Icon from '@iconify/svelte';
-	import PdfViewer from '$lib/components/pdf-viewer.svelte';
-
 	let payload = $state<SigningPayload | null>(null);
 	let loading = $state(true);
 	let notFound = $state(false);
@@ -18,6 +16,27 @@
 	let declined = $state(false);
 	let error = $state('');
 	let fieldValues = $state<Record<string, string>>({});
+
+	let pdfContainer = $state<HTMLDivElement>(undefined!);
+	let pdfPages = $state<{ num: number; width: number; height: number }[]>([]);
+	let pdfCanvases = $state<Map<number, HTMLCanvasElement>>(new Map());
+	let pdfLoading = $state(true);
+	let activeFieldId = $state<number | null>(null);
+
+	function fieldsForPage(pageNum: number): Field[] {
+		return (payload?.fields ?? []).filter((f) => f.page === pageNum);
+	}
+
+	function scrollToField(fieldId: number) {
+		activeFieldId = fieldId;
+		const el = pdfContainer?.querySelector(`[data-field-id="${fieldId}"]`);
+		if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+	}
+
+	function appendCanvas(node: HTMLElement, canvas: HTMLCanvasElement) {
+		node.appendChild(canvas);
+		return { destroy() { canvas.remove(); } };
+	}
 
 	function initFields(fields: Field[]) {
 		const values: Record<string, string> = {};
@@ -73,6 +92,31 @@
 				declined = true;
 			} else {
 				initFields(payload.fields);
+
+				const pdfjsLib = await import('pdfjs-dist');
+				pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+					'pdfjs-dist/build/pdf.worker.min.mjs',
+					import.meta.url
+				).toString();
+
+				try {
+					const url = api.signing.fileUrl(token);
+					const pdf = await pdfjsLib.getDocument(url).promise;
+					for (let i = 1; i <= pdf.numPages; i++) {
+						const pg = await pdf.getPage(i);
+						const viewport = pg.getViewport({ scale: 1.5 });
+						pdfPages.push({ num: i, width: viewport.width, height: viewport.height });
+						const canvas = document.createElement('canvas');
+						canvas.width = viewport.width;
+						canvas.height = viewport.height;
+						canvas.style.width = '100%';
+						canvas.style.height = 'auto';
+						canvas.style.display = 'block';
+						pdfCanvases.set(i, canvas);
+						await pg.render({ canvasContext: canvas.getContext('2d')!, canvas, viewport }).promise;
+					}
+				} catch {}
+				pdfLoading = false;
 			}
 		} catch {
 			notFound = true;
@@ -114,8 +158,44 @@
 			</div>
 		{:else if payload}
 			<div class="flex w-full max-w-6xl gap-8 flex-col lg:flex-row">
-				<div class="flex-1 min-w-0 max-h-[calc(100dvh-10rem)] overflow-y-auto rounded-lg border bg-muted/30 p-4">
-					<PdfViewer url={api.signing.fileUrl((page.params as Record<string, string>).token)} />
+				<div bind:this={pdfContainer} class="flex-1 min-w-0 max-h-[calc(100dvh-10rem)] overflow-y-auto rounded-lg border bg-muted/30 p-4">
+					{#if pdfLoading}
+						<div class="flex items-center justify-center py-12">
+							<span class="text-sm text-muted-foreground">Loading preview…</span>
+						</div>
+					{:else}
+						{#each pdfPages as pg}
+							<div class="relative mx-auto mb-4" style="max-width: {pg.width}px;" data-page={pg.num}>
+								{#if pdfCanvases.get(pg.num)}
+									{@const canvas = pdfCanvases.get(pg.num)!}
+									<div use:appendCanvas={canvas}></div>
+								{/if}
+								<div class="absolute inset-0 pointer-events-none">
+									{#each fieldsForPage(pg.num) as field}
+										{@const isActive = activeFieldId === field.id}
+										<div
+											data-field-id={field.id}
+											class="absolute rounded-sm flex items-center justify-center text-xs transition-all duration-300"
+											style="
+												left: {field.x}%;
+												top: {field.y}%;
+												width: {field.width}%;
+												height: {field.height}%;
+												background: {isActive ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.1)'};
+												border: 2px {isActive ? 'solid' : 'dashed'} {isActive ? 'rgb(59, 130, 246)' : 'rgba(59, 130, 246, 0.4)'};
+												color: rgb(59, 130, 246);
+												{isActive ? 'box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);' : ''}
+											"
+										>
+											<span class="truncate px-1 text-[10px] font-medium opacity-70">
+												{field.label || fieldLabel(field)}
+											</span>
+										</div>
+									{/each}
+								</div>
+							</div>
+						{/each}
+					{/if}
 				</div>
 
 				<div class="w-full lg:w-80 shrink-0 space-y-6">
@@ -144,12 +224,14 @@
 											bind:value={fieldValues[String(field.id)]}
 											placeholder="Type your full name as signature"
 											class="font-serif italic text-lg"
+											onfocus={() => scrollToField(field.id)}
 										/>
 									{:else if field.field_type === 'date'}
 										<Input
 											id="field-{field.id}"
 											type="date"
 											bind:value={fieldValues[String(field.id)]}
+											onfocus={() => scrollToField(field.id)}
 										/>
 									{:else if field.field_type === 'checkbox'}
 										<label class="flex items-center gap-2 cursor-pointer">
@@ -159,6 +241,7 @@
 												onchange={(e) => {
 													fieldValues[String(field.id)] = (e.currentTarget as HTMLInputElement).checked ? 'true' : 'false';
 												}}
+												onfocus={() => scrollToField(field.id)}
 												class="h-4 w-4 rounded border-border"
 											/>
 											<span class="text-sm">I agree</span>
@@ -168,6 +251,7 @@
 											id="field-{field.id}"
 											bind:value={fieldValues[String(field.id)]}
 											placeholder="Enter text"
+											onfocus={() => scrollToField(field.id)}
 										/>
 									{/if}
 								</div>

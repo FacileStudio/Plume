@@ -13,6 +13,7 @@ type Field struct {
 	Width      float64   `gorm:"column:width"`
 	Height     float64   `gorm:"column:height"`
 	Required   bool      `gorm:"column:required;default:true"`
+	Label      string    `gorm:"column:label"`
 	Value      string    `gorm:"column:value"`
 	CreatedAt  time.Time `gorm:"column:created_at;autoCreateTime"`
 }

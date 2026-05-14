@@ -82,7 +82,8 @@
 			y: (50 / pageInfo.height) * 100,
 			width: (defaults.width / pageInfo.width) * 100,
 			height: (defaults.height / pageInfo.height) * 100,
-			required: true
+			required: true,
+			label: ''
 		};
 
 		const created = await api.fields.create(documentId, req);
@@ -104,8 +105,14 @@
 			y: field.y,
 			width: field.width,
 			height: field.height,
-			required: field.required
+			required: field.required,
+			label: field.label || ''
 		});
+	}
+
+	async function renameField(field: Field, label: string) {
+		field.label = label;
+		await persistField(field);
 	}
 
 	function handlePointerDown(e: PointerEvent, field: Field, type: 'move' | 'resize') {
@@ -327,13 +334,13 @@
 										width: {field.width}%;
 										height: {field.height}%;
 										background: {isSelected ? `${color}30` : `${color}20`};
-										border: 2px {isSelected ? 'dashed' : 'solid'} {color};
+										border: 2px {isSelected ? 'solid' : 'dashed'} {color};
 										color: {color};
 									"
 									onpointerdown={(e) => handlePointerDown(e, field, 'move')}
 								>
 									<span class="truncate px-1 pointer-events-none">
-										{field.field_type} &middot; {signerName(field.signer_id)}
+										{field.label || field.field_type} &middot; {signerName(field.signer_id)}
 									</span>
 
 									{#if isSelected}
@@ -363,19 +370,21 @@
 
 			<div class="w-72 border-l bg-background p-4 overflow-y-auto flex flex-col gap-4">
 				<div>
-					<label class="text-sm font-medium mb-1.5 block" for="signer-select">Signer</label>
-					<select
-						id="signer-select"
-						class="w-full rounded-md border bg-background px-3 py-2 text-sm"
-						bind:value={selectedSignerId}
-					>
+					<p class="text-sm font-medium mb-1.5">Signer</p>
+					<div class="flex flex-col gap-1">
 						{#each signers as signer, i}
-							<option value={signer.id}>
-								<span style="color: {SIGNER_COLORS[i % SIGNER_COLORS.length]}">●</span>
-								{signer.name}
-							</option>
+							{@const color = SIGNER_COLORS[i % SIGNER_COLORS.length]}
+							<button
+								class="flex items-center gap-2 rounded-md border px-3 py-2 text-sm text-left transition-colors hover:bg-muted"
+								class:bg-muted={selectedSignerId === signer.id}
+								class:border-foreground={selectedSignerId === signer.id}
+								onclick={() => (selectedSignerId = signer.id)}
+							>
+								<span class="h-3 w-3 rounded-full shrink-0" style="background: {color};"></span>
+								<span class="truncate">{signer.name}</span>
+							</button>
 						{/each}
-					</select>
+					</div>
 				</div>
 
 				<div class="flex flex-col gap-2">
@@ -404,21 +413,33 @@
 						<div class="flex flex-col gap-1.5">
 							{#each fields as field}
 								{@const color = signerColor(field.signer_id)}
-								<div class="flex items-center gap-1">
-									<button
-										class="flex flex-1 items-center gap-2 rounded-md border px-3 py-2 text-sm text-left transition-colors hover:bg-muted"
-										class:bg-muted={selectedFieldId === field.id}
-										onclick={() => (selectedFieldId = field.id)}
-									>
-										<span class="h-2.5 w-2.5 rounded-full shrink-0" style="background: {color};"></span>
-										<span class="truncate">{field.field_type} &middot; p{field.page}</span>
-									</button>
-									<button
-										class="rounded-md p-1.5 text-muted-foreground transition-colors hover:text-red-500 hover:bg-muted shrink-0"
-										onclick={() => deleteField(field.id)}
-									>
-										<Icon icon="solar:trash-bin-trash-linear" class="h-3.5 w-3.5" />
-									</button>
+								<div class="rounded-md border transition-colors" class:border-foreground={selectedFieldId === field.id}>
+									<div class="flex items-center gap-1 px-3 py-2">
+										<button
+											class="flex flex-1 items-center gap-2 text-sm text-left"
+											onclick={() => (selectedFieldId = field.id)}
+										>
+											<span class="h-2.5 w-2.5 rounded-full shrink-0" style="background: {color};"></span>
+											<span class="truncate">{field.label || field.field_type} &middot; p{field.page}</span>
+										</button>
+										<button
+											class="rounded-md p-1.5 text-muted-foreground transition-colors hover:text-red-500 hover:bg-muted shrink-0"
+											onclick={() => deleteField(field.id)}
+										>
+											<Icon icon="solar:trash-bin-trash-linear" class="h-3.5 w-3.5" />
+										</button>
+									</div>
+									{#if selectedFieldId === field.id}
+										<div class="px-3 pb-2">
+											<input
+												type="text"
+												value={field.label || ''}
+												placeholder={field.field_type}
+												class="w-full rounded border bg-background px-2 py-1 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+												onchange={(e) => renameField(field, (e.currentTarget as HTMLInputElement).value)}
+											/>
+										</div>
+									{/if}
 								</div>
 							{/each}
 						</div>

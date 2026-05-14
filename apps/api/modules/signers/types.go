@@ -44,6 +44,7 @@ type FieldResponse struct {
 	Width      float64 `json:"width"`
 	Height     float64 `json:"height"`
 	Required   bool    `json:"required"`
+	Label      string  `json:"label"`
 	Value      string  `json:"value"`
 }
 

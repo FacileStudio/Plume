@@ -76,6 +76,7 @@ func (s *Service) Create(ctx context.Context, ownerID string, docID string, req 
 		Width:      req.Width,
 		Height:     req.Height,
 		Required:   req.Required,
+		Label:      req.Label,
 	}
 	if err := s.orm.WithContext(ctx).Create(record).Error; err != nil {
 		return nil, errors.Internal("failed to create field", err)
@@ -111,6 +112,7 @@ func (s *Service) Update(ctx context.Context, ownerID string, docID string, fiel
 	record.Width = req.Width
 	record.Height = req.Height
 	record.Required = req.Required
+	record.Label = req.Label
 
 	if err := s.orm.WithContext(ctx).Save(&record).Error; err != nil {
 		return nil, errors.Internal("failed to update field", err)
@@ -154,6 +156,7 @@ func toFieldResponse(record *schemas.Field) *FieldResponse {
 		Width:      record.Width,
 		Height:     record.Height,
 		Required:   record.Required,
+		Label:      record.Label,
 		Value:      record.Value,
 	}
 }

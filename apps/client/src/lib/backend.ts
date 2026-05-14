@@ -192,6 +192,7 @@ export interface Field {
 	width: number;
 	height: number;
 	required: boolean;
+	label: string;
 	value: string | null;
 }
 
@@ -204,6 +205,7 @@ export interface CreateFieldRequest {
 	width: number;
 	height: number;
 	required: boolean;
+	label: string;
 }
 
 export interface UpdateFieldRequest {
@@ -214,6 +216,7 @@ export interface UpdateFieldRequest {
 	width: number;
 	height: number;
 	required: boolean;
+	label: string;
 }
 
 export interface Webhook {

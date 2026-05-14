@@ -9,6 +9,7 @@ type CreateFieldRequest struct {
 	Width     float64 `json:"width"`
 	Height    float64 `json:"height"`
 	Required  bool    `json:"required"`
+	Label     string  `json:"label"`
 }
 
 type UpdateFieldRequest struct {
@@ -19,6 +20,7 @@ type UpdateFieldRequest struct {
 	Width     float64 `json:"width"`
 	Height    float64 `json:"height"`
 	Required  bool    `json:"required"`
+	Label     string  `json:"label"`
 }
 
 type FieldResponse struct {
@@ -32,5 +34,6 @@ type FieldResponse struct {
 	Width      float64 `json:"width"`
 	Height     float64 `json:"height"`
 	Required   bool    `json:"required"`
+	Label      string  `json:"label"`
 	Value      string  `json:"value"`
 }

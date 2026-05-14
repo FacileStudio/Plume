@@ -328,6 +328,7 @@ func toFieldResponse(record *schemas.Field) *FieldResponse {
 		Width:      record.Width,
 		Height:     record.Height,
 		Required:   record.Required,
+		Label:      record.Label,
 		Value:      record.Value,
 	}
 }
