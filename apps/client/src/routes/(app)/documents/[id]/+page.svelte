@@ -13,6 +13,14 @@
 	let loading = $state(true);
 	let sending = $state(false);
 	let error = $state('');
+	let copiedId = $state<number | null>(null);
+
+	function copySigningLink(signer: Signer) {
+		const link = `${window.location.origin}/share/${signer.token}`;
+		navigator.clipboard.writeText(link);
+		copiedId = signer.id;
+		setTimeout(() => (copiedId = null), 2000);
+	}
 
 	function formatDate(iso: string): string {
 		return new Date(iso).toLocaleDateString('en-US', {
@@ -28,6 +36,7 @@
 		error = '';
 		try {
 			doc = await api.documents.send(doc.id);
+			signers = await api.signers.list(doc.id);
 		} catch (e: any) {
 			error = e.message;
 		}
@@ -109,6 +118,15 @@
 							<div>
 								<p class="font-medium">{signer.name}</p>
 								<p class="text-sm text-muted-foreground">{signer.email}</p>
+								{#if doc?.status === 'pending' && signer.token && signer.status === 'pending'}
+									<button
+										onclick={() => copySigningLink(signer)}
+										class="inline-flex items-center gap-1 mt-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+									>
+										<Icon icon={copiedId === signer.id ? 'solar:check-circle-linear' : 'solar:copy-linear'} class="h-3.5 w-3.5" />
+										{copiedId === signer.id ? 'Copied!' : 'Copy signing link'}
+									</button>
+								{/if}
 							</div>
 							<div class="flex items-center gap-3">
 								{#if signer.signed_at}

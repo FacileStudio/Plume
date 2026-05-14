@@ -25,6 +25,7 @@ type SignerResponse struct {
 	Email      string     `json:"email"`
 	Role       string     `json:"role"`
 	Status     string     `json:"status"`
+	Token      string     `json:"token,omitempty"`
 	OrderNum   int        `json:"order_num"`
 	SignedAt   *time.Time `json:"signed_at"`
 	CreatedAt  time.Time  `json:"created_at"`

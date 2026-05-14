@@ -148,7 +148,11 @@ func (s *Service) GetSigningView(ctx context.Context, token string) (*SigningVie
 			FileName: doc.FileName,
 			Status:   doc.Status,
 		},
-		Signer: *toSignerResponse(&signer),
+		Signer: func() SignerResponse {
+			r := *toSignerResponse(&signer)
+			r.Token = ""
+			return r
+		}(),
 		Fields: fieldResponses,
 	}, nil
 }
@@ -245,6 +249,7 @@ func toSignerResponse(record *schemas.Signer) *SignerResponse {
 		Email:      record.Email,
 		Role:       record.Role,
 		Status:     record.Status,
+		Token:      record.Token,
 		OrderNum:   record.OrderNum,
 		SignedAt:    record.SignedAt,
 		CreatedAt:  record.CreatedAt,
