@@ -8,8 +8,10 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 
 	"api/internal/errors"
+	"api/internal/pdfutil"
 	"api/modules/smtp"
 	"api/modules/webhooks"
 	"api/schemas"
@@ -63,7 +65,11 @@ func (s *Service) GetFilePath(ctx context.Context, ownerID string, docID string)
 	if record.StoragePath == "" {
 		return "", errors.NotFound("no file uploaded for this document")
 	}
-	return filepath.Join(s.uploadDir, record.StoragePath), nil
+	originalPath := filepath.Join(s.uploadDir, record.StoragePath)
+	if record.Status == "completed" {
+		return s.getOrCreateSignedFile(ctx, record.ID, originalPath)
+	}
+	return originalPath, nil
 }
 
 func (s *Service) GetFilePathByDocID(ctx context.Context, docID int64) (string, error) {
@@ -74,7 +80,41 @@ func (s *Service) GetFilePathByDocID(ctx context.Context, docID int64) (string, 
 	if record.StoragePath == "" {
 		return "", errors.NotFound("no file uploaded for this document")
 	}
-	return filepath.Join(s.uploadDir, record.StoragePath), nil
+	originalPath := filepath.Join(s.uploadDir, record.StoragePath)
+	if record.Status == "completed" {
+		return s.getOrCreateSignedFile(ctx, record.ID, originalPath)
+	}
+	return originalPath, nil
+}
+
+func (s *Service) getOrCreateSignedFile(ctx context.Context, docID int64, originalPath string) (string, error) {
+	signedPath := strings.TrimSuffix(originalPath, ".pdf") + "_signed.pdf"
+	if _, err := os.Stat(signedPath); err == nil {
+		return signedPath, nil
+	}
+
+	var fields []schemas.Field
+	if err := s.orm.WithContext(ctx).Where("document_id = ? AND value != ''", docID).Find(&fields).Error; err != nil {
+		return "", errors.Internal("failed to load fields", err)
+	}
+
+	overlays := make([]pdfutil.FieldOverlay, len(fields))
+	for i, f := range fields {
+		overlays[i] = pdfutil.FieldOverlay{
+			Page:      f.Page,
+			X:         f.X,
+			Y:         f.Y,
+			Width:     f.Width,
+			Height:    f.Height,
+			FieldType: f.FieldType,
+			Value:     f.Value,
+		}
+	}
+
+	if err := pdfutil.FlattenFields(originalPath, signedPath, overlays); err != nil {
+		return "", errors.Internal("failed to generate signed document", err)
+	}
+	return signedPath, nil
 }
 
 func (s *Service) List(ctx context.Context, ownerID string, status string) ([]DocumentResponse, error) {
@@ -132,6 +172,8 @@ func (s *Service) Delete(ctx context.Context, ownerID string, docID string) erro
 	if record.StoragePath != "" {
 		fullPath := filepath.Join(s.uploadDir, record.StoragePath)
 		os.Remove(fullPath)
+		signedPath := strings.TrimSuffix(fullPath, ".pdf") + "_signed.pdf"
+		os.Remove(signedPath)
 	}
 	if err := s.orm.WithContext(ctx).Delete(record).Error; err != nil {
 		return errors.Internal("failed to delete document", err)
