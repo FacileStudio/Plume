@@ -21,6 +21,38 @@
 	let downloadingAudit = $state(false);
 	let showFieldEditor = $state(false);
 	let remindingId = $state<number | null>(null);
+	let togglingSequential = $state(false);
+
+	const sortedSigners = $derived(
+		[...signers].sort((a, b) => a.order_num - b.order_num || a.id - b.id)
+	);
+	const activeOrderNum = $derived.by(() => {
+		if (!doc || doc.status !== 'pending' || !doc.sequential) return null;
+		const pending = sortedSigners.filter(
+			(s) => s.status === 'pending' && (s.role === 'signer' || s.role === 'approver')
+		);
+		if (pending.length === 0) return null;
+		return pending[0].order_num;
+	});
+
+	function isWaitingSigner(signer: Signer): boolean {
+		if (!doc || doc.status !== 'pending' || !doc.sequential) return false;
+		if (signer.status !== 'pending') return false;
+		if (signer.role !== 'signer' && signer.role !== 'approver') return false;
+		return activeOrderNum !== null && signer.order_num > activeOrderNum;
+	}
+
+	async function toggleSequential() {
+		if (!doc || doc.status !== 'draft') return;
+		togglingSequential = true;
+		error = '';
+		try {
+			doc = await api.documents.update(doc.id, { sequential: !doc.sequential });
+		} catch (e: any) {
+			error = e.message;
+		}
+		togglingSequential = false;
+	}
 
 	function copySigningLink(signer: Signer) {
 		const link = `${window.location.origin}/share/${signer.token}`;
@@ -209,6 +241,57 @@
 		<p class="text-sm text-destructive mb-4">{error}</p>
 	{/if}
 
+	<Card.Root class="mb-6">
+		<Card.Header>
+			<Card.Title>Signing order</Card.Title>
+			<Card.Description>
+				{#if doc.status === 'draft'}
+					Choose how signers are invited to sign this document.
+				{:else}
+					Sequential signing: {doc.sequential ? 'On' : 'Off'}
+				{/if}
+			</Card.Description>
+		</Card.Header>
+		<Card.Content>
+			{#if doc.status === 'draft'}
+				<button
+					type="button"
+					onclick={toggleSequential}
+					disabled={togglingSequential}
+					class="flex w-full items-start justify-between gap-4 rounded-lg border p-4 text-left transition-colors hover:bg-accent disabled:opacity-60"
+				>
+					<div>
+						<p class="font-medium">Sequential signing</p>
+						<p class="text-sm text-muted-foreground">
+							Signers are invited one at a time in order. Signer N+1 is invited only after signer N completes.
+						</p>
+					</div>
+					<div
+						class="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors
+							{doc.sequential ? 'bg-foreground' : 'bg-muted'}"
+					>
+						<span
+							class="inline-block h-5 w-5 transform rounded-full bg-background shadow transition-transform
+								{doc.sequential ? 'translate-x-5' : 'translate-x-0.5'}"
+						></span>
+					</div>
+				</button>
+			{:else}
+				<div class="flex items-center gap-2 text-sm text-muted-foreground">
+					<Icon
+						icon={doc.sequential ? 'solar:list-check-linear' : 'solar:users-group-rounded-linear'}
+						class="h-4 w-4"
+					/>
+					{#if doc.sequential}
+						Signers are invited one at a time in order.
+					{:else}
+						All signers were invited simultaneously.
+					{/if}
+				</div>
+			{/if}
+		</Card.Content>
+	</Card.Root>
+
 	<Card.Root>
 		<Card.Header>
 			<Card.Title>Signers</Card.Title>
@@ -219,13 +302,14 @@
 				<p class="text-sm text-muted-foreground">No signers added yet.</p>
 			{:else}
 				<div class="space-y-3">
-					{#each signers as signer}
+					{#each sortedSigners as signer}
+						{@const waiting = isWaitingSigner(signer)}
 						<div class="flex items-center justify-between rounded-lg border p-4">
 							<div>
 								<p class="font-medium">{signer.name}</p>
 								<p class="text-sm text-muted-foreground">{signer.email}</p>
-								{#if doc?.status === 'pending' && signer.token && signer.status === 'pending'}
-									<div class="mt-1.5 flex items-center gap-3">
+								{#if doc?.status === 'pending' && signer.token && signer.status === 'pending' && !waiting}
+									<div class="mt-1.5 flex flex-wrap items-center gap-3">
 										<button
 											onclick={() => copySigningLink(signer)}
 											class="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -245,6 +329,11 @@
 											<span class="text-xs text-muted-foreground">Reminded {formatRelative(signer.last_reminded_at)}</span>
 										{/if}
 									</div>
+								{:else if waiting}
+									<p class="inline-flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
+										<Icon icon="solar:clock-circle-linear" class="h-3.5 w-3.5" />
+										Waiting for previous signer
+									</p>
 								{/if}
 							</div>
 							<div class="flex items-center gap-3">
@@ -252,10 +341,11 @@
 									<span class="text-xs text-muted-foreground">Signed {formatDate(signer.signed_at)}</span>
 								{/if}
 								<span class="rounded-full px-2.5 py-0.5 text-xs font-medium
-									{signer.status === 'pending' ? 'bg-foreground/10 text-foreground' : ''}
+									{signer.status === 'pending' && !waiting ? 'bg-foreground/10 text-foreground' : ''}
+									{signer.status === 'pending' && waiting ? 'bg-muted text-muted-foreground' : ''}
 									{signer.status === 'signed' ? 'bg-green-500/10 text-green-700 dark:text-green-400' : ''}
 									{signer.status === 'declined' ? 'bg-red-500/10 text-red-700 dark:text-red-400' : ''}
-								">{signer.status}</span>
+								">{waiting ? 'waiting' : signer.status}</span>
 							</div>
 						</div>
 					{/each}

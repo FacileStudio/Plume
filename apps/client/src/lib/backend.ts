@@ -90,6 +90,8 @@ export const api = {
 			return upload<Document>('POST', '/documents', formData);
 		},
 		delete: (id: number) => request<void>('DELETE', `/documents/${id}`),
+		update: (id: number, data: { name?: string; file_name?: string; sequential?: boolean }) =>
+			request<Document>('PUT', `/documents/${id}`, data),
 		send: (id: number) => request<Document>('POST', `/documents/${id}/send`),
 		stats: () => request<DocumentStats>('GET', '/documents/stats'),
 		certificateUrl: (id: number) => `/api/documents/${id}/certificate`,
@@ -178,6 +180,7 @@ export interface Document {
 	status: 'draft' | 'pending' | 'completed' | 'declined';
 	file_name: string;
 	owner_id: number;
+	sequential: boolean;
 	signer_count?: number;
 	created_at: string;
 	updated_at: string;
@@ -197,6 +200,7 @@ export interface Signer {
 	role: string;
 	status: 'pending' | 'signed' | 'declined';
 	token: string;
+	order_num: number;
 	signed_at: string | null;
 	last_reminded_at: string | null;
 	ip_address?: string;

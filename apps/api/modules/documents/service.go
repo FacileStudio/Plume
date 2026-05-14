@@ -175,6 +175,9 @@ func (s *Service) Update(ctx context.Context, ownerID string, docID string, req 
 	if req.FileName != "" {
 		record.FileName = req.FileName
 	}
+	if req.Sequential != nil {
+		record.Sequential = *req.Sequential
+	}
 	if err := s.orm.WithContext(ctx).Save(record).Error; err != nil {
 		return nil, errors.Internal("failed to update document", err)
 	}
@@ -228,9 +231,30 @@ func (s *Service) Send(ctx context.Context, ownerID string, docID string) (*Docu
 	}
 
 	uid, _ := strconv.ParseInt(ownerID, 10, 64)
-	for i := range signers {
-		if signers[i].Role == "signer" || signers[i].Role == "approver" {
-			go s.smtp.SendSigningEmail(uid, signers[i].Name, signers[i].Email, record.Name, signers[i].Token, s.domain)
+	if record.Sequential {
+		minOrder := 0
+		found := false
+		for i := range signers {
+			if signers[i].Role != "signer" && signers[i].Role != "approver" {
+				continue
+			}
+			if !found || signers[i].OrderNum < minOrder {
+				minOrder = signers[i].OrderNum
+				found = true
+			}
+		}
+		if found {
+			for i := range signers {
+				if (signers[i].Role == "signer" || signers[i].Role == "approver") && signers[i].OrderNum == minOrder {
+					go s.smtp.SendSigningEmail(uid, signers[i].Name, signers[i].Email, record.Name, signers[i].Token, s.domain)
+				}
+			}
+		}
+	} else {
+		for i := range signers {
+			if signers[i].Role == "signer" || signers[i].Role == "approver" {
+				go s.smtp.SendSigningEmail(uid, signers[i].Name, signers[i].Email, record.Name, signers[i].Token, s.domain)
+			}
 		}
 	}
 
@@ -352,6 +376,7 @@ func toResponse(record *schemas.Document) *DocumentResponse {
 		Status:       record.Status,
 		FileName:     record.FileName,
 		OwnerID:      record.OwnerID,
+		Sequential:   record.Sequential,
 		OriginalHash: record.OriginalHash,
 		SignedHash:   record.SignedHash,
 		CreatedAt:    record.CreatedAt,

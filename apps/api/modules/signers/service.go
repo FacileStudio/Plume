@@ -240,6 +240,8 @@ func (s *Service) SubmitSignature(ctx context.Context, token string, req *Submit
 		if err := s.docService.UpdateStatus(ctx, doc.ID, "completed"); err != nil {
 			return errors.Internal("failed to complete document", err)
 		}
+	} else if doc.Sequential {
+		s.notifyNextSequentialSigners(ctx, doc)
 	}
 
 	signerEvent := webhooks.EventPayload{
@@ -333,6 +335,24 @@ func (s *Service) GetSigningFilePath(ctx context.Context, token string) (string,
 	}
 
 	return s.docService.GetFilePathByDocID(ctx, doc.ID)
+}
+
+func (s *Service) notifyNextSequentialSigners(ctx context.Context, doc *schemas.Document) {
+	var nextSigners []schemas.Signer
+	err := s.orm.WithContext(ctx).
+		Where("document_id = ? AND status = ? AND role IN ?", doc.ID, "pending", []string{"signer", "approver"}).
+		Order("order_num asc").
+		Find(&nextSigners).Error
+	if err != nil || len(nextSigners) == 0 {
+		return
+	}
+	minOrder := nextSigners[0].OrderNum
+	for i := range nextSigners {
+		if nextSigners[i].OrderNum != minOrder {
+			continue
+		}
+		go s.smtpSvc.SendSigningEmail(doc.OwnerID, nextSigners[i].Name, nextSigners[i].Email, doc.Name, nextSigners[i].Token, s.domain)
+	}
 }
 
 func toSignerResponse(record *schemas.Signer) *SignerResponse {

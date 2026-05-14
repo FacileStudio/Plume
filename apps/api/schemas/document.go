@@ -11,6 +11,7 @@ type Document struct {
 	OriginalHash string    `gorm:"column:original_hash;index"`
 	SignedHash   string    `gorm:"column:signed_hash;index"`
 	OwnerID      int64     `gorm:"column:owner_id;index"`
+	Sequential   bool      `gorm:"column:sequential;default:false"`
 	CreatedAt    time.Time `gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt    time.Time `gorm:"column:updated_at;autoUpdateTime"`
 }
