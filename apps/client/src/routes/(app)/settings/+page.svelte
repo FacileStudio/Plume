@@ -176,7 +176,7 @@
 		</div>
 		<p class="text-sm text-muted-foreground mb-4">Configure SMTP to send signing invitations by email</p>
 
-		<div class="rounded-lg border p-4 space-y-4">
+		<div class="space-y-4">
 			<div>
 				<label for="smtp-host" class="block text-sm font-medium mb-1">Host</label>
 				<input
