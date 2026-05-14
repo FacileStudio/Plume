@@ -19,18 +19,19 @@ type FieldValue struct {
 }
 
 type SignerResponse struct {
-	ID         int64      `json:"id"`
-	DocumentID int64      `json:"document_id"`
-	Name       string     `json:"name"`
-	Email      string     `json:"email"`
-	Role       string     `json:"role"`
-	Status     string     `json:"status"`
-	Token      string     `json:"token,omitempty"`
-	OrderNum   int        `json:"order_num"`
-	SignedAt   *time.Time `json:"signed_at"`
-	IPAddress  string     `json:"ip_address,omitempty"`
-	UserAgent  string     `json:"user_agent,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
+	ID             int64      `json:"id"`
+	DocumentID     int64      `json:"document_id"`
+	Name           string     `json:"name"`
+	Email          string     `json:"email"`
+	Role           string     `json:"role"`
+	Status         string     `json:"status"`
+	Token          string     `json:"token,omitempty"`
+	OrderNum       int        `json:"order_num"`
+	SignedAt       *time.Time `json:"signed_at"`
+	IPAddress      string     `json:"ip_address,omitempty"`
+	UserAgent      string     `json:"user_agent,omitempty"`
+	LastRemindedAt *time.Time `json:"last_reminded_at"`
+	CreatedAt      time.Time  `json:"created_at"`
 }
 
 type FieldResponse struct {

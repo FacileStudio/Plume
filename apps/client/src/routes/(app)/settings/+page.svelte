@@ -25,6 +25,9 @@
 	let smtpTesting = $state(false);
 	let smtpDeleting = $state(false);
 
+	let reminderIntervalDays = $state(3);
+	let reminderSaving = $state(false);
+
 	async function loadSmtp() {
 		try {
 			const config = await api.smtp.get();
@@ -159,8 +162,41 @@
 		} catch {}
 	}
 
+	async function loadReminderSettings() {
+		try {
+			const me = await api.auth.me();
+			reminderIntervalDays = me.reminder_interval_days ?? 3;
+			userStore.value = me;
+		} catch {}
+	}
+
+	async function saveReminderSettings() {
+		const current = userStore.value;
+		if (!current) {
+			toast.error('Profile not loaded');
+			return;
+		}
+		if (reminderIntervalDays < 0 || reminderIntervalDays > 30 || Number.isNaN(reminderIntervalDays)) {
+			toast.error('Interval must be between 0 and 30 days');
+			return;
+		}
+		reminderSaving = true;
+		try {
+			const updated = await api.auth.updateProfile({
+				name: current.name,
+				email: current.email,
+				reminder_interval_days: reminderIntervalDays
+			});
+			userStore.value = updated;
+			toast.success('Reminder settings saved');
+		} catch (e) {
+			toast.error(e instanceof Error ? e.message : 'Failed to save reminder settings');
+		}
+		reminderSaving = false;
+	}
+
 	onMount(async () => {
-		await Promise.all([loadSmtp(), loadWebhooks()]);
+		await Promise.all([loadSmtp(), loadWebhooks(), loadReminderSettings()]);
 	});
 </script>
 
@@ -264,6 +300,39 @@
 						{smtpDeleting ? 'Deleting…' : 'Delete'}
 					</button>
 				{/if}
+			</div>
+		</div>
+	</div>
+
+	<div class="rounded-lg border p-6">
+		<div class="flex items-center gap-2 mb-1">
+			<Icon icon="solar:bell-linear" class="h-5 w-5" />
+			<h2 class="text-lg font-semibold">Reminders</h2>
+		</div>
+		<p class="text-sm text-muted-foreground mb-4">Automatically re-send signing invitations to pending signers</p>
+
+		<div class="space-y-4">
+			<div>
+				<label for="reminder-interval" class="block text-sm font-medium mb-1">Reminder interval (days)</label>
+				<input
+					id="reminder-interval"
+					type="number"
+					min="0"
+					max="30"
+					bind:value={reminderIntervalDays}
+					class="w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+				/>
+				<p class="mt-1.5 text-xs text-muted-foreground">0 to disable automatic reminders</p>
+			</div>
+			<div class="flex gap-2 pt-1">
+				<button
+					onclick={saveReminderSettings}
+					disabled={reminderSaving}
+					class="flex items-center gap-1.5 rounded-full bg-foreground px-4 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed"
+				>
+					<Icon icon="solar:diskette-linear" class="h-4 w-4" />
+					{reminderSaving ? 'Saving…' : 'Save'}
+				</button>
 			</div>
 		</div>
 	</div>

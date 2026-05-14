@@ -337,18 +337,19 @@ func (s *Service) GetSigningFilePath(ctx context.Context, token string) (string,
 
 func toSignerResponse(record *schemas.Signer) *SignerResponse {
 	return &SignerResponse{
-		ID:         record.ID,
-		DocumentID: record.DocumentID,
-		Name:       record.Name,
-		Email:      record.Email,
-		Role:       record.Role,
-		Status:     record.Status,
-		Token:      record.Token,
-		OrderNum:   record.OrderNum,
-		SignedAt:   record.SignedAt,
-		IPAddress:  record.IPAddress,
-		UserAgent:  record.UserAgent,
-		CreatedAt:  record.CreatedAt,
+		ID:             record.ID,
+		DocumentID:     record.DocumentID,
+		Name:           record.Name,
+		Email:          record.Email,
+		Role:           record.Role,
+		Status:         record.Status,
+		Token:          record.Token,
+		OrderNum:       record.OrderNum,
+		SignedAt:       record.SignedAt,
+		IPAddress:      record.IPAddress,
+		UserAgent:      record.UserAgent,
+		LastRemindedAt: record.LastRemindedAt,
+		CreatedAt:      record.CreatedAt,
 	}
 }
 

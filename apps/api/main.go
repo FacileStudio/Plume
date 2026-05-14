@@ -19,6 +19,7 @@ import (
 	"api/modules/auth"
 	"api/modules/documents"
 	"api/modules/fields"
+	"api/modules/reminders"
 	"api/modules/signers"
 	"api/modules/signing"
 	"api/modules/smtp"
@@ -68,6 +69,7 @@ func main() {
 	fieldService := fields.NewService(db, docService)
 	signingService := signing.NewService(db, appEnv.UploadDir, docService)
 	verifyService := verify.NewService(db, docService)
+	reminderService := reminders.NewService(db, smtpService, appEnv.Domain)
 
 	go func() {
 		count, err := docService.BackfillHashes(context.Background())
@@ -124,6 +126,8 @@ func main() {
 	verifyLimiter := middleware.NewRateLimiter(30, 10).Handler()
 	verify.RegisterRoutes(router, verifyService, verifyLimiter)
 
+	reminders.RegisterRoutes(router, reminderService, authService)
+
 	addr := ":" + appEnv.Port
 	server := &http.Server{
 		Addr:              addr,
@@ -133,13 +137,15 @@ func main() {
 		WriteTimeout:      15 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
+	shutdownSignal, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	reminders.Start(shutdownSignal, reminderService, appLogger)
+
 	serverErrCh := make(chan error, 1)
 	go func() {
 		serverErrCh <- server.ListenAndServe()
 	}()
-
-	shutdownSignal, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 
 	appLogger.Info("server starting", slog.String("addr", addr))
 	select {

@@ -31,6 +31,15 @@ var Documentation = documentation.Module{
 			PathParams: []documentation.Field{{Name: "id", Type: "int", Description: "Signer ID"}},
 		},
 		{
+			Method:       "POST",
+			Path:         "/signers/{id}/remind",
+			Summary:      "Resend the signing invitation",
+			Description:  "Owner-only. Re-sends the signing invitation email to a pending signer. Rate limited to one call per minute per signer.",
+			Auth:         "bearer",
+			ResponseBody: "RemindResponse",
+			PathParams:   []documentation.Field{{Name: "id", Type: "int", Description: "Signer ID"}},
+		},
+		{
 			Method:       "GET",
 			Path:         "/sign/{token}",
 			Summary:      "Get signing view",

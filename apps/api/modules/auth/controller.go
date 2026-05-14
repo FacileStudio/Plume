@@ -38,10 +38,11 @@ func (controller *Controller) getMe(context context.Context, userID string) (*Pr
 		return nil, err
 	}
 	return &ProfileResponse{
-		ID:        strconv.FormatInt(user.ID, 10),
-		Email:     user.Email,
-		Name:      user.Name,
-		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		ID:                   strconv.FormatInt(user.ID, 10),
+		Email:                user.Email,
+		Name:                 user.Name,
+		ReminderIntervalDays: user.ReminderIntervalDays,
+		CreatedAt:            user.CreatedAt.Format("2006-01-02T15:04:05Z"),
 	}, nil
 }
 
@@ -52,15 +53,22 @@ func (controller *Controller) updateMe(context context.Context, userID string, r
 	}
 	name := strings.TrimSpace(req.Name)
 
-	user, err := controller.service.updateUser(context, userID, name, email)
+	if req.ReminderIntervalDays != nil {
+		if *req.ReminderIntervalDays < 0 || *req.ReminderIntervalDays > 30 {
+			return nil, errors.Invalid("reminder_interval_days must be between 0 and 30")
+		}
+	}
+
+	user, err := controller.service.updateUser(context, userID, name, email, req.ReminderIntervalDays)
 	if err != nil {
 		return nil, err
 	}
 	return &ProfileResponse{
-		ID:        strconv.FormatInt(user.ID, 10),
-		Email:     user.Email,
-		Name:      user.Name,
-		CreatedAt: user.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		ID:                   strconv.FormatInt(user.ID, 10),
+		Email:                user.Email,
+		Name:                 user.Name,
+		ReminderIntervalDays: user.ReminderIntervalDays,
+		CreatedAt:            user.CreatedAt.Format("2006-01-02T15:04:05Z"),
 	}, nil
 }
 

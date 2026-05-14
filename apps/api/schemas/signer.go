@@ -11,10 +11,11 @@ type Signer struct {
 	Status     string     `gorm:"column:status;default:pending"`
 	Token      string     `gorm:"column:token;index"`
 	OrderNum   int        `gorm:"column:order_num;default:0"`
-	SignedAt   *time.Time `gorm:"column:signed_at"`
-	IPAddress  string     `gorm:"column:ip_address"`
-	UserAgent  string     `gorm:"column:user_agent"`
-	CreatedAt  time.Time  `gorm:"column:created_at;autoCreateTime"`
+	SignedAt       *time.Time `gorm:"column:signed_at"`
+	IPAddress      string     `gorm:"column:ip_address"`
+	UserAgent      string     `gorm:"column:user_agent"`
+	LastRemindedAt *time.Time `gorm:"column:last_reminded_at"`
+	CreatedAt      time.Time  `gorm:"column:created_at;autoCreateTime"`
 }
 
 func (Signer) TableName() string { return "signers" }
