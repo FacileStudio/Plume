@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import * as pdfjsLib from 'pdfjs-dist';
 
 	let { url, class: className = '' }: { url: string; class?: string } = $props();
 	let container: HTMLDivElement;
@@ -8,6 +7,7 @@
 	let error = $state('');
 
 	onMount(async () => {
+		const pdfjsLib = await import('pdfjs-dist');
 		pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 			'pdfjs-dist/build/pdf.worker.min.mjs',
 			import.meta.url

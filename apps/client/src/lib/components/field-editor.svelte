@@ -1,6 +1,5 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import * as pdfjsLib from 'pdfjs-dist';
 	import { api } from '$lib';
 	import type { Field, Signer, CreateFieldRequest } from '$lib';
 	import { Button } from '$lib/components/ui/button';
@@ -175,6 +174,7 @@
 	}
 
 	onMount(async () => {
+		const pdfjsLib = await import('pdfjs-dist');
 		pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 			'pdfjs-dist/build/pdf.worker.min.mjs',
 			import.meta.url
