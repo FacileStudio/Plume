@@ -165,7 +165,7 @@ func (service *Service) getUser(context context.Context, userID string) (*schema
 	return &record, nil
 }
 
-func (service *Service) updateUser(context context.Context, userID string, name string, email string) (*schemas.User, error) {
+func (service *Service) updateUser(context context.Context, userID string, name string, email string, reminderIntervalDays *int) (*schemas.User, error) {
 	var record schemas.User
 	if err := service.orm.WithContext(context).Where("id = ?", userID).First(&record).Error; err != nil {
 		return nil, errors.NotFound("user not found")
@@ -173,6 +173,9 @@ func (service *Service) updateUser(context context.Context, userID string, name 
 
 	record.Name = name
 	record.Email = email
+	if reminderIntervalDays != nil {
+		record.ReminderIntervalDays = *reminderIntervalDays
+	}
 	if err := service.orm.WithContext(context).Save(&record).Error; err != nil {
 		if stderrors.Is(err, gorm.ErrDuplicatedKey) {
 			return nil, errors.Conflict("email already in use")

@@ -50,6 +50,8 @@ func Status(err error) int {
 		return http.StatusNotFound
 	case "already_exists":
 		return http.StatusConflict
+	case "resource_exhausted":
+		return http.StatusTooManyRequests
 	default:
 		return http.StatusInternalServerError
 	}

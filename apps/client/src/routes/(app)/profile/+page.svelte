@@ -34,7 +34,7 @@
 		profileSuccess = '';
 		profileLoading = true;
 		try {
-			profile = await api.auth.updateProfile(name, email);
+			profile = await api.auth.updateProfile({ name, email });
 			name = profile.name ?? '';
 			email = profile.email;
 			userStore.value = profile;

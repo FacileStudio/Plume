@@ -7,6 +7,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
 	import Icon from '@iconify/svelte';
+	import { toast } from 'svelte-sonner';
 	import FieldEditor from '$lib/components/field-editor.svelte';
 
 	let doc = $state<Document | null>(null);
@@ -19,12 +20,42 @@
 	let downloadingDoc = $state(false);
 	let downloadingAudit = $state(false);
 	let showFieldEditor = $state(false);
+	let remindingId = $state<number | null>(null);
 
 	function copySigningLink(signer: Signer) {
 		const link = `${window.location.origin}/share/${signer.token}`;
 		navigator.clipboard.writeText(link);
 		copiedId = signer.id;
 		setTimeout(() => (copiedId = null), 2000);
+	}
+
+	async function remindSigner(signer: Signer) {
+		if (remindingId === signer.id) return;
+		remindingId = signer.id;
+		try {
+			const res = await api.signers.remind(signer.id);
+			signers = signers.map((s) =>
+				s.id === signer.id ? { ...s, last_reminded_at: res.reminded_at } : s
+			);
+			toast.success('Reminder sent');
+		} catch (e) {
+			toast.error(e instanceof Error ? e.message : 'Failed to send reminder');
+		}
+		setTimeout(() => {
+			if (remindingId === signer.id) remindingId = null;
+		}, 1500);
+	}
+
+	function formatRelative(iso: string): string {
+		const then = new Date(iso).getTime();
+		const diff = Date.now() - then;
+		if (diff < 60_000) return 'just now';
+		const minutes = Math.floor(diff / 60_000);
+		if (minutes < 60) return `${minutes}m ago`;
+		const hours = Math.floor(minutes / 60);
+		if (hours < 24) return `${hours}h ago`;
+		const days = Math.floor(hours / 24);
+		return `${days}d ago`;
 	}
 
 	function formatDate(iso: string): string {
@@ -194,13 +225,26 @@
 								<p class="font-medium">{signer.name}</p>
 								<p class="text-sm text-muted-foreground">{signer.email}</p>
 								{#if doc?.status === 'pending' && signer.token && signer.status === 'pending'}
-									<button
-										onclick={() => copySigningLink(signer)}
-										class="inline-flex items-center gap-1 mt-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-									>
-										<Icon icon={copiedId === signer.id ? 'solar:check-circle-linear' : 'solar:copy-linear'} class="h-3.5 w-3.5" />
-										{copiedId === signer.id ? 'Copied!' : 'Copy signing link'}
-									</button>
+									<div class="mt-1.5 flex items-center gap-3">
+										<button
+											onclick={() => copySigningLink(signer)}
+											class="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+										>
+											<Icon icon={copiedId === signer.id ? 'solar:check-circle-linear' : 'solar:copy-linear'} class="h-3.5 w-3.5" />
+											{copiedId === signer.id ? 'Copied!' : 'Copy signing link'}
+										</button>
+										<button
+											onclick={() => remindSigner(signer)}
+											disabled={remindingId === signer.id}
+											class="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+										>
+											<Icon icon="solar:bell-linear" class="h-3.5 w-3.5" />
+											{remindingId === signer.id ? 'Sending…' : 'Resend'}
+										</button>
+										{#if signer.last_reminded_at}
+											<span class="text-xs text-muted-foreground">Reminded {formatRelative(signer.last_reminded_at)}</span>
+										{/if}
+									</div>
 								{/if}
 							</div>
 							<div class="flex items-center gap-3">

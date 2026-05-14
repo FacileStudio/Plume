@@ -72,8 +72,8 @@ export const api = {
 		login: (email: string, password: string) =>
 			request<{ user_id: string; token: string }>('POST', '/auth/login', { email, password }),
 		me: () => request<UserProfile>('GET', '/auth/me'),
-		updateProfile: (name: string, email: string) =>
-			request<UserProfile>('PUT', '/auth/me', { name, email }),
+		updateProfile: (data: { name: string; email: string; reminder_interval_days?: number }) =>
+			request<UserProfile>('PUT', '/auth/me', data),
 		changePassword: (currentPassword: string, newPassword: string) =>
 			request<{ status: string }>('PUT', '/auth/password', {
 				current_password: currentPassword,
@@ -101,7 +101,9 @@ export const api = {
 		add: (documentId: number, name: string, email: string) =>
 			request<Signer>('POST', `/documents/${documentId}/signers`, { name, email }),
 		remove: (signerId: number) =>
-			request<void>('DELETE', `/signers/${signerId}`)
+			request<void>('DELETE', `/signers/${signerId}`),
+		remind: (signerId: number) =>
+			request<{ status: string; reminded_at: string }>('POST', `/signers/${signerId}/remind`)
 	},
 	fields: {
 		list: (documentId: number) => request<Field[]>('GET', `/documents/${documentId}/fields`),
@@ -166,6 +168,7 @@ export interface UserProfile {
 	id: string;
 	email: string;
 	name: string;
+	reminder_interval_days: number;
 	created_at: string;
 }
 
@@ -195,6 +198,7 @@ export interface Signer {
 	status: 'pending' | 'signed' | 'declined';
 	token: string;
 	signed_at: string | null;
+	last_reminded_at: string | null;
 	ip_address?: string;
 	user_agent?: string;
 }
