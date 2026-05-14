@@ -33,6 +33,13 @@ Self-hosted document signing. Go + SvelteKit. DocuSeal alternative, single-tenan
 - [x] Signature certificate PDF generation (lazy, on-demand download)
 - [x] Delete confirmation modal (shadcn alert dialog)
 - [x] Field types: signature, text, date, checkbox
+- [x] Live field value preview on PDF while signing
+- [x] Completed fields from other signers visible on signing page (green overlays)
+- [x] Custom field labels shown on signing form inputs
+- [x] Today button for date fields (auto-fill current date)
+- [x] Download document button on signing success screen
+- [x] Download document and certificate buttons on document detail page
+- [x] Centered status screens (signed, declined, not found)
 
 ## Short-term
 
