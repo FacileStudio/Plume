@@ -39,7 +39,7 @@ func DocumentRoutes(service *Service) func(chi.Router) {
 	}
 }
 
-func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator) {
+func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator, nested ...func(chi.Router)) {
 	router.Route("/signers", func(router chi.Router) {
 		router.Use(middleware.RequireAuth(authService))
 
@@ -52,6 +52,10 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 			}
 			w.WriteHeader(http.StatusNoContent)
 		})
+
+		for _, fn := range nested {
+			fn(router)
+		}
 	})
 
 	router.Get("/sign/{token}", func(w http.ResponseWriter, request *http.Request) {

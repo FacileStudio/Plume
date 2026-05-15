@@ -120,14 +120,14 @@ func main() {
 		fields.DocumentRoutes(fieldService),
 		signing.DocumentRoutes(signingService),
 	)
-	signers.RegisterRoutes(router, signerService, authService)
+	signers.RegisterRoutes(router, signerService, authService,
+		reminders.SignerRoutes(reminderService),
+	)
 	webhooks.RegisterRoutes(router, webhookService, authService)
 	smtp.RegisterRoutes(router, smtpService, authService)
 
 	verifyLimiter := middleware.NewRateLimiter(30, 10).Handler()
 	verify.RegisterRoutes(router, verifyService, verifyLimiter)
-
-	reminders.RegisterRoutes(router, reminderService, authService)
 
 	addr := ":" + appEnv.Port
 	server := &http.Server{
