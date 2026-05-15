@@ -242,6 +242,8 @@ func (s *Service) SubmitSignature(ctx context.Context, token string, req *Submit
 		}
 	}
 
+	s.docService.InvalidateGeneratedFiles(ctx, doc.ID)
+
 	now := time.Now().UTC()
 	signer.Status = "signed"
 	signer.SignedAt = &now

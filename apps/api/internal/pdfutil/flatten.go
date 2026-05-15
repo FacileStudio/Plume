@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/go-pdf/fpdf"
@@ -25,25 +26,39 @@ type FieldOverlay struct {
 func FlattenFields(inputPath, outputPath string, fields []FieldOverlay) error {
 	pdf := fpdf.New("P", "pt", "A4", "")
 	pdf.SetAutoPageBreak(false, 0)
-
-	tr := pdf.UnicodeTranslatorFromDescriptor("")
+	RegisterUnicodeFonts(pdf)
 
 	imp := gofpdi.NewImporter()
 
-	tpl1 := imp.ImportPage(pdf, inputPath, 1, "/MediaBox")
+	// First ImportPage call parses the source file and populates page sizes.
+	firstTpl := imp.ImportPage(pdf, inputPath, 1, "/MediaBox")
 	sizes := imp.GetPageSizes()
 	totalPages := len(sizes)
+	if totalPages == 0 {
+		return fmt.Errorf("pdfutil: source PDF %q has no pages", inputPath)
+	}
 
 	fieldsByPage := make(map[int][]FieldOverlay)
 	for _, f := range fields {
-		if f.Value != "" {
-			fieldsByPage[f.Page] = append(fieldsByPage[f.Page], f)
+		if f.Value == "" {
+			continue
 		}
+		fieldsByPage[f.Page] = append(fieldsByPage[f.Page], f)
 	}
 
 	for pageNum := 1; pageNum <= totalPages; pageNum++ {
-		pageSize := sizes[pageNum]["/MediaBox"]
-		w, h := pageSize["w"], pageSize["h"]
+		pageBox, ok := sizes[pageNum]
+		if !ok {
+			return fmt.Errorf("pdfutil: missing MediaBox for page %d in %q", pageNum, inputPath)
+		}
+		mediaBox, ok := pageBox["/MediaBox"]
+		if !ok {
+			return fmt.Errorf("pdfutil: page %d has no MediaBox", pageNum)
+		}
+		w, h := mediaBox["w"], mediaBox["h"]
+		if w <= 0 || h <= 0 {
+			return fmt.Errorf("pdfutil: page %d has invalid dimensions (%fx%f)", pageNum, w, h)
+		}
 
 		orient := "P"
 		if w > h {
@@ -53,21 +68,25 @@ func FlattenFields(inputPath, outputPath string, fields []FieldOverlay) error {
 
 		var tplID int
 		if pageNum == 1 {
-			tplID = tpl1
+			tplID = firstTpl
 		} else {
 			tplID = imp.ImportPage(pdf, inputPath, pageNum, "/MediaBox")
 		}
 		imp.UseImportedTemplate(pdf, tplID, 0, 0, w, h)
 
 		for _, field := range fieldsByPage[pageNum] {
-			drawField(pdf, field, w, h, tr)
+			drawField(pdf, field, w, h)
 		}
 	}
 
-	return pdf.OutputFileAndClose(outputPath)
+	if err := pdf.OutputFileAndClose(outputPath); err != nil {
+		slog.Error("pdfutil.FlattenFields output", "err", err, "path", outputPath)
+		return err
+	}
+	return nil
 }
 
-func drawField(pdf *fpdf.Fpdf, field FieldOverlay, pageW, pageH float64, tr func(string) string) {
+func drawField(pdf *fpdf.Fpdf, field FieldOverlay, pageW, pageH float64) {
 	x := field.X / 100 * pageW
 	y := field.Y / 100 * pageH
 	w := field.Width / 100 * pageW
@@ -81,8 +100,8 @@ func drawField(pdf *fpdf.Fpdf, field FieldOverlay, pageW, pageH float64, tr func
 			drawSignatureImage(pdf, field.Value, x, y, w, h)
 		} else {
 			fontSize := clampFontSize(h*0.55, 6, 24)
-			pdf.SetFont("Times", "I", fontSize)
-			pdf.Text(x+2, y+h/2+fontSize/3, tr(field.Value))
+			pdf.SetFont(UnicodeFontFamily, "I", fontSize)
+			pdf.Text(x+2, y+h/2+fontSize/3, field.Value)
 		}
 
 	case "checkbox":
@@ -99,8 +118,8 @@ func drawField(pdf *fpdf.Fpdf, field FieldOverlay, pageW, pageH float64, tr func
 
 	default:
 		fontSize := clampFontSize(h*0.55, 6, 14)
-		pdf.SetFont("Helvetica", "", fontSize)
-		text := truncateToFit(pdf, tr(field.Value), w-4)
+		pdf.SetFont(UnicodeFontFamily, "", fontSize)
+		text := truncateToFit(pdf, field.Value, w-4)
 		pdf.Text(x+2, y+h/2+fontSize/3, text)
 	}
 }
@@ -119,8 +138,9 @@ func truncateToFit(pdf *fpdf.Fpdf, text string, maxW float64) string {
 	if pdf.GetStringWidth(text) <= maxW {
 		return text
 	}
-	for i := len(text) - 1; i > 0; i-- {
-		candidate := text[:i] + "..."
+	runes := []rune(text)
+	for i := len(runes) - 1; i > 0; i-- {
+		candidate := string(runes[:i]) + "..."
 		if pdf.GetStringWidth(candidate) <= maxW {
 			return candidate
 		}
@@ -139,11 +159,16 @@ func drawSignatureImage(pdf *fpdf.Fpdf, dataURL string, x, y, w, h float64) {
 		return
 	}
 
+	imageType := "png"
+	if strings.HasPrefix(parts[0], "data:image/jpeg") || strings.HasPrefix(parts[0], "data:image/jpg") {
+		imageType = "jpg"
+	}
+
 	sigImgCounter++
 	name := fmt.Sprintf("sig_%d", sigImgCounter)
 
 	reader := bytes.NewReader(imgBytes)
-	opts := fpdf.ImageOptions{ImageType: "png"}
+	opts := fpdf.ImageOptions{ImageType: imageType}
 	pdf.RegisterImageOptionsReader(name, opts, reader)
 
 	padding := h * 0.05

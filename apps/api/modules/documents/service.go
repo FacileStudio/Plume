@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	stderrors "errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -93,10 +94,14 @@ func (s *Service) resolveFilePath(ctx context.Context, record *schemas.Document)
 }
 
 func (s *Service) getOrCreateSignedFile(ctx context.Context, doc *schemas.Document, originalPath string) (string, error) {
-	signedPath := strings.TrimSuffix(originalPath, ".pdf") + "_signed.pdf"
-	if _, err := os.Stat(signedPath); err == nil {
-		s.fillSignedHash(ctx, doc, signedPath)
-		return signedPath, nil
+	signedPath := signedFilePath(originalPath)
+
+	if signedInfo, err := os.Stat(signedPath); err == nil {
+		if origInfo, origErr := os.Stat(originalPath); origErr == nil && signedInfo.ModTime().After(origInfo.ModTime()) {
+			s.fillSignedHash(ctx, doc, signedPath)
+			return signedPath, nil
+		}
+		_ = os.Remove(signedPath)
 	}
 
 	var fields []schemas.Field
@@ -118,6 +123,7 @@ func (s *Service) getOrCreateSignedFile(ctx context.Context, doc *schemas.Docume
 	}
 
 	if err := pdfutil.FlattenFields(originalPath, signedPath, overlays); err != nil {
+		_ = os.Remove(signedPath)
 		return "", errors.Internal("failed to generate signed document", err)
 	}
 	s.fillSignedHash(ctx, doc, signedPath)
@@ -125,17 +131,38 @@ func (s *Service) getOrCreateSignedFile(ctx context.Context, doc *schemas.Docume
 }
 
 func (s *Service) fillSignedHash(ctx context.Context, doc *schemas.Document, signedPath string) {
-	if doc.SignedHash != "" {
-		return
-	}
 	hash, err := hashing.SHA256File(signedPath)
 	if err != nil {
+		return
+	}
+	if doc.SignedHash == hash {
 		return
 	}
 	if err := s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("id = ?", doc.ID).Update("signed_hash", hash).Error; err != nil {
 		return
 	}
 	doc.SignedHash = hash
+}
+
+func signedFilePath(originalPath string) string {
+	return strings.TrimSuffix(originalPath, ".pdf") + "_signed.pdf"
+}
+
+// InvalidateGeneratedFiles removes cached derived PDFs (flattened signed file,
+// audit trail, certificate) so subsequent downloads regenerate them from the
+// latest field values and signer state. Safe to call when no cache exists.
+func (s *Service) InvalidateGeneratedFiles(ctx context.Context, docID int64) {
+	record, err := s.FindByID(ctx, docID)
+	if err != nil || record.StoragePath == "" {
+		return
+	}
+	originalPath := filepath.Join(s.uploadDir, record.StoragePath)
+	_ = os.Remove(signedFilePath(originalPath))
+	_ = os.Remove(filepath.Join(s.uploadDir, "audit", fmt.Sprintf("audit_%d.pdf", docID)))
+	_ = os.Remove(filepath.Join(s.uploadDir, "certificates", fmt.Sprintf("cert_%d.pdf", docID)))
+	if record.SignedHash != "" {
+		s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("id = ?", docID).Update("signed_hash", "")
+	}
 }
 
 func (s *Service) List(ctx context.Context, ownerID string, status string) ([]DocumentResponse, error) {
@@ -196,8 +223,7 @@ func (s *Service) Delete(ctx context.Context, ownerID string, docID string) erro
 	if record.StoragePath != "" {
 		fullPath := filepath.Join(s.uploadDir, record.StoragePath)
 		os.Remove(fullPath)
-		signedPath := strings.TrimSuffix(fullPath, ".pdf") + "_signed.pdf"
-		os.Remove(signedPath)
+		os.Remove(signedFilePath(fullPath))
 	}
 	if err := s.orm.WithContext(ctx).Delete(record).Error; err != nil {
 		return errors.Internal("failed to delete document", err)
@@ -362,7 +388,7 @@ func (s *Service) BackfillHashes(ctx context.Context) (int, error) {
 		updated++
 
 		if doc.Status == "completed" {
-			signedPath := strings.TrimSuffix(path, ".pdf") + "_signed.pdf"
+			signedPath := signedFilePath(path)
 			if _, statErr := os.Stat(signedPath); statErr == nil {
 				if signedHash, hashErr := hashing.SHA256File(signedPath); hashErr == nil {
 					s.orm.WithContext(ctx).Model(&schemas.Document{}).

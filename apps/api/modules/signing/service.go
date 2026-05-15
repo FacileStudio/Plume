@@ -11,12 +11,15 @@ import (
 
 	"api/internal/errors"
 	"api/internal/hashing"
+	"api/internal/pdfutil"
 	"api/modules/documents"
 	"api/schemas"
 
 	"github.com/go-pdf/fpdf"
 	"gorm.io/gorm"
 )
+
+const fontFamily = pdfutil.UnicodeFontFamily
 
 type Service struct {
 	orm        *gorm.DB
@@ -45,8 +48,11 @@ func (s *Service) GetOrGenerateCertificate(ctx context.Context, ownerID string, 
 	}
 
 	certPath := s.certificatePath(did)
-	if _, err := os.Stat(certPath); err == nil {
-		return certPath, nil
+	if info, err := os.Stat(certPath); err == nil {
+		if info.ModTime().After(doc.UpdatedAt) {
+			return certPath, nil
+		}
+		_ = os.Remove(certPath)
 	}
 
 	if err := s.generateCertificate(did, &doc); err != nil {
@@ -69,10 +75,11 @@ func (s *Service) generateCertificate(docID int64, doc *schemas.Document) error 
 	s.orm.Where("document_id = ? AND value != ''", docID).Find(&fields)
 
 	pdf := fpdf.New("P", "mm", "A4", "")
+	pdfutil.RegisterUnicodeFonts(pdf)
 	pdf.SetAutoPageBreak(true, 20)
 	pdf.AddPage()
 
-	pdf.SetFont("Helvetica", "B", 20)
+	pdf.SetFont(fontFamily, "B", 20)
 	pdf.CellFormat(190, 15, "Signature Certificate", "", 1, "C", false, 0, "")
 	pdf.Ln(10)
 
@@ -80,24 +87,24 @@ func (s *Service) generateCertificate(docID int64, doc *schemas.Document) error 
 	pdf.Line(10, pdf.GetY(), 200, pdf.GetY())
 	pdf.Ln(8)
 
-	pdf.SetFont("Helvetica", "B", 11)
+	pdf.SetFont(fontFamily, "B", 11)
 	pdf.CellFormat(40, 7, "Document:", "", 0, "L", false, 0, "")
-	pdf.SetFont("Helvetica", "", 11)
+	pdf.SetFont(fontFamily, "", 11)
 	pdf.CellFormat(150, 7, doc.Name, "", 1, "L", false, 0, "")
 
-	pdf.SetFont("Helvetica", "B", 11)
+	pdf.SetFont(fontFamily, "B", 11)
 	pdf.CellFormat(40, 7, "File:", "", 0, "L", false, 0, "")
-	pdf.SetFont("Helvetica", "", 11)
+	pdf.SetFont(fontFamily, "", 11)
 	pdf.CellFormat(150, 7, doc.FileName, "", 1, "L", false, 0, "")
 
-	pdf.SetFont("Helvetica", "B", 11)
+	pdf.SetFont(fontFamily, "B", 11)
 	pdf.CellFormat(40, 7, "Status:", "", 0, "L", false, 0, "")
-	pdf.SetFont("Helvetica", "", 11)
+	pdf.SetFont(fontFamily, "", 11)
 	pdf.CellFormat(150, 7, doc.Status, "", 1, "L", false, 0, "")
 
-	pdf.SetFont("Helvetica", "B", 11)
+	pdf.SetFont(fontFamily, "B", 11)
 	pdf.CellFormat(40, 7, "Completed:", "", 0, "L", false, 0, "")
-	pdf.SetFont("Helvetica", "", 11)
+	pdf.SetFont(fontFamily, "", 11)
 	pdf.CellFormat(150, 7, doc.UpdatedAt.Format(time.RFC3339), "", 1, "L", false, 0, "")
 
 	pdf.Ln(10)
@@ -105,15 +112,15 @@ func (s *Service) generateCertificate(docID int64, doc *schemas.Document) error 
 	pdf.Line(10, pdf.GetY(), 200, pdf.GetY())
 	pdf.Ln(8)
 
-	pdf.SetFont("Helvetica", "B", 14)
+	pdf.SetFont(fontFamily, "B", 14)
 	pdf.CellFormat(190, 10, "Signers", "", 1, "L", false, 0, "")
 	pdf.Ln(3)
 
 	for _, signer := range signers {
-		pdf.SetFont("Helvetica", "B", 11)
+		pdf.SetFont(fontFamily, "B", 11)
 		pdf.CellFormat(190, 7, signer.Name, "", 1, "L", false, 0, "")
 
-		pdf.SetFont("Helvetica", "", 10)
+		pdf.SetFont(fontFamily, "", 10)
 		pdf.CellFormat(190, 6, fmt.Sprintf("Email: %s", signer.Email), "", 1, "L", false, 0, "")
 		pdf.CellFormat(190, 6, fmt.Sprintf("Role: %s  |  Status: %s", signer.Role, signer.Status), "", 1, "L", false, 0, "")
 
@@ -132,7 +139,7 @@ func (s *Service) generateCertificate(docID int64, doc *schemas.Document) error 
 		pdf.Line(10, pdf.GetY(), 200, pdf.GetY())
 		pdf.Ln(8)
 
-		pdf.SetFont("Helvetica", "B", 14)
+		pdf.SetFont(fontFamily, "B", 14)
 		pdf.CellFormat(190, 10, "Field Values", "", 1, "L", false, 0, "")
 		pdf.Ln(3)
 
@@ -144,7 +151,7 @@ func (s *Service) generateCertificate(docID int64, doc *schemas.Document) error 
 					break
 				}
 			}
-			pdf.SetFont("Helvetica", "", 10)
+			pdf.SetFont(fontFamily, "", 10)
 			label := fmt.Sprintf("%s (%s): %s", field.FieldType, signerName, field.Value)
 			pdf.CellFormat(190, 6, label, "", 1, "L", false, 0, "")
 		}
@@ -172,8 +179,11 @@ func (s *Service) GetOrGenerateAuditTrail(ctx context.Context, ownerID string, d
 	}
 
 	trailPath := s.auditTrailPath(did)
-	if _, err := os.Stat(trailPath); err == nil {
-		return trailPath, nil
+	if info, err := os.Stat(trailPath); err == nil {
+		if info.ModTime().After(doc.UpdatedAt) {
+			return trailPath, nil
+		}
+		_ = os.Remove(trailPath)
 	}
 
 	if err := s.generateAuditTrail(did, &doc); err != nil {
@@ -201,22 +211,23 @@ func (s *Service) generateAuditTrail(docID int64, doc *schemas.Document) error {
 	originalHash, signedHash := s.documentHashes(doc)
 
 	pdf := fpdf.New("P", "mm", "A4", "")
+	pdfutil.RegisterUnicodeFonts(pdf)
 	pdf.SetAutoPageBreak(true, 25)
 	pdf.SetMargins(15, 15, 15)
 
 	pdf.SetFooterFunc(func() {
 		pdf.SetY(-15)
-		pdf.SetFont("Helvetica", "", 7)
+		pdf.SetFont(fontFamily, "", 7)
 		pdf.SetTextColor(150, 150, 150)
 		pdf.CellFormat(0, 8, fmt.Sprintf("Plume Audit Trail — Document #%d — Page %d", docID, pdf.PageNo()), "", 0, "C", false, 0, "")
 	})
 
 	pdf.AddPage()
 
-	pdf.SetFont("Helvetica", "B", 22)
+	pdf.SetFont(fontFamily, "B", 22)
 	pdf.SetTextColor(0, 0, 0)
 	pdf.CellFormat(180, 12, "Audit Trail", "", 1, "L", false, 0, "")
-	pdf.SetFont("Helvetica", "", 9)
+	pdf.SetFont(fontFamily, "", 9)
 	pdf.SetTextColor(120, 120, 120)
 	pdf.CellFormat(180, 5, fmt.Sprintf("Generated %s", time.Now().UTC().Format("January 2, 2006 at 15:04 UTC")), "", 1, "L", false, 0, "")
 	pdf.Ln(8)
@@ -224,7 +235,7 @@ func (s *Service) generateAuditTrail(docID int64, doc *schemas.Document) error {
 	s.drawSectionLine(pdf)
 	pdf.Ln(6)
 
-	pdf.SetFont("Helvetica", "B", 13)
+	pdf.SetFont(fontFamily, "B", 13)
 	pdf.SetTextColor(0, 0, 0)
 	pdf.CellFormat(180, 8, "Document Information", "", 1, "L", false, 0, "")
 	pdf.Ln(2)
@@ -246,7 +257,7 @@ func (s *Service) generateAuditTrail(docID int64, doc *schemas.Document) error {
 	s.drawSectionLine(pdf)
 	pdf.Ln(6)
 
-	pdf.SetFont("Helvetica", "B", 13)
+	pdf.SetFont(fontFamily, "B", 13)
 	pdf.SetTextColor(0, 0, 0)
 	pdf.CellFormat(180, 8, "Event Timeline", "", 1, "L", false, 0, "")
 	pdf.Ln(4)
@@ -302,7 +313,7 @@ func (s *Service) generateAuditTrail(docID int64, doc *schemas.Document) error {
 	s.drawSectionLine(pdf)
 	pdf.Ln(6)
 
-	pdf.SetFont("Helvetica", "B", 13)
+	pdf.SetFont(fontFamily, "B", 13)
 	pdf.SetTextColor(0, 0, 0)
 	pdf.CellFormat(180, 8, "Signers", "", 1, "L", false, 0, "")
 	pdf.Ln(2)
@@ -311,10 +322,10 @@ func (s *Service) generateAuditTrail(docID int64, doc *schemas.Document) error {
 		if i > 0 {
 			pdf.Ln(2)
 		}
-		pdf.SetFont("Helvetica", "B", 10)
+		pdf.SetFont(fontFamily, "B", 10)
 		pdf.SetTextColor(0, 0, 0)
 		pdf.CellFormat(180, 6, fmt.Sprintf("%d. %s", i+1, signer.Name), "", 1, "L", false, 0, "")
-		pdf.SetFont("Helvetica", "", 9)
+		pdf.SetFont(fontFamily, "", 9)
 		pdf.SetTextColor(80, 80, 80)
 		pdf.CellFormat(180, 5, fmt.Sprintf("Email: %s", signer.Email), "", 1, "L", false, 0, "")
 		pdf.CellFormat(180, 5, fmt.Sprintf("Role: %s  •  Status: %s", signer.Role, signer.Status), "", 1, "L", false, 0, "")
@@ -345,7 +356,7 @@ func (s *Service) generateAuditTrail(docID int64, doc *schemas.Document) error {
 		s.drawSectionLine(pdf)
 		pdf.Ln(6)
 
-		pdf.SetFont("Helvetica", "B", 13)
+		pdf.SetFont(fontFamily, "B", 13)
 		pdf.SetTextColor(0, 0, 0)
 		pdf.CellFormat(180, 8, "Field Values", "", 1, "L", false, 0, "")
 		pdf.Ln(2)
@@ -356,7 +367,7 @@ func (s *Service) generateAuditTrail(docID int64, doc *schemas.Document) error {
 		}
 
 		for _, f := range completedFields {
-			pdf.SetFont("Helvetica", "B", 9)
+			pdf.SetFont(fontFamily, "B", 9)
 			pdf.SetTextColor(0, 0, 0)
 
 			label := f.Label
@@ -365,7 +376,7 @@ func (s *Service) generateAuditTrail(docID int64, doc *schemas.Document) error {
 			}
 			pdf.CellFormat(180, 5, fmt.Sprintf("%s (%s — %s)", label, f.FieldType, signerMap[f.SignerID]), "", 1, "L", false, 0, "")
 
-			pdf.SetFont("Helvetica", "", 9)
+			pdf.SetFont(fontFamily, "", 9)
 			pdf.SetTextColor(80, 80, 80)
 			val := f.Value
 			if strings.HasPrefix(val, "data:image/") {
@@ -398,10 +409,10 @@ func (s *Service) drawSectionLine(pdf *fpdf.Fpdf) {
 }
 
 func (s *Service) drawInfoRow(pdf *fpdf.Fpdf, label, value string) {
-	pdf.SetFont("Helvetica", "B", 9)
+	pdf.SetFont(fontFamily, "B", 9)
 	pdf.SetTextColor(100, 100, 100)
 	pdf.CellFormat(35, 6, label, "", 0, "L", false, 0, "")
-	pdf.SetFont("Helvetica", "", 9)
+	pdf.SetFont(fontFamily, "", 9)
 	pdf.SetTextColor(30, 30, 30)
 	pdf.CellFormat(145, 6, value, "", 1, "L", false, 0, "")
 }
@@ -415,12 +426,12 @@ func (s *Service) drawEvent(pdf *fpdf.Fpdf, t time.Time, title, detail string) {
 	pdf.SetLineWidth(0.3)
 	pdf.Line(19, y+6, 19, y+18)
 
-	pdf.SetFont("Helvetica", "", 7)
+	pdf.SetFont(fontFamily, "", 7)
 	pdf.SetTextColor(130, 130, 130)
 	pdf.SetXY(25, y)
 	pdf.CellFormat(40, 4, t.Format("2006-01-02 15:04 UTC"), "", 0, "L", false, 0, "")
 
-	pdf.SetFont("Helvetica", "B", 10)
+	pdf.SetFont(fontFamily, "B", 10)
 	pdf.SetTextColor(0, 0, 0)
 	pdf.SetXY(25, y+4)
 	pdf.CellFormat(155, 5, title, "", 1, "L", false, 0, "")
@@ -428,7 +439,7 @@ func (s *Service) drawEvent(pdf *fpdf.Fpdf, t time.Time, title, detail string) {
 	if detail != "" {
 		lines := strings.Split(detail, "\n")
 		for _, line := range lines {
-			pdf.SetFont("Helvetica", "", 8)
+			pdf.SetFont(fontFamily, "", 8)
 			pdf.SetTextColor(100, 100, 100)
 			pdf.SetX(25)
 			pdf.CellFormat(155, 4, line, "", 1, "L", false, 0, "")
