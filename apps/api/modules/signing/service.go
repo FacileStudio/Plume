@@ -151,9 +151,12 @@ func (s *Service) generateCertificate(docID int64, doc *schemas.Document) error 
 					break
 				}
 			}
+			pdf.SetFont(fontFamily, "B", 10)
+			header := fmt.Sprintf("%s (%s)", field.FieldType, signerName)
+			pdf.CellFormat(190, 6, header, "", 1, "L", false, 0, "")
 			pdf.SetFont(fontFamily, "", 10)
-			label := fmt.Sprintf("%s (%s): %s", field.FieldType, signerName, field.Value)
-			pdf.CellFormat(190, 6, label, "", 1, "L", false, 0, "")
+			pdf.MultiCell(190, 5, displayFieldValue(&field), "", "L", false)
+			pdf.Ln(1)
 		}
 	}
 
@@ -378,18 +381,7 @@ func (s *Service) generateAuditTrail(docID int64, doc *schemas.Document) error {
 
 			pdf.SetFont(fontFamily, "", 9)
 			pdf.SetTextColor(80, 80, 80)
-			val := f.Value
-			if strings.HasPrefix(val, "data:image/") {
-				val = "[drawn signature image]"
-			}
-			if f.FieldType == "checkbox" {
-				if val == "true" {
-					val = "Checked"
-				} else {
-					val = "Unchecked"
-				}
-			}
-			pdf.CellFormat(180, 5, fmt.Sprintf("Value: %s", val), "", 1, "L", false, 0, "")
+			pdf.MultiCell(180, 5, "Value: "+displayFieldValue(&f), "", "L", false)
 			pdf.Ln(1)
 		}
 	}
@@ -446,6 +438,27 @@ func (s *Service) drawEvent(pdf *fpdf.Fpdf, t time.Time, title, detail string) {
 		}
 	}
 	pdf.Ln(3)
+}
+
+// displayFieldValue returns a human-readable representation of a field value
+// suitable for inclusion in the certificate or audit trail PDFs. It collapses
+// signature data URLs (which can be thousands of characters) and renders
+// checkbox booleans as Checked/Unchecked.
+func displayFieldValue(f *schemas.Field) string {
+	val := f.Value
+	if val == "" {
+		return "(empty)"
+	}
+	if strings.HasPrefix(val, "data:image/") {
+		return "[drawn signature image]"
+	}
+	if f.FieldType == "checkbox" {
+		if val == "true" {
+			return "Checked"
+		}
+		return "Unchecked"
+	}
+	return val
 }
 
 func (s *Service) documentHashes(doc *schemas.Document) (original string, signed string) {
