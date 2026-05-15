@@ -1,5 +1,7 @@
 package webhooks
 
+import "time"
+
 type CreateWebhookRequest struct {
 	URL    string `json:"url"`
 	Secret string `json:"secret"`
@@ -21,21 +23,45 @@ type WebhookResponse struct {
 }
 
 type EventPayload struct {
-	EventType string       `json:"event_type"`
-	Document  EventDocument `json:"document"`
-	Signer    *EventSigner  `json:"signer,omitempty"`
+	EventID    string        `json:"event_id"`
+	EventType  string        `json:"event_type"`
+	OccurredAt time.Time     `json:"occurred_at"`
+	Document   EventDocument `json:"document"`
+	Signer     *EventSigner  `json:"signer,omitempty"`
 }
 
 type EventDocument struct {
-	ID       int64  `json:"id"`
-	Name     string `json:"name"`
-	Status   string `json:"status"`
-	FileName string `json:"file_name"`
+	ID         int64      `json:"id"`
+	Name       string     `json:"name"`
+	Status     string     `json:"status"`
+	FileName   string     `json:"file_name"`
+	URL        string     `json:"url,omitempty"`
+	Sequential bool       `json:"sequential"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
 }
 
 type EventSigner struct {
-	ID    int64  `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
-	Role  string `json:"role"`
+	ID         int64      `json:"id"`
+	Name       string     `json:"name"`
+	Email      string     `json:"email"`
+	Role       string     `json:"role"`
+	Status     string     `json:"status,omitempty"`
+	OrderNum   int        `json:"order_num"`
+	SigningURL string     `json:"signing_url,omitempty"`
+	SignedAt   *time.Time `json:"signed_at,omitempty"`
+	ViewedAt   *time.Time `json:"viewed_at,omitempty"`
 }
+
+const (
+	EventDocumentCreated   = "document.created"
+	EventDocumentSent      = "document.sent"
+	EventDocumentCompleted = "document.completed"
+	EventDocumentDeclined  = "document.declined"
+	EventDocumentDeleted   = "document.deleted"
+	EventSignerAdded       = "signer.added"
+	EventSignerViewed      = "signer.viewed"
+	EventSignerSigned      = "signer.signed"
+	EventSignerDeclined    = "signer.declined"
+	EventSignerReminded    = "signer.reminded"
+)

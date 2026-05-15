@@ -122,7 +122,9 @@ export const api = {
 			request<Webhook>('POST', '/webhooks', data),
 		update: (id: number, data: { url: string; secret: string; enabled: boolean }) =>
 			request<Webhook>('PUT', `/webhooks/${id}`, data),
-		delete: (id: number) => request<void>('DELETE', `/webhooks/${id}`)
+		delete: (id: number) => request<void>('DELETE', `/webhooks/${id}`),
+		test: (id: number) =>
+			request<{ status: string }>('POST', `/webhooks/${id}/test`)
 	},
 	smtp: {
 		get: () => request<SmtpConfig>('GET', '/smtp'),

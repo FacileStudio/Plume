@@ -86,6 +86,22 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 			httpjson.WriteJSON(w, http.StatusOK, resp)
 		})
 
+		router.Post("/{id}/test", func(w http.ResponseWriter, request *http.Request) {
+			identity, _ := authcontext.IdentityFromContext(request.Context())
+			ownerID, _ := strconv.ParseInt(identity.UserID, 10, 64)
+			webhookID, err := strconv.ParseInt(chi.URLParam(request, "id"), 10, 64)
+			if err != nil {
+				httpjson.WriteError(w, errors.Invalid("invalid webhook ID"))
+				return
+			}
+
+			if err := service.Test(request.Context(), ownerID, webhookID); err != nil {
+				httpjson.WriteError(w, err)
+				return
+			}
+			httpjson.WriteJSON(w, http.StatusOK, map[string]string{"status": "delivered"})
+		})
+
 		router.Delete("/{id}", func(w http.ResponseWriter, request *http.Request) {
 			identity, _ := authcontext.IdentityFromContext(request.Context())
 			ownerID, _ := strconv.ParseInt(identity.UserID, 10, 64)

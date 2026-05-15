@@ -69,7 +69,7 @@ func main() {
 	fieldService := fields.NewService(db, docService)
 	signingService := signing.NewService(db, appEnv.UploadDir, docService)
 	verifyService := verify.NewService(db, docService)
-	reminderService := reminders.NewService(db, smtpService, appEnv.Domain)
+	reminderService := reminders.NewService(db, smtpService, webhookService, appEnv.Domain)
 
 	go func() {
 		count, err := docService.BackfillHashes(context.Background())
@@ -87,6 +87,7 @@ func main() {
 			auth.Documentation,
 			documents.Documentation,
 			signers.Documentation,
+			webhooks.Documentation,
 		},
 	}
 

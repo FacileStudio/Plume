@@ -162,6 +162,33 @@
 		} catch {}
 	}
 
+	let testingWebhookId = $state<number | null>(null);
+	async function testWebhook(id: number) {
+		if (testingWebhookId !== null) return;
+		testingWebhookId = id;
+		try {
+			await api.webhooks.test(id);
+			toast.success('Test event delivered');
+			await loadWebhooks();
+		} catch (e) {
+			toast.error(e instanceof Error ? e.message : 'Test delivery failed');
+		}
+		testingWebhookId = null;
+	}
+
+	const webhookEventTypes = [
+		'document.created',
+		'document.sent',
+		'document.completed',
+		'document.declined',
+		'document.deleted',
+		'signer.added',
+		'signer.viewed',
+		'signer.signed',
+		'signer.declined',
+		'signer.reminded'
+	];
+
 	async function loadReminderSettings() {
 		try {
 			const me = await api.auth.me();
@@ -350,7 +377,16 @@
 				</button>
 			{/if}
 		</div>
-		<p class="text-sm text-muted-foreground mb-4">Receive notifications when documents are signed, completed, or declined</p>
+		<p class="text-sm text-muted-foreground mb-2">Receive notifications on every document and signer event</p>
+		<details class="mb-4 text-sm">
+			<summary class="cursor-pointer text-xs text-muted-foreground hover:text-foreground">Supported event types</summary>
+			<div class="mt-2 flex flex-wrap gap-1.5">
+				{#each webhookEventTypes as eventType}
+					<code class="rounded bg-muted px-1.5 py-0.5 text-xs">{eventType}</code>
+				{/each}
+			</div>
+			<p class="mt-2 text-xs text-muted-foreground">Each delivery is HMAC-SHA256 signed via the <code class="rounded bg-muted px-1 py-0.5 text-xs">x-plume-signature-256</code> header. Failed deliveries retry up to 3 times with backoff.</p>
+		</details>
 
 		{#if webhooks.length === 0 && !showWebhookForm}
 			<button
@@ -392,9 +428,21 @@
 										<span class="rounded-full px-2.5 py-0.5 text-xs font-medium {wh.enabled ? 'bg-foreground text-background' : 'bg-muted text-muted-foreground'}">
 											{wh.enabled ? 'Active' : 'Disabled'}
 										</span>
+										{#if wh.last_sent_at}
+											<span class="text-xs text-muted-foreground">Last delivered {new Date(wh.last_sent_at).toLocaleString()}</span>
+										{/if}
 									</div>
 								</div>
 								<div class="flex items-center gap-1.5 shrink-0">
+									<button
+										onclick={() => testWebhook(wh.id)}
+										disabled={testingWebhookId === wh.id}
+										class="rounded-md p-1.5 text-muted-foreground transition-colors hover:text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+										aria-label="Send test event"
+										title="Send test event"
+									>
+										<Icon icon={testingWebhookId === wh.id ? 'solar:spinner-linear' : 'solar:test-tube-linear'} class="h-3.5 w-3.5 {testingWebhookId === wh.id ? 'animate-spin' : ''}" />
+									</button>
 									<button
 										onclick={() => toggleWebhookEnabled(wh)}
 										class="relative h-6 w-10 rounded-full transition-colors {wh.enabled ? 'bg-green-500' : 'bg-muted'}"

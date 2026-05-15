@@ -9,6 +9,7 @@ import (
 
 	"api/internal/errors"
 	"api/modules/smtp"
+	"api/modules/webhooks"
 	"api/schemas"
 
 	"gorm.io/gorm"
@@ -21,18 +22,20 @@ const (
 )
 
 type Service struct {
-	orm     *gorm.DB
-	smtpSvc *smtp.Service
-	domain  string
-	now     func() time.Time
+	orm        *gorm.DB
+	smtpSvc    *smtp.Service
+	webhookSvc *webhooks.Service
+	domain     string
+	now        func() time.Time
 }
 
-func NewService(orm *gorm.DB, smtpSvc *smtp.Service, domain string) *Service {
+func NewService(orm *gorm.DB, smtpSvc *smtp.Service, webhookSvc *webhooks.Service, domain string) *Service {
 	return &Service{
-		orm:     orm,
-		smtpSvc: smtpSvc,
-		domain:  domain,
-		now:     func() time.Time { return time.Now().UTC() },
+		orm:        orm,
+		smtpSvc:    smtpSvc,
+		webhookSvc: webhookSvc,
+		domain:     domain,
+		now:        func() time.Time { return time.Now().UTC() },
 	}
 }
 
@@ -92,8 +95,10 @@ func (s *Service) RemindSigner(ctx context.Context, ownerID string, signerID str
 		Update("last_reminded_at", now).Error; err != nil {
 		return nil, errors.Internal("failed to update reminder timestamp", err)
 	}
+	signer.LastRemindedAt = &now
 
 	go s.smtpSvc.SendSigningEmail(uid, signer.Name, signer.Email, doc.Name, signer.Token, s.domain)
+	go s.webhookSvc.Dispatch(uid, webhooks.BuildSignerEvent(webhooks.EventSignerReminded, &doc, &signer, s.domain))
 
 	return &RemindResponse{Status: "ok", RemindedAt: now}, nil
 }
@@ -185,9 +190,23 @@ func (s *Service) runForUser(ctx context.Context, user *schemas.User, now time.T
 			continue
 		}
 		go s.smtpSvc.SendSigningEmail(user.ID, r.SignerName, r.SignerEmail, r.DocumentName, r.SignerToken, s.domain)
+		s.dispatchReminderEvent(ctx, user.ID, r.SignerID, now)
 		sent++
 	}
 	return sent, nil
+}
+
+func (s *Service) dispatchReminderEvent(ctx context.Context, ownerID int64, signerID int64, remindedAt time.Time) {
+	var signer schemas.Signer
+	if err := s.orm.WithContext(ctx).Where("id = ?", signerID).First(&signer).Error; err != nil {
+		return
+	}
+	var doc schemas.Document
+	if err := s.orm.WithContext(ctx).Where("id = ?", signer.DocumentID).First(&doc).Error; err != nil {
+		return
+	}
+	signer.LastRemindedAt = &remindedAt
+	go s.webhookSvc.Dispatch(ownerID, webhooks.BuildSignerEvent(webhooks.EventSignerReminded, &doc, &signer, s.domain))
 }
 
 func (s *Service) isActiveSequentialSigner(ctx context.Context, doc *schemas.Document, signer *schemas.Signer) (bool, error) {

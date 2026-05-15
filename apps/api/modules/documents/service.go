@@ -48,6 +48,9 @@ func (s *Service) Create(ctx context.Context, ownerID string, name string, fileN
 	if err := s.orm.WithContext(ctx).Create(record).Error; err != nil {
 		return nil, errors.Internal("failed to create document", err)
 	}
+
+	go s.webhookSvc.Dispatch(uid, webhooks.BuildDocumentEvent(webhooks.EventDocumentCreated, record, s.domain))
+
 	return toResponse(record), nil
 }
 
@@ -199,6 +202,10 @@ func (s *Service) Delete(ctx context.Context, ownerID string, docID string) erro
 	if err := s.orm.WithContext(ctx).Delete(record).Error; err != nil {
 		return errors.Internal("failed to delete document", err)
 	}
+
+	uid, _ := strconv.ParseInt(ownerID, 10, 64)
+	go s.webhookSvc.Dispatch(uid, webhooks.BuildDocumentEvent(webhooks.EventDocumentDeleted, record, s.domain))
+
 	return nil
 }
 
@@ -267,11 +274,7 @@ func (s *Service) Send(ctx context.Context, ownerID string, docID string) (*Docu
 		}
 	}
 
-	sentEvent := webhooks.EventPayload{
-		EventType: "document.sent",
-		Document:  webhooks.EventDocument{ID: record.ID, Name: record.Name, Status: record.Status, FileName: record.FileName},
-	}
-	go s.webhookSvc.Dispatch(uid, sentEvent)
+	go s.webhookSvc.Dispatch(uid, webhooks.BuildDocumentEvent(webhooks.EventDocumentSent, record, s.domain))
 
 	return toResponse(record), nil
 }

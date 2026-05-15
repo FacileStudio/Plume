@@ -84,6 +84,13 @@ func (s *Service) AddSigner(ctx context.Context, ownerID string, docID string, r
 	if err := s.orm.WithContext(ctx).Create(record).Error; err != nil {
 		return nil, errors.Internal("failed to add signer", err)
 	}
+
+	var docRecord schemas.Document
+	if findErr := s.orm.WithContext(ctx).Where("id = ?", doc.ID).First(&docRecord).Error; findErr == nil {
+		uid, _ := strconv.ParseInt(ownerID, 10, 64)
+		go s.webhookSvc.Dispatch(uid, webhooks.BuildSignerEvent(webhooks.EventSignerAdded, &docRecord, record, s.domain))
+	}
+
 	return toSignerResponse(record), nil
 }
 
@@ -134,6 +141,16 @@ func (s *Service) GetSigningView(ctx context.Context, token string) (*SigningVie
 	}
 	if doc.Status != "pending" {
 		return nil, errors.Invalid("document is not available for signing")
+	}
+
+	if signer.ViewedAt == nil && signer.Status == "pending" {
+		now := time.Now().UTC()
+		if updateErr := s.orm.WithContext(ctx).Model(&schemas.Signer{}).
+			Where("id = ?", signer.ID).
+			Update("viewed_at", now).Error; updateErr == nil {
+			signer.ViewedAt = &now
+			go s.webhookSvc.Dispatch(doc.OwnerID, webhooks.BuildSignerEvent(webhooks.EventSignerViewed, doc, &signer, s.domain))
+		}
 	}
 
 	var fields []schemas.Field
@@ -244,19 +261,11 @@ func (s *Service) SubmitSignature(ctx context.Context, token string, req *Submit
 		s.notifyNextSequentialSigners(ctx, doc)
 	}
 
-	signerEvent := webhooks.EventPayload{
-		EventType: "signer.signed",
-		Document:  webhooks.EventDocument{ID: doc.ID, Name: doc.Name, Status: doc.Status, FileName: doc.FileName},
-		Signer:    &webhooks.EventSigner{ID: signer.ID, Name: signer.Name, Email: signer.Email, Role: signer.Role},
-	}
-	go s.webhookSvc.Dispatch(doc.OwnerID, signerEvent)
+	go s.webhookSvc.Dispatch(doc.OwnerID, webhooks.BuildSignerEvent(webhooks.EventSignerSigned, doc, &signer, s.domain))
 
 	if pendingCount == 0 {
-		completedEvent := webhooks.EventPayload{
-			EventType: "document.completed",
-			Document:  webhooks.EventDocument{ID: doc.ID, Name: doc.Name, Status: "completed", FileName: doc.FileName},
-		}
-		go s.webhookSvc.Dispatch(doc.OwnerID, completedEvent)
+		doc.Status = "completed"
+		go s.webhookSvc.Dispatch(doc.OwnerID, webhooks.BuildDocumentEvent(webhooks.EventDocumentCompleted, doc, s.domain))
 	}
 
 	go s.smtpSvc.SendNotificationEmail(doc.OwnerID, doc.ID, signer.Name, doc.Name, "signed", s.domain)
@@ -298,18 +307,10 @@ func (s *Service) DeclineSignature(ctx context.Context, token string, ipAddress 
 		return errors.Internal("failed to update document status", err)
 	}
 
-	signerEvent := webhooks.EventPayload{
-		EventType: "signer.declined",
-		Document:  webhooks.EventDocument{ID: doc.ID, Name: doc.Name, Status: doc.Status, FileName: doc.FileName},
-		Signer:    &webhooks.EventSigner{ID: signer.ID, Name: signer.Name, Email: signer.Email, Role: signer.Role},
-	}
-	go s.webhookSvc.Dispatch(doc.OwnerID, signerEvent)
+	go s.webhookSvc.Dispatch(doc.OwnerID, webhooks.BuildSignerEvent(webhooks.EventSignerDeclined, doc, &signer, s.domain))
 
-	declinedEvent := webhooks.EventPayload{
-		EventType: "document.declined",
-		Document:  webhooks.EventDocument{ID: doc.ID, Name: doc.Name, Status: "declined", FileName: doc.FileName},
-	}
-	go s.webhookSvc.Dispatch(doc.OwnerID, declinedEvent)
+	doc.Status = "declined"
+	go s.webhookSvc.Dispatch(doc.OwnerID, webhooks.BuildDocumentEvent(webhooks.EventDocumentDeclined, doc, s.domain))
 
 	go s.smtpSvc.SendNotificationEmail(doc.OwnerID, doc.ID, signer.Name, doc.Name, "declined", s.domain)
 
