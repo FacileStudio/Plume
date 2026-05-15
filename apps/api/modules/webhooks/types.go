@@ -26,8 +26,15 @@ type EventPayload struct {
 	EventID    string        `json:"event_id"`
 	EventType  string        `json:"event_type"`
 	OccurredAt time.Time     `json:"occurred_at"`
+	Owner      *EventOwner   `json:"owner,omitempty"`
 	Document   EventDocument `json:"document"`
 	Signer     *EventSigner  `json:"signer,omitempty"`
+}
+
+type EventOwner struct {
+	ID    int64  `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
 }
 
 type EventDocument struct {

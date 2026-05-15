@@ -173,6 +173,13 @@ func (s *Service) Dispatch(ownerID int64, payload EventPayload) {
 		return
 	}
 
+	if payload.Owner == nil {
+		var owner schemas.User
+		if err := s.orm.Where("id = ?", ownerID).First(&owner).Error; err == nil {
+			payload.Owner = &EventOwner{ID: owner.ID, Name: owner.Name, Email: owner.Email}
+		}
+	}
+
 	body, err := json.Marshal(payload)
 	if err != nil {
 		slog.Error("failed to marshal webhook payload",
