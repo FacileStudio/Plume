@@ -371,6 +371,7 @@ func toSignerResponse(record *schemas.Signer) *SignerResponse {
 		Token:          record.Token,
 		OrderNum:       record.OrderNum,
 		SignedAt:       record.SignedAt,
+		ViewedAt:       record.ViewedAt,
 		IPAddress:      record.IPAddress,
 		UserAgent:      record.UserAgent,
 		LastRemindedAt: record.LastRemindedAt,
