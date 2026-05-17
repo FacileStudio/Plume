@@ -7,6 +7,8 @@
 	import { Separator } from '$lib/components/ui/separator';
 	import Icon from '@iconify/svelte';
 
+	const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
 	let name = $state('');
 	let file = $state<File | null>(null);
 	let signers = $state<{ name: string; email: string }[]>([{ name: '', email: '' }]);
@@ -22,19 +24,38 @@
 		signers = signers.filter((_, i) => i !== index);
 	}
 
+	function validateFile(f: File): string | null {
+		if (f.type !== 'application/pdf') return 'Only PDF files are accepted';
+		if (f.size > MAX_FILE_SIZE) return `File is too large (${(f.size / 1024 / 1024).toFixed(1)} MB). Maximum size is 10 MB.`;
+		return null;
+	}
+
 	function handleDrop(e: DragEvent) {
 		e.preventDefault();
 		dragging = false;
 		const dropped = e.dataTransfer?.files?.[0];
-		if (dropped && dropped.type === 'application/pdf') {
+		if (dropped) {
+			const err = validateFile(dropped);
+			if (err) {
+				error = err;
+				return;
+			}
+			error = '';
 			file = dropped;
 		}
 	}
 
 	function handleFileInput(e: Event) {
 		const input = e.currentTarget as HTMLInputElement;
-		if (input.files?.[0]) {
-			file = input.files[0];
+		const selected = input.files?.[0];
+		if (selected) {
+			const err = validateFile(selected);
+			if (err) {
+				error = err;
+				return;
+			}
+			error = '';
+			file = selected;
 		}
 	}
 

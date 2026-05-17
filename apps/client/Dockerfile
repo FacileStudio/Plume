@@ -20,6 +20,7 @@ COPY --from=build /app/node_modules ./node_modules
 
 ENV PORT=3000
 ENV API_URL=http://plume-api:4000
+ENV BODY_SIZE_LIMIT=10485760
 
 EXPOSE 3000
 

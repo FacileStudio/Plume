@@ -58,7 +58,15 @@ async function upload<T>(method: string, path: string, formData: FormData, opts?
 
 	if (res.status === 204) return undefined as T;
 
-	const data = await res.json();
+	let data: any;
+	try {
+		data = await res.json();
+	} catch {
+		if (res.status === 413 || res.status === 500) {
+			throw new Error('File is too large. Maximum upload size is 10 MB.');
+		}
+		throw new Error('Request failed');
+	}
 	if (!res.ok) {
 		throw new Error(data?.error?.message ?? 'Request failed');
 	}
