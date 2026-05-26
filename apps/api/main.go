@@ -94,6 +94,7 @@ func main() {
 	router := chi.NewRouter()
 	router.Use(chimiddleware.RequestID)
 	router.Use(chimiddleware.RealIP)
+	router.Use(middleware.SecurityHeaders)
 	router.Use(middleware.CORS(appEnv.Domain))
 	router.Use(middleware.RequestLogger(appLogger))
 	router.Use(chimiddleware.Recoverer)
@@ -142,6 +143,7 @@ func main() {
 	defer stop()
 
 	reminders.Start(shutdownSignal, reminderService, appLogger)
+	auth.StartSessionCleanup(shutdownSignal, authService)
 
 	serverErrCh := make(chan error, 1)
 	go func() {

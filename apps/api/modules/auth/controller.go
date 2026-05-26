@@ -21,8 +21,8 @@ func (controller *Controller) register(context context.Context, req *RegisterReq
 	if email == "" || !strings.Contains(email, "@") {
 		return nil, errors.Invalid("invalid email")
 	}
-	if len(req.Password) < 8 {
-		return nil, errors.Invalid("password must be at least 8 characters")
+	if len(req.Password) < 12 {
+		return nil, errors.Invalid("password must be at least 12 characters")
 	}
 
 	userID, token, err := controller.service.registerUser(context, email, req.Password)
@@ -76,8 +76,8 @@ func (controller *Controller) changePassword(context context.Context, userID str
 	if req.CurrentPassword == "" || req.NewPassword == "" {
 		return errors.Invalid("current and new password required")
 	}
-	if len(req.NewPassword) < 8 {
-		return errors.Invalid("new password must be at least 8 characters")
+	if len(req.NewPassword) < 12 {
+		return errors.Invalid("new password must be at least 12 characters")
 	}
 	return controller.service.changePassword(context, userID, req.CurrentPassword, req.NewPassword)
 }

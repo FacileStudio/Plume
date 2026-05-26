@@ -204,7 +204,29 @@ func (service *Service) changePassword(context context.Context, userID string, c
 	if err := service.orm.WithContext(context).Save(&record).Error; err != nil {
 		return errors.Internal("failed to update password", err)
 	}
+
+	service.orm.WithContext(context).Where("user_id = ?", userID).Delete(&schemas.Session{})
+
 	return nil
+}
+
+func (service *Service) CleanupExpiredSessions(ctx context.Context) {
+	service.orm.WithContext(ctx).Where("expires_at < ?", time.Now()).Delete(&schemas.Session{})
+}
+
+func StartSessionCleanup(ctx context.Context, service *Service) {
+	go func() {
+		ticker := time.NewTicker(time.Hour)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				service.CleanupExpiredSessions(ctx)
+			}
+		}
+	}()
 }
 
 func hashToken(token string) string {

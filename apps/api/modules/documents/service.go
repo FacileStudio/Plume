@@ -253,9 +253,13 @@ func (s *Service) Send(ctx context.Context, ownerID string, docID string) (*Docu
 	}
 
 	for i := range signers {
-		signers[i].Token = generateToken()
+		token, err := generateToken()
+		if err != nil {
+			return nil, errors.Internal("failed to generate signing token", err)
+		}
+		signers[i].Token = token
 		if err := s.orm.WithContext(ctx).Save(&signers[i]).Error; err != nil {
-			return nil, errors.Internal("failed to generate signer token", err)
+			return nil, errors.Internal("failed to save signer token", err)
 		}
 	}
 
@@ -401,10 +405,12 @@ func (s *Service) BackfillHashes(ctx context.Context) (int, error) {
 	return updated, nil
 }
 
-func generateToken() string {
+func generateToken() (string, error) {
 	b := make([]byte, 32)
-	rand.Read(b)
-	return hex.EncodeToString(b)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 func toResponse(record *schemas.Document) *DocumentResponse {

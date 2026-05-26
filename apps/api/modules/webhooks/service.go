@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"api/internal/errors"
+	"api/internal/urlsafe"
 	"api/schemas"
 
 	"gorm.io/gorm"
@@ -42,6 +43,9 @@ func NewService(orm *gorm.DB) *Service {
 func (s *Service) create(ctx context.Context, ownerID int64, req *CreateWebhookRequest) (*WebhookResponse, error) {
 	if req.URL == "" {
 		return nil, errors.Invalid("url is required")
+	}
+	if err := urlsafe.Validate(req.URL); err != nil {
+		return nil, errors.Invalid(err.Error())
 	}
 
 	record := &schemas.Webhook{
@@ -86,6 +90,9 @@ func (s *Service) update(ctx context.Context, ownerID int64, webhookID int64, re
 
 	if req.URL == "" {
 		return nil, errors.Invalid("url is required")
+	}
+	if err := urlsafe.Validate(req.URL); err != nil {
+		return nil, errors.Invalid(err.Error())
 	}
 
 	record.URL = req.URL
@@ -138,7 +145,7 @@ func (s *Service) Test(ctx context.Context, ownerID int64, webhookID int64) erro
 	}
 
 	if err := s.deliverOnce(ctx, record, body); err != nil {
-		return errors.Invalid(fmt.Sprintf("delivery failed: %s", err.Error()))
+		return errors.Invalid("delivery failed — check the URL and try again")
 	}
 	s.markDelivered(record.ID)
 	return nil
@@ -221,6 +228,10 @@ func (s *Service) deliverWithRetry(wh *schemas.Webhook, eventType string, body [
 }
 
 func (s *Service) deliverOnce(ctx context.Context, wh *schemas.Webhook, body []byte) error {
+	if err := urlsafe.Validate(wh.URL); err != nil {
+		return fmt.Errorf("unsafe URL: %w", err)
+	}
+
 	signature := sign(wh.Secret, body)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, wh.URL, bytes.NewReader(body))
@@ -231,7 +242,10 @@ func (s *Service) deliverOnce(ctx context.Context, wh *schemas.Webhook, body []b
 	req.Header.Set("User-Agent", "Plume-Webhook/1.0")
 	req.Header.Set("x-plume-signature-256", fmt.Sprintf("sha256=%s", signature))
 
-	client := &http.Client{Timeout: deliveryTimeout}
+	client := &http.Client{
+		Timeout:   deliveryTimeout,
+		Transport: urlsafe.SafeTransport(),
+	}
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("dispatch: %w", err)

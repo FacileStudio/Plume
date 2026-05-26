@@ -3,9 +3,11 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"api/internal/env"
@@ -21,12 +23,19 @@ const (
 	oidcStateTTL    = 10 * time.Minute
 )
 
+type pendingCode struct {
+	UserID    string
+	Token     string
+	ExpiresAt time.Time
+}
+
 type oidcHandler struct {
 	provider   *gooidc.Provider
 	verifier   *gooidc.IDTokenVerifier
 	oauth2Cfg  oauth2.Config
 	service    *Service
 	successURL string
+	codes      sync.Map
 }
 
 func newOIDCHandler(ctx context.Context, cfg *env.OIDCConfig, service *Service) (*oidcHandler, error) {
@@ -63,6 +72,7 @@ func (h *oidcHandler) login(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		MaxAge:   int(oidcStateTTL.Seconds()),
 		HttpOnly: true,
+		Secure:   true,
 		SameSite: http.SameSiteLaxMode,
 	})
 	http.Redirect(w, r, h.oauth2Cfg.AuthCodeURL(state), http.StatusFound)
@@ -70,7 +80,7 @@ func (h *oidcHandler) login(w http.ResponseWriter, r *http.Request) {
 
 func (h *oidcHandler) callback(w http.ResponseWriter, r *http.Request) {
 	stateCookie, err := r.Cookie(oidcStateCookie)
-	if err != nil || stateCookie.Value != r.URL.Query().Get("state") {
+	if err != nil || subtle.ConstantTimeCompare([]byte(stateCookie.Value), []byte(r.URL.Query().Get("state"))) != 1 {
 		httpjson.WriteError(w, errors.Invalid("invalid oauth2 state"))
 		return
 	}
@@ -80,6 +90,7 @@ func (h *oidcHandler) callback(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
+		Secure:   true,
 	})
 
 	oauth2Token, err := h.oauth2Cfg.Exchange(r.Context(), r.URL.Query().Get("code"))
@@ -112,18 +123,60 @@ func (h *oidcHandler) callback(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, errors.Invalid("OIDC provider did not return an email"))
 		return
 	}
+	if !claims.EmailVerified {
+		httpjson.WriteError(w, errors.Invalid("email not verified by your identity provider"))
+		return
+	}
 
-	_, token, err := h.service.upsertOIDCUser(r.Context(), claims.Email)
+	userID, token, err := h.service.upsertOIDCUser(r.Context(), claims.Email)
 	if err != nil {
 		httpjson.WriteError(w, err)
 		return
 	}
 
+	code, err := randomState()
+	if err != nil {
+		httpjson.WriteError(w, errors.Internal("failed to generate auth code", err))
+		return
+	}
+	h.codes.Store(code, pendingCode{
+		UserID:    userID,
+		Token:     token,
+		ExpiresAt: time.Now().Add(60 * time.Second),
+	})
+
 	dest, _ := url.Parse(h.successURL)
 	q := dest.Query()
-	q.Set("token", token)
+	q.Set("code", code)
 	dest.RawQuery = q.Encode()
 	http.Redirect(w, r, dest.String(), http.StatusFound)
+}
+
+func (h *oidcHandler) exchange(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := httpjson.DecodeJSON(w, r, &req); err != nil {
+		httpjson.WriteError(w, err)
+		return
+	}
+
+	val, ok := h.codes.LoadAndDelete(req.Code)
+	if !ok {
+		httpjson.WriteError(w, errors.Unauthorized("invalid or expired login code"))
+		return
+	}
+
+	pending := val.(pendingCode)
+	if time.Now().After(pending.ExpiresAt) {
+		httpjson.WriteError(w, errors.Unauthorized("invalid or expired login code"))
+		return
+	}
+
+	httpjson.WriteJSON(w, http.StatusOK, AuthResponse{
+		UserID: pending.UserID,
+		Token:  pending.Token,
+	})
 }
 
 func randomState() (string, error) {

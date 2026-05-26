@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net"
 	"net/smtp"
+	"strings"
 	"time"
 
 	"api/internal/errors"
@@ -219,6 +220,11 @@ func (s *Service) findConfig(ctx context.Context, ownerID int64) (*schemas.SmtpC
 	return &record, nil
 }
 
+func sanitizeHeader(s string) string {
+	r := strings.NewReplacer("\r\n", "", "\r", "", "\n", "")
+	return r.Replace(s)
+}
+
 func sendEmail(config *schemas.SmtpConfig, to string, subject string, htmlBody string) error {
 	addr := net.JoinHostPort(config.Host, fmt.Sprintf("%d", config.Port))
 
@@ -248,10 +254,10 @@ func sendEmail(config *schemas.SmtpConfig, to string, subject string, htmlBody s
 		}
 	}
 
-	if err := client.Mail(config.FromEmail); err != nil {
+	if err := client.Mail(sanitizeHeader(config.FromEmail)); err != nil {
 		return fmt.Errorf("from %s: %w", config.FromEmail, err)
 	}
-	if err := client.Rcpt(to); err != nil {
+	if err := client.Rcpt(sanitizeHeader(to)); err != nil {
 		return fmt.Errorf("recipient %s: %w", to, err)
 	}
 
@@ -261,7 +267,7 @@ func sendEmail(config *schemas.SmtpConfig, to string, subject string, htmlBody s
 	}
 
 	headers := fmt.Sprintf("From: %s <%s>\r\nTo: %s\r\nSubject: %s\r\nMIME-Version: 1.0\r\nContent-Type: text/html; charset=\"UTF-8\"\r\n\r\n",
-		config.FromName, config.FromEmail, to, subject)
+		sanitizeHeader(config.FromName), sanitizeHeader(config.FromEmail), sanitizeHeader(to), sanitizeHeader(subject))
 
 	if _, err := writer.Write([]byte(headers + htmlBody)); err != nil {
 		return fmt.Errorf("write body: %w", err)

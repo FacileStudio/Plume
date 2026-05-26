@@ -22,6 +22,8 @@ func DocumentRoutes(service *Service) func(chi.Router) {
 			}
 
 			w.Header().Set("Content-Disposition", "attachment; filename=certificate.pdf")
+			w.Header().Set("Content-Type", "application/pdf")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
 			http.ServeFile(w, request, certPath)
 		})
 
@@ -36,6 +38,8 @@ func DocumentRoutes(service *Service) func(chi.Router) {
 			}
 
 			w.Header().Set("Content-Disposition", "attachment; filename=audit_trail.pdf")
+			w.Header().Set("Content-Type", "application/pdf")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
 			http.ServeFile(w, request, trailPath)
 		})
 	}

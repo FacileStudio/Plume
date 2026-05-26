@@ -91,6 +91,8 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 			httpjson.WriteError(w, err)
 			return
 		}
+		w.Header().Set("Content-Type", "application/pdf")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		http.ServeFile(w, request, filePath)
 	})
 

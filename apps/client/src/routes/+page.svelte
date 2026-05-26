@@ -15,11 +15,23 @@
 	let ssoOnly = $state(false);
 
 	onMount(async () => {
-		const token = page.url.searchParams.get('token');
-		if (token) {
-			setToken(token);
-			goto('/dashboard');
-			return;
+		const code = page.url.searchParams.get('code');
+		if (code) {
+			try {
+				const res = await fetch('/api/auth/oidc/exchange', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ code })
+				});
+				if (!res.ok) throw new Error('exchange failed');
+				const data = await res.json();
+				setToken(data.token);
+				goto('/dashboard');
+				return;
+			} catch {
+				goto('/login');
+				return;
+			}
 		}
 		if (isAuthenticated()) {
 			goto('/dashboard');

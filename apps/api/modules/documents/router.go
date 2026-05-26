@@ -48,6 +48,15 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 			}
 			defer file.Close()
 
+			pdfHeader := make([]byte, 5)
+			if _, err := io.ReadFull(file, pdfHeader); err != nil || string(pdfHeader) != "%PDF-" {
+				httpjson.WriteError(w, errors.Invalid("uploaded file is not a valid PDF"))
+				return
+			}
+			if seeker, ok := file.(io.Seeker); ok {
+				seeker.Seek(0, io.SeekStart)
+			}
+
 			resp, err := service.Create(request.Context(), identity.UserID, name, header.Filename)
 			if err != nil {
 				httpjson.WriteError(w, err)
@@ -125,6 +134,8 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 				httpjson.WriteError(w, err)
 				return
 			}
+			w.Header().Set("Content-Type", "application/pdf")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
 			http.ServeFile(w, request, filePath)
 		})
 
