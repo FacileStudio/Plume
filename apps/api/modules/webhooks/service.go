@@ -44,7 +44,7 @@ func (s *Service) create(ctx context.Context, ownerID int64, req *CreateWebhookR
 	if req.URL == "" {
 		return nil, errors.Invalid("url is required")
 	}
-	if err := urlsafe.Validate(req.URL); err != nil {
+	if err := urlsafe.Validate(ctx, req.URL); err != nil {
 		return nil, errors.Invalid(err.Error())
 	}
 
@@ -91,7 +91,7 @@ func (s *Service) update(ctx context.Context, ownerID int64, webhookID int64, re
 	if req.URL == "" {
 		return nil, errors.Invalid("url is required")
 	}
-	if err := urlsafe.Validate(req.URL); err != nil {
+	if err := urlsafe.Validate(ctx, req.URL); err != nil {
 		return nil, errors.Invalid(err.Error())
 	}
 
@@ -228,7 +228,7 @@ func (s *Service) deliverWithRetry(wh *schemas.Webhook, eventType string, body [
 }
 
 func (s *Service) deliverOnce(ctx context.Context, wh *schemas.Webhook, body []byte) error {
-	if err := urlsafe.Validate(wh.URL); err != nil {
+	if err := urlsafe.Validate(ctx, wh.URL); err != nil {
 		return fmt.Errorf("unsafe URL: %w", err)
 	}
 
@@ -245,6 +245,9 @@ func (s *Service) deliverOnce(ctx context.Context, wh *schemas.Webhook, body []b
 	client := &http.Client{
 		Timeout:   deliveryTimeout,
 		Transport: urlsafe.SafeTransport(),
+		CheckRedirect: func(r *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 	}
 	resp, err := client.Do(req)
 	if err != nil {

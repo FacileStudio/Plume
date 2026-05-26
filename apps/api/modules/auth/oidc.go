@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -113,7 +114,7 @@ func (h *oidcHandler) callback(w http.ResponseWriter, r *http.Request) {
 
 	var claims struct {
 		Email         string `json:"email"`
-		EmailVerified bool   `json:"email_verified"`
+		EmailVerified any    `json:"email_verified"`
 	}
 	if err := idToken.Claims(&claims); err != nil {
 		httpjson.WriteError(w, errors.Internal("failed to parse claims", err))
@@ -123,7 +124,7 @@ func (h *oidcHandler) callback(w http.ResponseWriter, r *http.Request) {
 		httpjson.WriteError(w, errors.Invalid("OIDC provider did not return an email"))
 		return
 	}
-	if !claims.EmailVerified {
+	if !isEmailVerified(claims.EmailVerified) {
 		httpjson.WriteError(w, errors.Invalid("email not verified by your identity provider"))
 		return
 	}
@@ -177,6 +178,17 @@ func (h *oidcHandler) exchange(w http.ResponseWriter, r *http.Request) {
 		UserID: pending.UserID,
 		Token:  pending.Token,
 	})
+}
+
+func isEmailVerified(v any) bool {
+	switch val := v.(type) {
+	case bool:
+		return val
+	case string:
+		return strings.EqualFold(val, "true")
+	default:
+		return false
+	}
 }
 
 func randomState() (string, error) {

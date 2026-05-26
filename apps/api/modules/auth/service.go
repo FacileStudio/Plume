@@ -205,7 +205,9 @@ func (service *Service) changePassword(context context.Context, userID string, c
 		return errors.Internal("failed to update password", err)
 	}
 
-	service.orm.WithContext(context).Where("user_id = ?", userID).Delete(&schemas.Session{})
+	if err := service.orm.WithContext(context).Where("user_id = ?", userID).Delete(&schemas.Session{}).Error; err != nil {
+		return errors.Internal("failed to revoke sessions", err)
+	}
 
 	return nil
 }

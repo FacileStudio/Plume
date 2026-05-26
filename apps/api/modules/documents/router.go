@@ -3,6 +3,7 @@ package documents
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	stderrors "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -30,8 +31,14 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 		router.Post("/", func(w http.ResponseWriter, request *http.Request) {
 			identity, _ := authcontext.IdentityFromContext(request.Context())
 
+			request.Body = http.MaxBytesReader(w, request.Body, maxUploadSize)
 			if err := request.ParseMultipartForm(maxUploadSize); err != nil {
-				httpjson.WriteError(w, errors.Invalid("invalid multipart form"))
+				var maxBytesErr *http.MaxBytesError
+				if stderrors.As(err, &maxBytesErr) {
+					httpjson.WriteError(w, errors.New("resource_exhausted", "file is too large — maximum upload size is 50 MB", nil))
+					return
+				}
+				httpjson.WriteError(w, errors.Invalid("invalid upload"))
 				return
 			}
 
@@ -53,8 +60,9 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 				httpjson.WriteError(w, errors.Invalid("uploaded file is not a valid PDF"))
 				return
 			}
-			if seeker, ok := file.(io.Seeker); ok {
-				seeker.Seek(0, io.SeekStart)
+			if _, err := file.Seek(0, io.SeekStart); err != nil {
+				httpjson.WriteError(w, errors.Internal("failed to read uploaded file", err))
+				return
 			}
 
 			resp, err := service.Create(request.Context(), identity.UserID, name, header.Filename)
@@ -69,7 +77,7 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 				return
 			}
 
-			storedName := fmt.Sprintf("%d_%s", resp.ID, header.Filename)
+			storedName := fmt.Sprintf("%d_%s", resp.ID, filepath.Base(header.Filename))
 			fullPath := filepath.Join(ownerDir, storedName)
 
 			dst, err := os.Create(fullPath)

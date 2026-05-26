@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	stderrors "errors"
 	"fmt"
+	"html"
 	"log/slog"
 	"net"
 	"net/smtp"
@@ -147,7 +148,7 @@ func (s *Service) SendSigningEmail(ownerID int64, signerName string, signerEmail
     <p style="margin: 0; color: #a1a1aa; font-size: 13px; line-height: 1.5;">If the button above doesn't work, copy and paste this link into your browser:<br/>%s</p>
   </div>
 </body>
-</html>`, signerName, documentName, signingURL, signingURL)
+</html>`, html.EscapeString(signerName), html.EscapeString(documentName), signingURL, signingURL)
 
 	if err := sendEmail(&record, signerEmail, subject, body); err != nil {
 		slog.Error("failed to send signing email",
@@ -197,7 +198,7 @@ func (s *Service) SendNotificationEmail(ownerID int64, docID int64, signerName s
     <p style="margin: 0; color: #a1a1aa; font-size: 13px; line-height: 1.5;">If the button above doesn't work, copy and paste this link into your browser:<br/>%s</p>
   </div>
 </body>
-</html>`, action, user.Name, signerName, action, documentName, docURL, docURL)
+</html>`, action, html.EscapeString(user.Name), html.EscapeString(signerName), action, html.EscapeString(documentName), docURL, docURL)
 
 	if err := sendEmail(&config, user.Email, subject, body); err != nil {
 		slog.Error("failed to send notification email",

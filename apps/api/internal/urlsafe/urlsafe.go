@@ -13,11 +13,16 @@ var privateRanges []*net.IPNet
 
 func init() {
 	cidrs := []string{
+		"0.0.0.0/8",
 		"127.0.0.0/8",
 		"10.0.0.0/8",
 		"172.16.0.0/12",
 		"192.168.0.0/16",
 		"169.254.0.0/16",
+		"100.64.0.0/10",
+		"198.18.0.0/15",
+		"224.0.0.0/4",
+		"240.0.0.0/4",
 		"fc00::/7",
 		"fe80::/10",
 		"::1/128",
@@ -32,6 +37,9 @@ func isPrivateIP(ip net.IP) bool {
 	if ip.IsUnspecified() {
 		return true
 	}
+	if ip4 := ip.To4(); ip4 != nil {
+		ip = ip4
+	}
 	for _, block := range privateRanges {
 		if block.Contains(ip) {
 			return true
@@ -40,7 +48,7 @@ func isPrivateIP(ip net.IP) bool {
 	return false
 }
 
-func Validate(rawURL string) error {
+func Validate(ctx context.Context, rawURL string) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return fmt.Errorf("invalid URL")
@@ -55,7 +63,7 @@ func Validate(rawURL string) error {
 		return fmt.Errorf("hostname must not be empty")
 	}
 
-	addrs, err := net.DefaultResolver.LookupHost(context.Background(), hostname)
+	addrs, err := net.DefaultResolver.LookupHost(ctx, hostname)
 	if err != nil {
 		return fmt.Errorf("cannot resolve hostname")
 	}
