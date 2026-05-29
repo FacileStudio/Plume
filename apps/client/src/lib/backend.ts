@@ -182,6 +182,7 @@ export interface UserProfile {
 	email: string;
 	name: string;
 	avatar_url: string;
+	avatar_source?: string;
 	reminder_interval_days: number;
 	created_at: string;
 }

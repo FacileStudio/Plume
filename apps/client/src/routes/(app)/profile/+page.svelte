@@ -79,6 +79,22 @@
 		<h2 class="text-lg font-semibold mb-4">Profile</h2>
 
 		{#if profile}
+			<div class="flex items-center gap-3 mb-4">
+				{#if profile.avatar_url}
+					<img src="/api{profile.avatar_url}" alt="Avatar" class="h-14 w-14 rounded-full border border-border object-cover" />
+				{:else}
+					<div class="flex h-14 w-14 items-center justify-center rounded-full border border-border bg-foreground text-sm font-semibold text-background">
+						{(profile.name || profile.email).split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)}
+					</div>
+				{/if}
+				<div>
+					<p class="text-sm font-medium">{profile.name || profile.email}</p>
+					{#if profile.avatar_source === 'oidc'}
+						<p class="text-xs text-muted-foreground">Synced from SSO</p>
+					{/if}
+				</div>
+			</div>
+
 			<form onsubmit={updateProfile} class="space-y-3">
 				<div>
 					<label for="name" class="block text-sm font-medium mb-1">Name</label>
