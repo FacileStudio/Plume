@@ -79,7 +79,7 @@
 				class="flex items-center gap-3 rounded-lg border border-border/70 bg-muted/40 p-2.5 transition-colors hover:bg-muted"
 			>
 				{#if userStore.value?.avatar_url}
-					<img src={userStore.value.avatar_url} alt="Avatar" class="h-9 w-9 shrink-0 rounded-full border border-border object-cover" />
+					<img src="/api{userStore.value.avatar_url}" alt="Avatar" class="h-9 w-9 shrink-0 rounded-full border border-border object-cover" />
 				{:else}
 					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-foreground text-xs font-semibold text-background">
 						{userStore.value ? getInitials(userStore.value.name || userStore.value.email) : '..'}
