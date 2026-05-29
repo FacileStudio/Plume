@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -61,7 +62,12 @@ func main() {
 		}
 	}()
 
-	authService := auth.NewService(db)
+	if err := os.MkdirAll(filepath.Join(appEnv.UploadDir, "avatars"), 0o755); err != nil {
+		appLogger.Error("failed to create avatars directory", slog.Any("error", err))
+		return
+	}
+
+	authService := auth.NewService(db, appEnv.UploadDir, appLogger)
 	smtpService := smtp.NewService(db)
 	webhookService := webhooks.NewService(db)
 	docService := documents.NewService(db, smtpService, webhookService, appEnv.Domain, appEnv.UploadDir)
@@ -113,6 +119,12 @@ func main() {
 	})
 	router.Get("/docs", func(w http.ResponseWriter, request *http.Request) {
 		httpjson.WriteJSON(w, http.StatusOK, docs)
+	})
+
+	avatarFS := http.StripPrefix("/files/", http.FileServer(http.Dir(appEnv.UploadDir)))
+	router.Get("/files/*", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, max-age=86400, immutable")
+		avatarFS.ServeHTTP(w, r)
 	})
 
 	auth.RegisterRoutes(router, authService, appEnv)

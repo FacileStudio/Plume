@@ -9,8 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"log/slog"
+
 	"api/internal/authcrypto"
 	"api/internal/errors"
+	"api/internal/oidcavatar"
 	"api/schemas"
 
 	"gorm.io/gorm"
@@ -18,11 +21,13 @@ import (
 
 type Service struct {
 	orm        *gorm.DB
+	storageDir string
+	logger     *slog.Logger
 	controller *Controller
 }
 
-func NewService(orm *gorm.DB) *Service {
-	service := &Service{orm: orm}
+func NewService(orm *gorm.DB, storageDir string, logger *slog.Logger) *Service {
+	service := &Service{orm: orm, storageDir: storageDir, logger: logger}
 	service.controller = newController(service)
 	return service
 }
@@ -133,16 +138,54 @@ func (service *Service) Authenticate(context context.Context, authorization stri
 	return service.authenticateRequest(context, authorization)
 }
 
-func (service *Service) upsertOIDCUser(context context.Context, email string) (userID string, token string, err error) {
+func (service *Service) upsertOIDCUser(context context.Context, email string, profile oidcavatar.Profile) (userID string, token string, err error) {
 	var record schemas.User
 	err = service.orm.WithContext(context).Where("email = ?", email).First(&record).Error
 	if err != nil && !stderrors.Is(err, gorm.ErrRecordNotFound) {
 		return "", "", errors.Internal("failed to look up user", err)
 	}
-	if stderrors.Is(err, gorm.ErrRecordNotFound) {
+
+	isNew := stderrors.Is(err, gorm.ErrRecordNotFound)
+	if isNew {
 		record = schemas.User{Email: email}
+		if displayName := profile.DisplayName(); displayName != "" {
+			record.Name = displayName
+		}
 		if err := service.orm.WithContext(context).Create(&record).Error; err != nil {
 			return "", "", errors.Internal("failed to create user", err)
+		}
+	}
+
+	dirty := false
+
+	if !isNew {
+		if displayName := profile.DisplayName(); displayName != "" {
+			record.Name = displayName
+			dirty = true
+		}
+	}
+
+	if profile.Picture != "" && profile.Picture != record.OIDCPictureURL {
+		if record.AvatarSource == "" || record.AvatarSource == "oidc" {
+			if record.AvatarURL != "" {
+				oldRelative := strings.TrimPrefix(record.AvatarURL, "/files/")
+				oidcavatar.RemoveFile(service.storageDir, oldRelative)
+			}
+			relativePath, fetchErr := oidcavatar.FetchAvatar(profile.Picture, service.storageDir, record.ID, service.logger)
+			if fetchErr != nil {
+				service.logger.Warn("failed to fetch OIDC avatar", slog.Any("error", fetchErr), slog.Int64("user_id", record.ID))
+			} else {
+				record.AvatarURL = "/files/" + relativePath
+				record.AvatarSource = "oidc"
+				record.OIDCPictureURL = profile.Picture
+				dirty = true
+			}
+		}
+	}
+
+	if dirty {
+		if saveErr := service.orm.WithContext(context).Save(&record).Error; saveErr != nil {
+			service.logger.Warn("failed to save OIDC profile updates", slog.Any("error", saveErr), slog.Int64("user_id", record.ID))
 		}
 	}
 

@@ -30,6 +30,7 @@ type ProfileResponse struct {
 	ID                   string `json:"id"`
 	Email                string `json:"email"`
 	Name                 string `json:"name"`
+	AvatarURL            string `json:"avatar_url,omitempty"`
 	ReminderIntervalDays int    `json:"reminder_interval_days"`
 	CreatedAt            string `json:"created_at"`
 }
