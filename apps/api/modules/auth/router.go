@@ -131,6 +131,15 @@ func RegisterRoutes(router chi.Router, service *Service, appEnv env.Config) {
 				router.Get("/oidc", oidc.login)
 				router.Get("/oidc/callback", oidc.callback)
 				router.Post("/oidc/exchange", oidc.exchange)
+
+				router.Group(func(router chi.Router) {
+					router.Use(middleware.RequireAuth(service))
+					router.Post("/sync-profile", func(w http.ResponseWriter, r *http.Request) {
+						identity, _ := authcontext.IdentityFromContext(r.Context())
+						ctx := context.WithValue(r.Context(), syncProfileUserIDKey{}, identity.UserID)
+						oidc.syncProfile(w, r.WithContext(ctx))
+					})
+				})
 			}
 		}
 	})

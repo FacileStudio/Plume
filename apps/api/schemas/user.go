@@ -11,6 +11,10 @@ type User struct {
 	OIDCPictureURL       string    `gorm:"column:oidc_picture_url"`
 	PasswordHash         string    `gorm:"column:password_hash"`
 	ReminderIntervalDays int       `gorm:"column:reminder_interval_days;default:3"`
+	OIDCAccessToken      string    `gorm:"column:oidc_access_token"`
+	OIDCRefreshToken     string    `gorm:"column:oidc_refresh_token"`
+	OIDCTokenExpiry      time.Time `gorm:"column:oidc_token_expiry"`
+	ProfileSyncedAt      time.Time `gorm:"column:profile_synced_at"`
 	CreatedAt            time.Time `gorm:"column:created_at;autoCreateTime"`
 }
 

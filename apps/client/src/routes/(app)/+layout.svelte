@@ -33,6 +33,7 @@
 		try {
 			userStore.value = await api.auth.me();
 		} catch {}
+		api.auth.syncProfile().catch(() => {});
 	});
 
 	function logout() {

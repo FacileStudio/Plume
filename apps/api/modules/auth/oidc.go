@@ -50,7 +50,7 @@ func newOIDCHandler(ctx context.Context, cfg *env.OIDCConfig, service *Service) 
 		ClientSecret: cfg.ClientSecret,
 		RedirectURL:  cfg.RedirectURL,
 		Endpoint:     provider.Endpoint(),
-		Scopes:       []string{gooidc.ScopeOpenID, "email", "profile"},
+		Scopes:       []string{gooidc.ScopeOpenID, "email", "profile", "offline_access"},
 	}
 	verifier := provider.Verifier(&gooidc.Config{ClientID: cfg.ClientID})
 	return &oidcHandler{
@@ -142,7 +142,7 @@ func (h *oidcHandler) callback(w http.ResponseWriter, r *http.Request) {
 		FamilyName:       claims.FamilyName,
 		Picture:          claims.Picture,
 	}
-	userID, token, err := h.service.upsertOIDCUser(r.Context(), claims.Email, profile)
+	userID, token, err := h.service.upsertOIDCUser(r.Context(), claims.Email, profile, oauth2Token)
 	if err != nil {
 		httpjson.WriteError(w, err)
 		return
@@ -192,6 +192,17 @@ func (h *oidcHandler) exchange(w http.ResponseWriter, r *http.Request) {
 		Token:  pending.Token,
 	})
 }
+
+func (h *oidcHandler) syncProfile(w http.ResponseWriter, r *http.Request) {
+	userID := r.Context().Value(syncProfileUserIDKey{}).(string)
+	if err := h.service.SyncOIDCProfile(r.Context(), userID, h.provider, h.oauth2Cfg); err != nil {
+		httpjson.WriteError(w, err)
+		return
+	}
+	httpjson.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+type syncProfileUserIDKey struct{}
 
 func isEmailVerified(v any) bool {
 	switch val := v.(type) {
