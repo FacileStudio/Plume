@@ -78,9 +78,13 @@
 				href="/profile"
 				class="flex items-center gap-3 rounded-lg border border-border/70 bg-muted/40 p-2.5 transition-colors hover:bg-muted"
 			>
-				<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-foreground text-xs font-semibold text-background">
-					{userStore.value ? getInitials(userStore.value.name || userStore.value.email) : '..'}
-				</div>
+				{#if userStore.value?.avatar_url}
+					<img src={userStore.value.avatar_url} alt="Avatar" class="h-9 w-9 shrink-0 rounded-full border border-border object-cover" />
+				{:else}
+					<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-foreground text-xs font-semibold text-background">
+						{userStore.value ? getInitials(userStore.value.name || userStore.value.email) : '..'}
+					</div>
+				{/if}
 				<div class="min-w-0 flex-1">
 					<p class="truncate text-sm font-medium">{userStore.value?.name || 'Set your profile'}</p>
 					<p class="truncate text-xs text-muted-foreground">{userStore.value?.email ?? ''}</p>
