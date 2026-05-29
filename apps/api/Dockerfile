@@ -15,7 +15,7 @@ ARG CACHE_BUST=1
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH:-amd64} go build -o bin/api .
 
 FROM build AS dirs
-RUN mkdir -p /data/uploads
+RUN mkdir -p /data/uploads/avatars
 
 FROM gcr.io/distroless/static-debian12
 
