@@ -53,3 +53,13 @@ volumes:
     name: plume_db_data
   uploads_data:
     name: plume_uploads
+
+# Sous-réseau épinglé : les pools d'adresses par défaut de Docker
+# (172.17-172.31/16 et 192.168.0.0/16 en /20) sont saturés sur l'hôte.
+# 172.16.0.0/24 est en dehors de ces pools, donc Docker n'a pas à piocher
+# dans un pool plein pour créer le réseau du projet.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.16.0.0/24
