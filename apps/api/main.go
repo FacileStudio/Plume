@@ -119,31 +119,34 @@ func main() {
 		}
 		httpjson.WriteJSON(w, http.StatusOK, map[string]string{"status": "ready"})
 	})
-	router.Get("/docs", func(w http.ResponseWriter, request *http.Request) {
-		httpjson.WriteJSON(w, http.StatusOK, docs)
+
+	router.Route("/api", func(api chi.Router) {
+		api.Get("/docs", func(w http.ResponseWriter, request *http.Request) {
+			httpjson.WriteJSON(w, http.StatusOK, docs)
+		})
+
+		avatarFS := http.StripPrefix("/api/files/", http.FileServer(http.Dir(appEnv.UploadDir)))
+		api.Get("/files/*", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Cache-Control", "public, max-age=86400, immutable")
+			avatarFS.ServeHTTP(w, r)
+		})
+
+		auth.RegisterRoutes(api, authService, appEnv)
+		documents.RegisterRoutes(api, docService, authService,
+			signers.DocumentRoutes(signerService),
+			fields.DocumentRoutes(fieldService),
+			signing.DocumentRoutes(signingService),
+		)
+		signers.RegisterRoutes(api, signerService, authService,
+			reminders.SignerRoutes(reminderService),
+		)
+		webhooks.RegisterRoutes(api, webhookService, authService)
+		smtp.RegisterRoutes(api, smtpService, authService)
+		spaces.RegisterRoutes(api, spaceService, authService)
+
+		verifyLimiter := middleware.NewRateLimiter(30, 10).Handler()
+		verify.RegisterRoutes(api, verifyService, verifyLimiter)
 	})
-
-	avatarFS := http.StripPrefix("/files/", http.FileServer(http.Dir(appEnv.UploadDir)))
-	router.Get("/files/*", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Cache-Control", "public, max-age=86400, immutable")
-		avatarFS.ServeHTTP(w, r)
-	})
-
-	auth.RegisterRoutes(router, authService, appEnv)
-	documents.RegisterRoutes(router, docService, authService,
-		signers.DocumentRoutes(signerService),
-		fields.DocumentRoutes(fieldService),
-		signing.DocumentRoutes(signingService),
-	)
-	signers.RegisterRoutes(router, signerService, authService,
-		reminders.SignerRoutes(reminderService),
-	)
-	webhooks.RegisterRoutes(router, webhookService, authService)
-	smtp.RegisterRoutes(router, smtpService, authService)
-	spaces.RegisterRoutes(router, spaceService, authService)
-
-	verifyLimiter := middleware.NewRateLimiter(30, 10).Handler()
-	verify.RegisterRoutes(router, verifyService, verifyLimiter)
 
 	addr := ":" + appEnv.Port
 	server := &http.Server{

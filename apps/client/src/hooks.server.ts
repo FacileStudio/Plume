@@ -4,8 +4,7 @@ const API_URL = process.env.API_URL ?? 'http://localhost:4000';
 
 export const handle: Handle = async ({ event, resolve }) => {
 	if (event.url.pathname.startsWith('/api/')) {
-		const path = event.url.pathname.slice(4);
-		const url = `${API_URL}${path}${event.url.search}`;
+		const url = `${API_URL}${event.url.pathname}${event.url.search}`;
 
 		const headers = new Headers();
 		for (const [key, value] of event.request.headers.entries()) {
