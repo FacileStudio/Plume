@@ -7,6 +7,8 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
 	import { userStore } from '$lib/stores/user.svelte';
+	import { spaceStore } from '$lib/stores/space.svelte';
+	import SpaceSwitcher from '$lib/components/space-switcher.svelte';
 	import LayoutDashboard from '@lucide/svelte/icons/layout-dashboard';
 	import FileText from '@lucide/svelte/icons/file-text';
 	import Settings from '@lucide/svelte/icons/settings';
@@ -33,6 +35,9 @@
 		try {
 			userStore.value = await api.auth.me();
 		} catch {}
+		try {
+			spaceStore.spaces = await api.spaces.list();
+		} catch {}
 		api.auth.syncProfile().catch(() => {});
 	});
 
@@ -51,9 +56,13 @@
 
 <div class="flex h-screen w-full overflow-hidden">
 	<aside class="sticky top-0 flex h-screen w-60 flex-col border-r bg-background">
-		<div class="flex items-center gap-3 px-5 pt-8 pb-6">
+		<div class="flex items-center gap-3 px-5 pt-8 pb-4">
 			<Icon icon="solar:document-add-bold-duotone" class="w-7 h-7" />
 			<span class="text-2xl font-bold tracking-tight">Plume</span>
+		</div>
+
+		<div class="px-3 pb-4">
+			<SpaceSwitcher />
 		</div>
 
 		<nav class="flex flex-1 flex-col gap-1 px-3">

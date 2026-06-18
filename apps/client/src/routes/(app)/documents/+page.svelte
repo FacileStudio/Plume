@@ -5,6 +5,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
 	import Icon from '@iconify/svelte';
+	import { spaceStore } from '$lib/stores/space.svelte';
 
 	let documents = $state<Document[]>([]);
 	let loading = $state(true);
@@ -30,11 +31,24 @@
 		deleting = false;
 	}
 
-	onMount(async () => {
+	let mounted = $state(false);
+
+	async function load() {
+		loading = true;
 		try {
-			documents = await api.documents.list();
+			documents = await api.documents.list(spaceStore.activeId);
 		} catch {}
 		loading = false;
+	}
+
+	onMount(async () => {
+		await load();
+		mounted = true;
+	});
+
+	$effect(() => {
+		spaceStore.activeId;
+		if (mounted) load();
 	});
 </script>
 

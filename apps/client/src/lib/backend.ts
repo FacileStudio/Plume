@@ -90,7 +90,8 @@ export const api = {
 		syncProfile: () => request<{ status: string }>('POST', '/auth/sync-profile')
 	},
 	documents: {
-		list: () => request<Document[]>('GET', '/documents'),
+		list: (spaceId?: number | null) =>
+			request<Document[]>('GET', spaceId ? `/documents?space_id=${spaceId}` : '/documents'),
 		get: (id: number) => request<Document>('GET', `/documents/${id}`),
 		create: (name: string, file: File) => {
 			const formData = new FormData();
@@ -102,7 +103,8 @@ export const api = {
 		update: (id: number, data: { name?: string; file_name?: string; sequential?: boolean }) =>
 			request<Document>('PUT', `/documents/${id}`, data),
 		send: (id: number) => request<Document>('POST', `/documents/${id}/send`),
-		stats: () => request<DocumentStats>('GET', '/documents/stats'),
+		stats: (spaceId?: number | null) =>
+			request<DocumentStats>('GET', spaceId ? `/documents/stats?space_id=${spaceId}` : '/documents/stats'),
 		certificateUrl: (id: number) => `/api/documents/${id}/certificate`,
 		fileUrl: (id: number) => `/api/documents/${id}/file`,
 		auditTrailUrl: (id: number) => `/api/documents/${id}/audit-trail`
@@ -151,6 +153,25 @@ export const api = {
 			}),
 		decline: (token: string, reason?: string) =>
 			request<{ status: string }>('POST', `/sign/${token}/decline`, { reason })
+	},
+	spaces: {
+		list: () => request<Space[]>('GET', '/spaces'),
+		get: (id: number) => request<Space>('GET', `/spaces/${id}`),
+		create: (data: { name: string; description?: string }) =>
+			request<Space>('POST', '/spaces', data),
+		update: (id: number, data: { name: string; description?: string }) =>
+			request<Space>('PUT', `/spaces/${id}`, data),
+		delete: (id: number) => request<void>('DELETE', `/spaces/${id}`),
+		leave: (id: number) => request<{ status: string }>('POST', `/spaces/${id}/leave`),
+		members: {
+			list: (spaceId: number) => request<SpaceMember[]>('GET', `/spaces/${spaceId}/members`),
+			add: (spaceId: number, data: { email: string; role?: string }) =>
+				request<SpaceMember>('POST', `/spaces/${spaceId}/members`, data),
+			updateRole: (spaceId: number, memberId: number, role: string) =>
+				request<SpaceMember>('PUT', `/spaces/${spaceId}/members/${memberId}`, { role }),
+			remove: (spaceId: number, memberId: number) =>
+				request<void>('DELETE', `/spaces/${spaceId}/members/${memberId}`)
+		}
 	},
 	verify: {
 		check: (file: File) => {
@@ -293,6 +314,25 @@ export interface SigningPayload {
 	};
 	fields: Field[];
 	completed_fields: CompletedField[];
+}
+
+export interface Space {
+	id: number;
+	name: string;
+	description: string;
+	owner_id: number;
+	role: 'owner' | 'admin' | 'member';
+	created_at: string;
+	updated_at: string;
+}
+
+export interface SpaceMember {
+	id: number;
+	user_id: number;
+	email: string;
+	name: string;
+	role: 'owner' | 'admin' | 'member';
+	joined_at: string;
 }
 
 export interface VerifyDocument {
