@@ -5,6 +5,7 @@ import "time"
 type SmtpConfig struct {
 	ID        int64     `gorm:"column:id;primaryKey"`
 	OwnerID   int64     `gorm:"column:owner_id;uniqueIndex"`
+	SpaceID   *int64    `gorm:"column:space_id;index"`
 	Host      string    `gorm:"column:host"`
 	Port      int       `gorm:"column:port"`
 	Username  string    `gorm:"column:username"`

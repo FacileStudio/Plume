@@ -5,6 +5,7 @@ import "time"
 type Webhook struct {
 	ID         int64      `gorm:"column:id;primaryKey"`
 	OwnerID    int64      `gorm:"column:owner_id;index"`
+	SpaceID    *int64     `gorm:"column:space_id;index"`
 	URL        string     `gorm:"column:url"`
 	Secret     string     `gorm:"column:secret"`
 	Enabled    bool       `gorm:"column:enabled;default:true"`

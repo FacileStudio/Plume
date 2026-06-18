@@ -5,6 +5,7 @@
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Button } from '$lib/components/ui/button';
 	import Icon from '@iconify/svelte';
+	import { spaceStore } from '$lib/stores/space.svelte';
 
 	let documents = $state<Document[]>([]);
 	let stats = $state<DocumentStats>({ total: 0, pending: 0, completed: 0 });
@@ -18,13 +19,27 @@
 		});
 	}
 
-	onMount(async () => {
+	let mounted = $state(false);
+
+	async function load() {
+		loading = true;
 		try {
-			const [docs, s] = await Promise.all([api.documents.list(), api.documents.stats()]);
+			const sid = spaceStore.activeId;
+			const [docs, s] = await Promise.all([api.documents.list(sid), api.documents.stats(sid)]);
 			documents = docs;
 			stats = s;
 		} catch {}
 		loading = false;
+	}
+
+	onMount(async () => {
+		await load();
+		mounted = true;
+	});
+
+	$effect(() => {
+		spaceStore.activeId;
+		if (mounted) load();
 	});
 </script>
 

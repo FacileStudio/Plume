@@ -165,11 +165,17 @@ func (s *Service) InvalidateGeneratedFiles(ctx context.Context, docID int64) {
 	}
 }
 
-func (s *Service) List(ctx context.Context, ownerID string, status string) ([]DocumentResponse, error) {
+func (s *Service) List(ctx context.Context, ownerID string, status string, spaceID string) ([]DocumentResponse, error) {
 	uid, _ := strconv.ParseInt(ownerID, 10, 64)
 	query := s.orm.WithContext(ctx).Where("owner_id = ?", uid)
 	if status != "" {
 		query = query.Where("status = ?", status)
+	}
+	if spaceID != "" {
+		sid, _ := strconv.ParseInt(spaceID, 10, 64)
+		query = query.Where("space_id = ?", sid)
+	} else {
+		query = query.Where("space_id IS NULL")
 	}
 
 	var records []schemas.Document
@@ -309,12 +315,22 @@ func (s *Service) Send(ctx context.Context, ownerID string, docID string) (*Docu
 	return toResponse(record), nil
 }
 
-func (s *Service) Stats(ctx context.Context, ownerID string) (*StatsResponse, error) {
+func (s *Service) Stats(ctx context.Context, ownerID string, spaceID string) (*StatsResponse, error) {
 	uid, _ := strconv.ParseInt(ownerID, 10, 64)
+	scope := func() *gorm.DB {
+		q := s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("owner_id = ?", uid)
+		if spaceID != "" {
+			sid, _ := strconv.ParseInt(spaceID, 10, 64)
+			q = q.Where("space_id = ?", sid)
+		} else {
+			q = q.Where("space_id IS NULL")
+		}
+		return q
+	}
 	var total, pending, completed int64
-	s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("owner_id = ?", uid).Count(&total)
-	s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("owner_id = ? AND status = ?", uid, "pending").Count(&pending)
-	s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("owner_id = ? AND status = ?", uid, "completed").Count(&completed)
+	scope().Count(&total)
+	scope().Where("status = ?", "pending").Count(&pending)
+	scope().Where("status = ?", "completed").Count(&completed)
 	return &StatsResponse{Total: total, Pending: pending, Completed: completed}, nil
 }
 

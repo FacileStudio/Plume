@@ -106,7 +106,8 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 
 		router.Get("/stats", func(w http.ResponseWriter, request *http.Request) {
 			identity, _ := authcontext.IdentityFromContext(request.Context())
-			resp, err := service.Stats(request.Context(), identity.UserID)
+			spaceID := request.URL.Query().Get("space_id")
+			resp, err := service.Stats(request.Context(), identity.UserID, spaceID)
 			if err != nil {
 				httpjson.WriteError(w, err)
 				return
@@ -117,7 +118,8 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 		router.Get("/", func(w http.ResponseWriter, request *http.Request) {
 			identity, _ := authcontext.IdentityFromContext(request.Context())
 			status := request.URL.Query().Get("status")
-			resp, err := service.List(request.Context(), identity.UserID, status)
+			spaceID := request.URL.Query().Get("space_id")
+			resp, err := service.List(request.Context(), identity.UserID, status, spaceID)
 			if err != nil {
 				httpjson.WriteError(w, err)
 				return

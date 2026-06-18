@@ -1,3 +1,3 @@
 export { cn } from './utils.js';
 export { api, setToken, clearToken, isAuthenticated } from './backend.js';
-export type { UserProfile, Document, DocumentStats, Signer, Field, CreateFieldRequest, UpdateFieldRequest, Webhook, SmtpConfig, SigningPayload, CompletedField, VerifyResponse, VerifyDocument, VerifySigner } from './backend.js';
+export type { UserProfile, Document, DocumentStats, Signer, Field, CreateFieldRequest, UpdateFieldRequest, Webhook, SmtpConfig, SigningPayload, CompletedField, VerifyResponse, VerifyDocument, VerifySigner, Space, SpaceMember } from './backend.js';
