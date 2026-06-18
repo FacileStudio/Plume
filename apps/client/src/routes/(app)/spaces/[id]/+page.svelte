@@ -62,7 +62,7 @@
 				<div class="flex items-center gap-2">
 					<Button variant="outline" href="/spaces/{spaceId}/members">
 						<Icon icon="solar:users-group-rounded-linear" class="h-4 w-4" />
-						Members ({members.length})
+						Membres ({members.length})
 					</Button>
 					<Button variant="outline" href="/spaces/{spaceId}/settings">
 						<Icon icon="solar:settings-linear" class="h-4 w-4" />
@@ -72,14 +72,14 @@
 			{:else}
 				<Button variant="outline" href="/spaces/{spaceId}/members">
 					<Icon icon="solar:users-group-rounded-linear" class="h-4 w-4" />
-					Members ({members.length})
+					Membres ({members.length})
 				</Button>
 			{/if}
 		</div>
 	</div>
 
 	<div class="rounded-lg border p-6">
-		<h2 class="text-lg font-semibold mb-4">Members</h2>
+		<h2 class="text-lg font-semibold mb-4">Membres</h2>
 		<div class="space-y-3">
 			{#each members.slice(0, 5) as member}
 				<div class="flex items-center justify-between">
@@ -100,7 +100,7 @@
 		</div>
 		{#if members.length > 5}
 			<div class="mt-4 text-center">
-				<Button href="/spaces/{spaceId}/members" variant="outline" size="sm">View all members</Button>
+				<Button href="/spaces/{spaceId}/members" variant="outline" size="sm">Voir tous les membres</Button>
 			</div>
 		{/if}
 	</div>
@@ -117,7 +117,7 @@
 				<span>{formatDate(space.created_at)}</span>
 			</div>
 			<div class="flex justify-between">
-				<span class="text-muted-foreground">Members</span>
+				<span class="text-muted-foreground">Membres</span>
 				<span>{members.length}</span>
 			</div>
 		</div>
