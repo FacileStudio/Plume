@@ -28,41 +28,47 @@
 
 <svelte:head><title>New Space — Plume</title></svelte:head>
 
-<div class="max-w-lg">
-	<h1 class="text-2xl font-bold mb-6">New space</h1>
+<div class="border-b px-4 py-4 md:px-8 md:py-5">
+	<div class="flex items-center gap-3">
+		<a href="/spaces" class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground hover:bg-muted">
+			<Icon icon="solar:arrow-left-linear" class="h-5 w-5" />
+		</a>
+		<h1 class="text-lg font-semibold">New space</h1>
+	</div>
+</div>
 
-	<div class="rounded-lg border p-6 space-y-4">
+<div class="p-4 md:p-8">
+	<form onsubmit={create} class="max-w-xl space-y-6">
 		<div>
-			<label for="space-name" class="block text-sm font-medium mb-1">Name</label>
+			<label for="space-name" class="mb-1.5 block text-sm font-medium">Name</label>
 			<input
 				id="space-name"
 				type="text"
 				bind:value={name}
 				placeholder="My team"
-				class="w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+				class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
 			/>
 		</div>
 		<div>
-			<label for="space-description" class="block text-sm font-medium mb-1">Description</label>
+			<label for="space-description" class="mb-1.5 block text-sm font-medium">Description</label>
 			<textarea
 				id="space-description"
 				bind:value={description}
 				placeholder="What is this space for?"
 				rows="3"
-				class="w-full rounded-md border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+				class="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
 			></textarea>
 		</div>
-		<div class="flex gap-2 pt-1">
-			<Button onclick={create} disabled={saving || !name.trim()}>
+		<div class="flex items-center gap-3">
+			<Button type="submit" disabled={saving || !name.trim()}>
 				{#if saving}
-					<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
+					<Icon icon="solar:spinner-bold-duotone" class="h-4 w-4 animate-spin" />
 					Creating...
 				{:else}
-					<Icon icon="mdi:plus" class="h-4 w-4" />
 					Create space
 				{/if}
 			</Button>
 			<Button variant="outline" href="/spaces">Cancel</Button>
 		</div>
-	</div>
+	</form>
 </div>
