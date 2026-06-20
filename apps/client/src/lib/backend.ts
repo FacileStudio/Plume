@@ -93,10 +93,11 @@ export const api = {
 		list: (spaceId?: number | null) =>
 			request<Document[]>('GET', spaceId ? `/documents?space_id=${spaceId}` : '/documents'),
 		get: (id: number) => request<Document>('GET', `/documents/${id}`),
-		create: (name: string, file: File) => {
+		create: (name: string, file: File, spaceId?: number | null) => {
 			const formData = new FormData();
 			formData.append('name', name);
 			formData.append('file', file);
+			if (spaceId) formData.append('space_id', String(spaceId));
 			return upload<Document>('POST', '/documents', formData);
 		},
 		delete: (id: number) => request<void>('DELETE', `/documents/${id}`),

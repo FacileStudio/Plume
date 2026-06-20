@@ -5,6 +5,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Separator } from '$lib/components/ui/separator';
+	import { spaceStore } from '$lib/stores/space.svelte';
 	import Icon from '@iconify/svelte';
 
 	const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -72,7 +73,7 @@
 
 		submitting = true;
 		try {
-			const doc = await api.documents.create(name, file);
+			const doc = await api.documents.create(name, file, spaceStore.activeId);
 
 			const validSigners = signers.filter((s) => s.name.trim() && s.email.trim());
 			for (const signer of validSigners) {

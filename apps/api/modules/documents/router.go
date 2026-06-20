@@ -65,7 +65,9 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 				return
 			}
 
-			resp, err := service.Create(request.Context(), identity.UserID, name, header.Filename)
+			spaceID := request.FormValue("space_id")
+
+			resp, err := service.Create(request.Context(), identity.UserID, name, header.Filename, spaceID)
 			if err != nil {
 				httpjson.WriteError(w, err)
 				return

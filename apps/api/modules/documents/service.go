@@ -34,7 +34,7 @@ func NewService(orm *gorm.DB, smtpService *smtp.Service, webhookSvc *webhooks.Se
 	return &Service{orm: orm, smtp: smtpService, webhookSvc: webhookSvc, domain: domain, uploadDir: uploadDir}
 }
 
-func (s *Service) Create(ctx context.Context, ownerID string, name string, fileName string) (*DocumentResponse, error) {
+func (s *Service) Create(ctx context.Context, ownerID string, name string, fileName string, spaceID string) (*DocumentResponse, error) {
 	if name == "" {
 		return nil, errors.Invalid("name is required")
 	}
@@ -45,6 +45,10 @@ func (s *Service) Create(ctx context.Context, ownerID string, name string, fileN
 		FileName: fileName,
 		Status:   "draft",
 		OwnerID:  uid,
+	}
+	if spaceID != "" {
+		sid, _ := strconv.ParseInt(spaceID, 10, 64)
+		record.SpaceID = &sid
 	}
 	if err := s.orm.WithContext(ctx).Create(record).Error; err != nil {
 		return nil, errors.Internal("failed to create document", err)
