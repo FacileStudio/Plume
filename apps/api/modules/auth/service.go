@@ -230,12 +230,30 @@ func (service *Service) SyncOIDCProfile(ctx context.Context, userID string, prov
 	tokenSource := oauth2Cfg.TokenSource(ctx, token)
 	freshToken, err := tokenSource.Token()
 	if err != nil {
-		return errors.Internal("failed to refresh OIDC token", err)
+		// Profile sync is best-effort and runs on every app load. A refresh
+		// failure (expired/rotated/revoked refresh token, IdP unreachable) is an
+		// expected condition, not a server fault — log and skip instead of 500ing.
+		service.logger.Warn("OIDC token refresh failed; skipping profile sync", slog.Any("error", err), slog.Int64("user_id", record.ID))
+		return nil
+	}
+
+	// Persist the refreshed (and possibly rotated) tokens immediately so a later
+	// failure can't discard a one-time-use rotated refresh token, which would make
+	// every subsequent refresh fail permanently.
+	record.OIDCAccessToken = freshToken.AccessToken
+	if freshToken.RefreshToken != "" {
+		record.OIDCRefreshToken = freshToken.RefreshToken
+	}
+	record.OIDCTokenExpiry = freshToken.Expiry
+	record.ProfileSyncedAt = time.Now()
+	if saveErr := service.orm.WithContext(ctx).Save(&record).Error; saveErr != nil {
+		service.logger.Warn("failed to persist refreshed OIDC tokens", slog.Any("error", saveErr), slog.Int64("user_id", record.ID))
 	}
 
 	userInfo, err := provider.UserInfo(ctx, oauth2.StaticTokenSource(freshToken))
 	if err != nil {
-		return errors.Internal("failed to fetch UserInfo", err)
+		service.logger.Warn("failed to fetch OIDC UserInfo; skipping profile sync", slog.Any("error", err), slog.Int64("user_id", record.ID))
+		return nil
 	}
 
 	var claims struct {
@@ -246,7 +264,8 @@ func (service *Service) SyncOIDCProfile(ctx context.Context, userID string, prov
 		Picture           string `json:"picture"`
 	}
 	if err := userInfo.Claims(&claims); err != nil {
-		return errors.Internal("failed to parse UserInfo claims", err)
+		service.logger.Warn("failed to parse OIDC UserInfo claims; skipping profile sync", slog.Any("error", err), slog.Int64("user_id", record.ID))
+		return nil
 	}
 
 	profile := oidcavatar.Profile{
@@ -281,17 +300,9 @@ func (service *Service) SyncOIDCProfile(ctx context.Context, userID string, prov
 		record.OIDCPictureURL = profile.Picture
 	}
 
-	record.OIDCAccessToken = freshToken.AccessToken
-	if freshToken.RefreshToken != "" {
-		record.OIDCRefreshToken = freshToken.RefreshToken
-	}
-	record.OIDCTokenExpiry = freshToken.Expiry
-	record.ProfileSyncedAt = time.Now()
-	dirty = true
-
 	if dirty {
 		if saveErr := service.orm.WithContext(ctx).Save(&record).Error; saveErr != nil {
-			return errors.Internal("failed to save synced profile", saveErr)
+			service.logger.Warn("failed to save synced OIDC profile", slog.Any("error", saveErr), slog.Int64("user_id", record.ID))
 		}
 	}
 
