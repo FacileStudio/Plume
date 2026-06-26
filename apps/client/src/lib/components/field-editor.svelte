@@ -280,7 +280,7 @@
 
 <svelte:window onpointermove={handlePointerMove} onpointerup={handlePointerUp} />
 
-<div class="flex flex-col h-[calc(100dvh-4rem)]">
+<div class="fixed inset-0 z-50 flex flex-col bg-background">
 	<div class="flex items-center justify-between px-4 py-3 border-b bg-background">
 		<div class="flex items-center gap-3">
 			<h2 class="text-lg font-semibold">Prepare fields</h2>

@@ -56,17 +56,15 @@
 
 <svelte:head><title>Spaces — Plume</title></svelte:head>
 
-<div class="border-b px-4 py-4 md:px-8 md:py-5">
-	<div class="flex items-center justify-between">
-		<h1 class="text-lg font-semibold">Spaces</h1>
-		<Button href="/spaces/new" size="sm">
-			<Icon icon="solar:add-circle-bold-duotone" class="h-4 w-4" />
-			New space
-		</Button>
-	</div>
+<div class="mb-6 flex items-center justify-between border-b pb-5">
+	<h1 class="text-2xl font-bold">Spaces</h1>
+	<Button href="/spaces/new" size="sm">
+		<Icon icon="solar:add-circle-bold-duotone" class="h-4 w-4" />
+		New space
+	</Button>
 </div>
 
-<div class="p-4 md:p-8">
+<div>
 	{#if loading}
 		<div class="flex min-h-[40dvh] items-center justify-center">
 			<Icon icon="solar:spinner-bold-duotone" class="h-8 w-8 animate-spin text-muted-foreground" />

@@ -54,7 +54,7 @@
 
 <svelte:head><title>Documents — Plume</title></svelte:head>
 
-<div class="flex items-center justify-between mb-8">
+<div class="mb-6 flex items-center justify-between border-b pb-5">
 	<h1 class="text-2xl font-bold">Documents</h1>
 	<Button href="/documents/new">
 		<Icon icon="mdi:plus" class="h-4 w-4" />

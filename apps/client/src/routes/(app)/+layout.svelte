@@ -101,7 +101,9 @@
 	</aside>
 
 	<main class="flex-1 overflow-auto pb-24 md:pb-0">
-		{@render children()}
+		<div class="mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-8">
+			{@render children()}
+		</div>
 	</main>
 	<MobileNav user={userStore.value} />
 </div>

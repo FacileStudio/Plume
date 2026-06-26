@@ -91,7 +91,7 @@
 		<Icon icon="solar:spinner-bold-duotone" class="h-8 w-8 animate-spin text-muted-foreground" />
 	</div>
 {:else if space}
-	<div class="border-b px-4 py-4 md:px-8 md:py-5">
+	<div class="mb-6 border-b pb-5">
 		<div class="flex items-center gap-3 mb-3">
 			<a href="/spaces/{spaceId}" class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground hover:bg-muted">
 				<Icon icon="solar:arrow-left-linear" class="h-5 w-5" />
@@ -103,7 +103,7 @@
 		</div>
 	</div>
 
-	<div class="p-4 md:p-8 space-y-6">
+	<div class="space-y-6">
 		{#if isAdminOrOwner}
 			<form onsubmit={addMember} class="flex items-end gap-3">
 				<div class="flex-1">

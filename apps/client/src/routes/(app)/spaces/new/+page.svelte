@@ -28,7 +28,7 @@
 
 <svelte:head><title>New Space — Plume</title></svelte:head>
 
-<div class="border-b px-4 py-4 md:px-8 md:py-5">
+<div class="mb-6 border-b pb-5">
 	<div class="flex items-center gap-3">
 		<a href="/spaces" class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground hover:bg-muted">
 			<Icon icon="solar:arrow-left-linear" class="h-5 w-5" />
@@ -37,7 +37,7 @@
 	</div>
 </div>
 
-<div class="p-4 md:p-8">
+<div>
 	<form onsubmit={create} class="max-w-xl space-y-6">
 		<div>
 			<label for="space-name" class="mb-1.5 block text-sm font-medium">Name</label>

@@ -28,6 +28,13 @@
 	let reminderIntervalDays = $state(3);
 	let reminderSaving = $state(false);
 
+	let activeTab = $state<'email' | 'reminders' | 'webhooks'>('email');
+	const settingsTabs = [
+		{ id: 'email', label: 'Email', icon: 'solar:letter-linear' },
+		{ id: 'reminders', label: 'Reminders', icon: 'solar:bell-linear' },
+		{ id: 'webhooks', label: 'Webhooks', icon: 'solar:bolt-linear' }
+	] as const;
+
 	async function loadSmtp() {
 		try {
 			const config = await api.smtp.get();
@@ -229,9 +236,27 @@
 
 <svelte:head><title>Settings — Plume</title></svelte:head>
 
-<h1 class="text-2xl font-bold mb-6">Settings</h1>
+<div class="mb-6 border-b pb-5">
+	<h1 class="text-2xl font-bold">Settings</h1>
+	<p class="mt-1 text-sm text-muted-foreground">Manage email delivery, reminders, and webhooks.</p>
+</div>
 
-<div class="space-y-8 max-w-lg">
+<div class="mb-6 flex gap-6 border-b">
+	{#each settingsTabs as t}
+		<button
+			onclick={() => (activeTab = t.id)}
+			class="relative -mb-px flex items-center gap-2 border-b-2 px-1 pb-3 text-sm font-medium transition-colors {activeTab === t.id
+				? 'border-foreground text-foreground'
+				: 'border-transparent text-muted-foreground hover:text-foreground'}"
+		>
+			<Icon icon={t.icon} class="h-4 w-4" />
+			{t.label}
+		</button>
+	{/each}
+</div>
+
+<div class="max-w-2xl">
+	{#if activeTab === 'email'}
 	<div class="rounded-lg border p-6">
 		<div class="flex items-center gap-2 mb-1">
 			<Icon icon="solar:letter-linear" class="h-5 w-5" />
@@ -331,6 +356,9 @@
 		</div>
 	</div>
 
+	{/if}
+
+	{#if activeTab === 'reminders'}
 	<div class="rounded-lg border p-6">
 		<div class="flex items-center gap-2 mb-1">
 			<Icon icon="solar:bell-linear" class="h-5 w-5" />
@@ -364,6 +392,9 @@
 		</div>
 	</div>
 
+	{/if}
+
+	{#if activeTab === 'webhooks'}
 	<div class="rounded-lg border p-6">
 		<div class="flex items-center justify-between mb-1">
 			<h2 class="text-lg font-semibold">Webhooks</h2>
@@ -514,4 +545,5 @@
 			</div>
 		{/if}
 	</div>
+	{/if}
 </div>
