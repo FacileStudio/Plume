@@ -4,7 +4,7 @@ Self-hosted document signing platform. DocuSeal alternative, single-tenant.
 
 ## Tech Stack
 
-- **API**: Go 1.24, Chi router, GORM + PostgreSQL 16, fpdf for PDF generation
+- **API**: Go 1.25, Chi router, GORM + PostgreSQL 16, fpdf + pdfcpu for PDF generation/stamping
 - **Client**: SvelteKit (Svelte 5 runes), TypeScript, Tailwind v4, shadcn-svelte (nova style), pdfjs-dist
 - **Auth**: Session tokens (Bearer), OIDC/SSO optional (Authentik-compatible)
 - **Runtime**: Bun (client), distroless container (API)
