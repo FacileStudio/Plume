@@ -1,14 +1,29 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
 	import { api } from '$lib';
 	import type { Document, Signer, Field } from '$lib';
+	import { spaceStore } from '$lib/stores/space.svelte';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Button } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
 	import Icon from '@iconify/svelte';
 	import { toast } from 'svelte-sonner';
 	import FieldEditor from '$lib/components/field-editor.svelte';
+
+	// The space this document was opened under. If the user switches context via
+	// the space switcher, this document belongs to the previous context, so leave
+	// the detail view and let the documents list load the new context.
+	const openedSpaceId = spaceStore.activeId;
+	let pageMounted = $state(false);
+
+	$effect(() => {
+		const current = spaceStore.activeId;
+		if (pageMounted && current !== openedSpaceId) {
+			goto('/documents');
+		}
+	});
 
 	let doc = $state<Document | null>(null);
 	let signers = $state<Signer[]>([]);
@@ -174,6 +189,7 @@
 			fields = f;
 		} catch {}
 		loading = false;
+		pageMounted = true;
 	});
 </script>
 
