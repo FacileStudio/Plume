@@ -224,6 +224,9 @@ func (s *Service) SubmitSignature(ctx context.Context, token string, req *Submit
 	if err != nil {
 		return errors.Internal("failed to read signer", err)
 	}
+	if signer.Role == "viewer" {
+		return errors.Invalid("viewers cannot sign this document")
+	}
 	if signer.Status != "pending" {
 		return errors.Invalid("already signed or declined")
 	}
@@ -234,6 +237,10 @@ func (s *Service) SubmitSignature(ctx context.Context, token string, req *Submit
 	}
 	if doc.Status != "pending" {
 		return errors.Invalid("document is not available for signing")
+	}
+
+	if err := s.ensureSignersTurn(ctx, doc, signer); err != nil {
+		return err
 	}
 
 	for _, fv := range req.Fields {
@@ -284,6 +291,9 @@ func (s *Service) DeclineSignature(ctx context.Context, token string, ipAddress 
 	if err != nil {
 		return errors.Internal("failed to read signer", err)
 	}
+	if signer.Role == "viewer" {
+		return errors.Invalid("viewers cannot act on this document")
+	}
 	if signer.Status != "pending" {
 		return errors.Invalid("already signed or declined")
 	}
@@ -294,6 +304,10 @@ func (s *Service) DeclineSignature(ctx context.Context, token string, ipAddress 
 	}
 	if doc.Status != "pending" {
 		return errors.Invalid("document is not available for signing")
+	}
+
+	if err := s.ensureSignersTurn(ctx, doc, signer); err != nil {
+		return err
 	}
 
 	now := time.Now().UTC()
@@ -338,6 +352,41 @@ func (s *Service) GetSigningFilePath(ctx context.Context, token string) (string,
 	}
 
 	return s.docService.GetFilePathByDocID(ctx, doc.ID)
+}
+
+func isSignersTurn(sequential bool, current schemas.Signer, all []schemas.Signer) bool {
+	if !sequential {
+		return true
+	}
+	if current.Role != "signer" && current.Role != "approver" {
+		return true
+	}
+	for _, other := range all {
+		if other.ID == current.ID {
+			continue
+		}
+		if other.Role != "signer" && other.Role != "approver" {
+			continue
+		}
+		if other.Status == "pending" && other.OrderNum < current.OrderNum {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Service) ensureSignersTurn(ctx context.Context, doc *schemas.Document, signer schemas.Signer) error {
+	if !doc.Sequential {
+		return nil
+	}
+	var all []schemas.Signer
+	if err := s.orm.WithContext(ctx).Where("document_id = ?", doc.ID).Find(&all).Error; err != nil {
+		return errors.Internal("failed to load signers", err)
+	}
+	if !isSignersTurn(doc.Sequential, signer, all) {
+		return errors.Invalid("it is not your turn yet")
+	}
+	return nil
 }
 
 func (s *Service) notifyNextSequentialSigners(ctx context.Context, doc *schemas.Document) {
