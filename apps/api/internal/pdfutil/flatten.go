@@ -5,13 +5,24 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/go-pdf/fpdf"
-	"github.com/go-pdf/fpdf/contrib/gofpdi"
+	"github.com/pdfcpu/pdfcpu/pkg/api"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
+	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 )
 
 var sigImgCounter int
+
+func init() {
+	// Run with built-in defaults; never touch disk for config (distroless has no
+	// home/config dir to read or write).
+	model.ConfigPath = "disable"
+}
 
 type FieldOverlay struct {
 	Page      int
@@ -23,17 +34,24 @@ type FieldOverlay struct {
 	Value     string
 }
 
-func FlattenFields(inputPath, outputPath string, fields []FieldOverlay) error {
-	pdf := fpdf.New("P", "pt", "A4", "")
-	pdf.SetAutoPageBreak(false, 0)
-	RegisterUnicodeFonts(pdf)
+// FlattenFields burns the given field overlays into inputPath and writes the
+// result to outputPath. It builds a transparent overlay PDF with fpdf (one page
+// per source page, matching dimensions) and stamps it onto the source with
+// pdfcpu, which reads arbitrary PDFs robustly — unlike fpdf's page importer,
+// which panics on unsupported content-stream filters (e.g. /ASCII85Decode).
+func FlattenFields(inputPath, outputPath string, fields []FieldOverlay) (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("pdfutil.FlattenFields panic", "recover", r, "input", inputPath)
+			err = fmt.Errorf("pdfutil: failed to flatten %q: %v", inputPath, r)
+		}
+	}()
 
-	imp := gofpdi.NewImporter()
-
-	// First ImportPage call parses the source file and populates page sizes.
-	firstTpl := imp.ImportPage(pdf, inputPath, 1, "/MediaBox")
-	sizes := imp.GetPageSizes()
-	totalPages := len(sizes)
+	dims, err := api.PageDimsFile(inputPath)
+	if err != nil {
+		return fmt.Errorf("pdfutil: read page dimensions of %q: %w", inputPath, err)
+	}
+	totalPages := len(dims)
 	if totalPages == 0 {
 		return fmt.Errorf("pdfutil: source PDF %q has no pages", inputPath)
 	}
@@ -46,16 +64,18 @@ func FlattenFields(inputPath, outputPath string, fields []FieldOverlay) error {
 		fieldsByPage[f.Page] = append(fieldsByPage[f.Page], f)
 	}
 
+	// Without any fields the signed document is identical to the original.
+	if len(fieldsByPage) == 0 {
+		return copyFile(inputPath, outputPath)
+	}
+
+	pdf := fpdf.New("P", "pt", "A4", "")
+	pdf.SetAutoPageBreak(false, 0)
+	RegisterUnicodeFonts(pdf)
+
 	for pageNum := 1; pageNum <= totalPages; pageNum++ {
-		pageBox, ok := sizes[pageNum]
-		if !ok {
-			return fmt.Errorf("pdfutil: missing MediaBox for page %d in %q", pageNum, inputPath)
-		}
-		mediaBox, ok := pageBox["/MediaBox"]
-		if !ok {
-			return fmt.Errorf("pdfutil: page %d has no MediaBox", pageNum)
-		}
-		w, h := mediaBox["w"], mediaBox["h"]
+		d := dims[pageNum-1]
+		w, h := d.Width, d.Height
 		if w <= 0 || h <= 0 {
 			return fmt.Errorf("pdfutil: page %d has invalid dimensions (%fx%f)", pageNum, w, h)
 		}
@@ -66,22 +86,43 @@ func FlattenFields(inputPath, outputPath string, fields []FieldOverlay) error {
 		}
 		pdf.AddPageFormat(orient, fpdf.SizeType{Wd: w, Ht: h})
 
-		var tplID int
-		if pageNum == 1 {
-			tplID = firstTpl
-		} else {
-			tplID = imp.ImportPage(pdf, inputPath, pageNum, "/MediaBox")
-		}
-		imp.UseImportedTemplate(pdf, tplID, 0, 0, w, h)
-
 		for _, field := range fieldsByPage[pageNum] {
 			drawField(pdf, field, w, h)
 		}
 	}
 
-	if err := pdf.OutputFileAndClose(outputPath); err != nil {
-		slog.Error("pdfutil.FlattenFields output", "err", err, "path", outputPath)
-		return err
+	overlayFile, err := os.CreateTemp(filepath.Dir(outputPath), "plume-overlay-*.pdf")
+	if err != nil {
+		return fmt.Errorf("pdfutil: create overlay temp file: %w", err)
+	}
+	overlayPath := overlayFile.Name()
+	overlayFile.Close()
+	defer os.Remove(overlayPath)
+
+	if err := pdf.OutputFileAndClose(overlayPath); err != nil {
+		return fmt.Errorf("pdfutil: write overlay: %w", err)
+	}
+
+	// Multi-stamp mode (PdfPageNrSrc == 0) maps overlay page N onto source page N,
+	// placed bottom-left at 1:1 scale so fpdf's coordinates line up exactly.
+	wm, err := pdfcpu.ParsePDFWatermarkDetails(overlayPath, "scalefactor:1 abs, position:bl, offset:0 0, rotation:0, opacity:1", true, types.POINTS)
+	if err != nil {
+		return fmt.Errorf("pdfutil: build stamp: %w", err)
+	}
+
+	if err := api.AddWatermarksFile(inputPath, outputPath, nil, wm, nil); err != nil {
+		return fmt.Errorf("pdfutil: stamp overlay onto %q: %w", inputPath, err)
+	}
+	return nil
+}
+
+func copyFile(src, dst string) error {
+	in, err := os.ReadFile(src)
+	if err != nil {
+		return fmt.Errorf("pdfutil: read %q: %w", src, err)
+	}
+	if err := os.WriteFile(dst, in, 0o644); err != nil {
+		return fmt.Errorf("pdfutil: write %q: %w", dst, err)
 	}
 	return nil
 }
