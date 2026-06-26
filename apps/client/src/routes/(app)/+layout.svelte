@@ -90,6 +90,15 @@
 					<p class="truncate text-xs text-muted-foreground">{userStore.value?.email ?? ''}</p>
 				</div>
 			</a>
+			<a
+				href="/api/docs"
+				target="_blank"
+				rel="noopener"
+				class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+			>
+				<Icon icon="solar:code-square-linear" class="h-4 w-4" />
+				API docs
+			</a>
 			<button
 				onclick={logout}
 				class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:text-destructive hover:bg-destructive/10"

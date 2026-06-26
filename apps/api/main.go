@@ -18,6 +18,7 @@ import (
 	"api/internal/logger"
 	"api/internal/middleware"
 	"api/modules/auth"
+	"api/modules/docs"
 	"api/modules/documents"
 	"api/modules/fields"
 	"api/modules/reminders"
@@ -90,7 +91,7 @@ func main() {
 		}
 	}()
 
-	docs := documentation.Response{
+	docsRegistry := documentation.Response{
 		Modules: []documentation.Module{
 			auth.Documentation,
 			documents.Documentation,
@@ -121,9 +122,7 @@ func main() {
 	})
 
 	router.Route("/api", func(api chi.Router) {
-		api.Get("/docs", func(w http.ResponseWriter, request *http.Request) {
-			httpjson.WriteJSON(w, http.StatusOK, docs)
-		})
+		docs.RegisterRoutes(api, documentation.OpenAPI(docsRegistry))
 
 		avatarFS := http.StripPrefix("/api/files/", http.FileServer(http.Dir(appEnv.UploadDir)))
 		api.Get("/files/*", func(w http.ResponseWriter, r *http.Request) {
