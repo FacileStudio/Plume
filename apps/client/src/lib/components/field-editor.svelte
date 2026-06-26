@@ -288,9 +288,9 @@
 				<span class="text-sm text-muted-foreground">Page {currentPage} / {pages.length}</span>
 			{/if}
 		</div>
-		<Button variant="outline" onclick={onclose}>
+		<Button onclick={onclose}>
 			<Icon icon="solar:check-circle-linear" class="h-4 w-4" />
-			Done
+			Save & close
 		</Button>
 	</div>
 

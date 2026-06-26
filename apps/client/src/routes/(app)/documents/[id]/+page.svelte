@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { api } from '$lib';
-	import type { Document, Signer } from '$lib';
+	import type { Document, Signer, Field } from '$lib';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Button } from '$lib/components/ui/button';
 	import { Separator } from '$lib/components/ui/separator';
@@ -12,7 +12,24 @@
 
 	let doc = $state<Document | null>(null);
 	let signers = $state<Signer[]>([]);
+	let fields = $state<Field[]>([]);
 	let loading = $state(true);
+
+	const fieldsBySigner = $derived(
+		fields.reduce<Map<number, number>>((m, f) => m.set(f.signer_id, (m.get(f.signer_id) ?? 0) + 1), new Map())
+	);
+
+	async function refreshFields() {
+		if (!doc) return;
+		try {
+			fields = await api.fields.list(doc.id);
+		} catch {}
+	}
+
+	function closeFieldEditor() {
+		showFieldEditor = false;
+		refreshFields();
+	}
 	let sending = $state(false);
 	let error = $state('');
 	let copiedId = $state<number | null>(null);
@@ -147,9 +164,14 @@
 	onMount(async () => {
 		const id = Number(page.params.id);
 		try {
-			const [d, s] = await Promise.all([api.documents.get(id), api.signers.list(id)]);
+			const [d, s, f] = await Promise.all([
+				api.documents.get(id),
+				api.signers.list(id),
+				api.fields.list(id).catch(() => [])
+			]);
 			doc = d;
 			signers = s;
+			fields = f;
 		} catch {}
 		loading = false;
 	});
@@ -158,7 +180,7 @@
 <svelte:head><title>{doc ? `${doc.name} — Plume` : 'Plume'}</title></svelte:head>
 
 {#if showFieldEditor && doc}
-	<FieldEditor documentId={doc.id} {signers} onclose={() => (showFieldEditor = false)} />
+	<FieldEditor documentId={doc.id} {signers} onclose={closeFieldEditor} />
 {:else}
 
 <a href="/documents" class="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6">
@@ -189,6 +211,17 @@
 					{doc.file_name}
 				</p>
 			{/if}
+			{#if doc.status === 'draft'}
+				<p class="mt-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium
+					{fields.length > 0 ? 'bg-green-500/10 text-green-700 dark:text-green-400' : 'bg-muted text-muted-foreground'}">
+					<Icon icon={fields.length > 0 ? 'solar:check-circle-bold' : 'solar:layers-minimalistic-linear'} class="h-3.5 w-3.5" />
+					{#if fields.length > 0}
+						{fields.length} field{fields.length === 1 ? '' : 's'} prepared
+					{:else}
+						No fields prepared yet
+					{/if}
+				</p>
+			{/if}
 		</div>
 
 		<div class="flex items-center gap-2">
@@ -215,14 +248,14 @@
 					{:else}
 						<Icon icon="solar:shield-check-linear" class="h-4 w-4" />
 					{/if}
-					Audit trail
+					Download audit
 				</Button>
 			{/if}
 
 			{#if doc.status === 'draft'}
 				<Button variant="outline" onclick={() => (showFieldEditor = true)} disabled={signers.length === 0}>
 					<Icon icon="solar:layers-linear" class="h-4 w-4" />
-					Prepare fields
+					{fields.length > 0 ? `Edit fields (${fields.length})` : 'Prepare fields'}
 				</Button>
 				<Button onclick={sendForSigning} disabled={sending || signers.length === 0}>
 					{#if sending}
@@ -308,25 +341,24 @@
 							<div>
 								<p class="font-medium">{signer.name}</p>
 								<p class="text-sm text-muted-foreground">{signer.email}</p>
-								{#if doc?.status === 'pending' && signer.token && signer.status === 'pending' && !waiting}
-									<div class="mt-1.5 flex flex-wrap items-center gap-3">
-										<button
-											onclick={() => copySigningLink(signer)}
-											class="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-										>
+								{#if doc?.status === 'draft'}
+									{@const fc = fieldsBySigner.get(signer.id) ?? 0}
+									<p class="mt-1 inline-flex items-center gap-1 text-xs {fc > 0 ? 'text-green-700 dark:text-green-400' : 'text-muted-foreground'}">
+										<Icon icon={fc > 0 ? 'solar:check-circle-linear' : 'solar:layers-minimalistic-linear'} class="h-3.5 w-3.5" />
+										{fc > 0 ? `${fc} field${fc === 1 ? '' : 's'} assigned` : 'No fields assigned'}
+									</p>
+								{:else if doc?.status === 'pending' && signer.token && signer.status === 'pending' && !waiting}
+									<div class="mt-2 flex flex-wrap items-center gap-2">
+										<Button variant="outline" size="sm" onclick={() => copySigningLink(signer)}>
 											<Icon icon={copiedId === signer.id ? 'solar:check-circle-linear' : 'solar:copy-linear'} class="h-3.5 w-3.5" />
-											{copiedId === signer.id ? 'Copied!' : 'Copy signing link'}
-										</button>
-										<button
-											onclick={() => remindSigner(signer)}
-											disabled={remindingId === signer.id}
-											class="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-										>
-											<Icon icon="solar:bell-linear" class="h-3.5 w-3.5" />
-											{remindingId === signer.id ? 'Sending…' : 'Resend'}
-										</button>
+											{copiedId === signer.id ? 'Copied!' : 'Copy link'}
+										</Button>
+										<Button variant="outline" size="sm" onclick={() => remindSigner(signer)} disabled={remindingId === signer.id}>
+											<Icon icon="solar:plain-linear" class="h-3.5 w-3.5 {remindingId === signer.id ? 'animate-spin' : ''}" />
+											{remindingId === signer.id ? 'Sending…' : 'Resend email'}
+										</Button>
 										{#if signer.last_reminded_at}
-											<span class="text-xs text-muted-foreground">Reminded {formatRelative(signer.last_reminded_at)}</span>
+											<span class="text-xs text-muted-foreground">Sent {formatRelative(signer.last_reminded_at)}</span>
 										{/if}
 									</div>
 								{:else if waiting}
