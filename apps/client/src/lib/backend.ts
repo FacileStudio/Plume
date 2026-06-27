@@ -238,6 +238,7 @@ export interface Signer {
 	order_num: number;
 	signed_at: string | null;
 	viewed_at: string | null;
+	email_opened_at: string | null;
 	last_reminded_at: string | null;
 	ip_address?: string;
 	user_agent?: string;

@@ -129,6 +129,11 @@ func (s *Service) SendSigningEmail(ownerID int64, signerName string, signerEmail
 
 	signingURL := fmt.Sprintf("%s/share/%s", domain, signingToken)
 
+	var trackingPixel string
+	if trimmed := strings.TrimRight(domain, "/"); trimmed != "" {
+		trackingPixel = fmt.Sprintf("%s/api/sign/%s/opened.gif", trimmed, signingToken)
+	}
+
 	subject := fmt.Sprintf("Signature requested — %s", documentName)
 	body := renderEmail(emailContent{
 		domain:  domain,
@@ -136,8 +141,9 @@ func (s *Service) SendSigningEmail(ownerID int64, signerName string, signerEmail
 		body: fmt.Sprintf(`<p style="margin:0 0 14px;color:#3f3f46;line-height:1.6;font-size:15px;">Hi %s,</p>
     <p style="margin:0;color:#3f3f46;line-height:1.6;font-size:15px;">You have been invited to review and sign <strong style="color:#18181b;">%s</strong>.</p>`,
 			html.EscapeString(signerName), html.EscapeString(documentName)),
-		ctaLabel: "Review &amp; Sign",
-		ctaURL:   signingURL,
+		ctaLabel:      "Review &amp; Sign",
+		ctaURL:        signingURL,
+		trackingPixel: trackingPixel,
 	})
 
 	if err := sendEmail(&record, signerEmail, subject, body); err != nil {
@@ -206,11 +212,12 @@ func (s *Service) findConfig(ctx context.Context, ownerID int64) (*schemas.SmtpC
 }
 
 type emailContent struct {
-	domain   string
-	heading  string
-	body     string
-	ctaLabel string
-	ctaURL   string
+	domain        string
+	heading       string
+	body          string
+	ctaLabel      string
+	ctaURL        string
+	trackingPixel string
 }
 
 func renderEmail(c emailContent) string {
@@ -221,6 +228,11 @@ func renderEmail(c emailContent) string {
 		brand = fmt.Sprintf(`<img src="%s/logo.png" width="44" height="44" alt="Plume" style="display:block;border:0;outline:none;text-decoration:none;" />`, domain)
 	} else {
 		brand = fmt.Sprintf(`<span style="font-family:%s;font-size:20px;font-weight:700;letter-spacing:-0.02em;color:#18181b;">Plume</span>`, fontStack)
+	}
+
+	var pixel string
+	if c.trackingPixel != "" {
+		pixel = fmt.Sprintf(`<img src="%s" width="1" height="1" alt="" style="display:block;width:1px;height:1px;max-height:1px;max-width:1px;border:0;outline:none;overflow:hidden;" />`, c.trackingPixel)
 	}
 
 	var cta string
@@ -265,8 +277,9 @@ func renderEmail(c emailContent) string {
       </table>
     </td></tr>
   </table>
+  %s
 </body>
-</html>`, brand, fontStack, html.EscapeString(c.heading), fontStack, c.body, cta, fontStack)
+</html>`, brand, fontStack, html.EscapeString(c.heading), fontStack, c.body, cta, fontStack, pixel)
 }
 
 func sanitizeHeader(s string) string {

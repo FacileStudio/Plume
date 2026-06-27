@@ -13,6 +13,7 @@ type Signer struct {
 	OrderNum       int        `gorm:"column:order_num;default:0"`
 	SignedAt       *time.Time `gorm:"column:signed_at"`
 	ViewedAt       *time.Time `gorm:"column:viewed_at"`
+	EmailOpenedAt  *time.Time `gorm:"column:email_opened_at"`
 	IPAddress      string     `gorm:"column:ip_address"`
 	UserAgent      string     `gorm:"column:user_agent"`
 	LastRemindedAt *time.Time `gorm:"column:last_reminded_at"`

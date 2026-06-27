@@ -38,26 +38,27 @@ type EventOwner struct {
 }
 
 type EventDocument struct {
-	ID         int64      `json:"id"`
-	Name       string     `json:"name"`
-	Status     string     `json:"status"`
-	FileName   string     `json:"file_name"`
-	URL        string     `json:"url,omitempty"`
-	Sequential bool       `json:"sequential"`
-	CreatedAt  time.Time  `json:"created_at"`
-	UpdatedAt  time.Time  `json:"updated_at"`
+	ID         int64     `json:"id"`
+	Name       string    `json:"name"`
+	Status     string    `json:"status"`
+	FileName   string    `json:"file_name"`
+	URL        string    `json:"url,omitempty"`
+	Sequential bool      `json:"sequential"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 type EventSigner struct {
-	ID         int64      `json:"id"`
-	Name       string     `json:"name"`
-	Email      string     `json:"email"`
-	Role       string     `json:"role"`
-	Status     string     `json:"status,omitempty"`
-	OrderNum   int        `json:"order_num"`
-	SigningURL string     `json:"signing_url,omitempty"`
-	SignedAt   *time.Time `json:"signed_at,omitempty"`
-	ViewedAt   *time.Time `json:"viewed_at,omitempty"`
+	ID            int64      `json:"id"`
+	Name          string     `json:"name"`
+	Email         string     `json:"email"`
+	Role          string     `json:"role"`
+	Status        string     `json:"status,omitempty"`
+	OrderNum      int        `json:"order_num"`
+	SigningURL    string     `json:"signing_url,omitempty"`
+	SignedAt      *time.Time `json:"signed_at,omitempty"`
+	ViewedAt      *time.Time `json:"viewed_at,omitempty"`
+	EmailOpenedAt *time.Time `json:"email_opened_at,omitempty"`
 }
 
 const (
@@ -67,6 +68,7 @@ const (
 	EventDocumentDeclined  = "document.declined"
 	EventDocumentDeleted   = "document.deleted"
 	EventSignerAdded       = "signer.added"
+	EventSignerEmailOpened = "signer.email_opened"
 	EventSignerViewed      = "signer.viewed"
 	EventSignerSigned      = "signer.signed"
 	EventSignerDeclined    = "signer.declined"

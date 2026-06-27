@@ -253,6 +253,7 @@
 		'document.declined',
 		'document.deleted',
 		'signer.added',
+		'signer.email_opened',
 		'signer.viewed',
 		'signer.signed',
 		'signer.declined',

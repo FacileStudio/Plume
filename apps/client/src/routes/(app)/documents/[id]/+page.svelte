@@ -79,6 +79,21 @@
 		return activeOrderNum !== null && signer.order_num > activeOrderNum;
 	}
 
+	type SignerStage = { label: string; classes: string };
+
+	function signerStage(signer: Signer, waiting: boolean): SignerStage {
+		if (signer.status === 'signed')
+			return { label: 'signed', classes: 'bg-green-500/10 text-green-700 dark:text-green-400' };
+		if (signer.status === 'declined')
+			return { label: 'declined', classes: 'bg-red-500/10 text-red-700 dark:text-red-400' };
+		if (waiting) return { label: 'waiting', classes: 'bg-muted text-muted-foreground' };
+		if (signer.viewed_at)
+			return { label: 'opened document', classes: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' };
+		if (signer.email_opened_at)
+			return { label: 'opened email', classes: 'bg-amber-500/10 text-amber-700 dark:text-amber-400' };
+		return { label: 'sent', classes: 'bg-foreground/10 text-foreground' };
+	}
+
 	async function addSignerToDoc() {
 		if (!doc || doc.status !== 'draft') return;
 		const name = newSignerName.trim();
@@ -417,6 +432,7 @@
 				<div class="space-y-3">
 					{#each sortedSigners as signer}
 						{@const waiting = isWaitingSigner(signer)}
+						{@const stage = signerStage(signer, waiting)}
 						<div class="flex items-center justify-between rounded-lg border p-4">
 							<div>
 								<p class="font-medium">{signer.name}</p>
@@ -441,6 +457,16 @@
 											<span class="text-xs text-muted-foreground">Sent {formatRelative(signer.last_reminded_at)}</span>
 										{/if}
 									</div>
+									{#if signer.viewed_at || signer.email_opened_at}
+										<p class="mt-1.5 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+											<Icon icon="solar:eye-linear" class="h-3.5 w-3.5" />
+											{#if signer.viewed_at}
+												Opened the document {formatRelative(signer.viewed_at)}
+											{:else if signer.email_opened_at}
+												Opened the email {formatRelative(signer.email_opened_at)}
+											{/if}
+										</p>
+									{/if}
 								{:else if waiting}
 									<p class="inline-flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
 										<Icon icon="solar:clock-circle-linear" class="h-3.5 w-3.5" />
@@ -452,12 +478,7 @@
 								{#if signer.signed_at}
 									<span class="text-xs text-muted-foreground">Signed {formatDate(signer.signed_at)}</span>
 								{/if}
-								<span class="rounded-full px-2.5 py-0.5 text-xs font-medium
-									{signer.status === 'pending' && !waiting ? 'bg-foreground/10 text-foreground' : ''}
-									{signer.status === 'pending' && waiting ? 'bg-muted text-muted-foreground' : ''}
-									{signer.status === 'signed' ? 'bg-green-500/10 text-green-700 dark:text-green-400' : ''}
-									{signer.status === 'declined' ? 'bg-red-500/10 text-red-700 dark:text-red-400' : ''}
-								">{waiting ? 'waiting' : signer.status}</span>
+								<span class="rounded-full px-2.5 py-0.5 text-xs font-medium {stage.classes}">{stage.label}</span>
 							</div>
 						</div>
 					{/each}

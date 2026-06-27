@@ -2,6 +2,7 @@ package signers
 
 import (
 	"net/http"
+	"strconv"
 
 	"api/internal/authcontext"
 	"api/internal/httpjson"
@@ -9,6 +10,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 )
+
+// trackingPixelGIF is a 1x1 fully transparent GIF used as an email open beacon.
+var trackingPixelGIF = []byte{
+	0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 0x01, 0x00, 0x01, 0x00, 0x80, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0x21, 0xF9, 0x04, 0x01, 0x00, 0x00, 0x00,
+	0x00, 0x2C, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x02, 0x02,
+	0x44, 0x01, 0x00, 0x3B,
+}
 
 func DocumentRoutes(service *Service) func(chi.Router) {
 	return func(router chi.Router) {
@@ -65,6 +74,18 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 			return
 		}
 		httpjson.WriteJSON(w, http.StatusOK, resp)
+	})
+
+	router.Get("/sign/{token}/opened.gif", func(w http.ResponseWriter, request *http.Request) {
+		service.MarkEmailOpened(request.Context(), chi.URLParam(request, "token"))
+		w.Header().Set("Content-Type", "image/gif")
+		w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, private, max-age=0")
+		w.Header().Set("Pragma", "no-cache")
+		w.Header().Set("Expires", "0")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Content-Length", strconv.Itoa(len(trackingPixelGIF)))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(trackingPixelGIF)
 	})
 
 	router.Post("/sign/{token}", func(w http.ResponseWriter, request *http.Request) {

@@ -215,6 +215,36 @@ func (s *Service) GetSigningView(ctx context.Context, token string) (*SigningVie
 	}, nil
 }
 
+// MarkEmailOpened records the first time a signing invitation email is opened,
+// detected via the tracking pixel embedded in the email. It is best-effort:
+// failures and unknown tokens are swallowed so the pixel always renders. Note
+// that Apple Mail Privacy Protection and Gmail's image proxy prefetch images at
+// delivery time, so an open may be recorded before the recipient actually reads
+// the email — we only ever record the first open.
+func (s *Service) MarkEmailOpened(ctx context.Context, token string) {
+	var signer schemas.Signer
+	if err := s.orm.WithContext(ctx).Where("token = ?", token).First(&signer).Error; err != nil {
+		return
+	}
+	if signer.EmailOpenedAt != nil || signer.Status != "pending" {
+		return
+	}
+
+	now := time.Now().UTC()
+	if err := s.orm.WithContext(ctx).Model(&schemas.Signer{}).
+		Where("id = ? AND email_opened_at IS NULL", signer.ID).
+		Update("email_opened_at", now).Error; err != nil {
+		return
+	}
+	signer.EmailOpenedAt = &now
+
+	doc, err := s.docService.FindByID(ctx, signer.DocumentID)
+	if err != nil {
+		return
+	}
+	go s.webhookSvc.Dispatch(doc.OwnerID, webhooks.BuildSignerEvent(webhooks.EventSignerEmailOpened, doc, &signer, s.domain))
+}
+
 func (s *Service) SubmitSignature(ctx context.Context, token string, req *SubmitSignatureRequest, ipAddress string, userAgent string) error {
 	var signer schemas.Signer
 	err := s.orm.WithContext(ctx).Where("token = ?", token).First(&signer).Error
@@ -423,6 +453,7 @@ func toSignerResponse(record *schemas.Signer) *SignerResponse {
 		OrderNum:       record.OrderNum,
 		SignedAt:       record.SignedAt,
 		ViewedAt:       record.ViewedAt,
+		EmailOpenedAt:  record.EmailOpenedAt,
 		IPAddress:      record.IPAddress,
 		UserAgent:      record.UserAgent,
 		LastRemindedAt: record.LastRemindedAt,

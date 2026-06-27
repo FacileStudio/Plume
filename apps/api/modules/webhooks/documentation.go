@@ -4,7 +4,7 @@ import documentation "api/internal/documentation"
 
 var Documentation = documentation.Module{
 	Name:        "webhooks",
-	Description: "Manage outgoing webhooks. Each delivery is signed with HMAC-SHA256 via the `x-plume-signature-256` header (format: `sha256=<hex>`). Failed deliveries retry up to 3 times with exponential backoff. Event types: document.created, document.sent, document.completed, document.declined, document.deleted, signer.added, signer.viewed, signer.signed, signer.declined, signer.reminded.",
+	Description: "Manage outgoing webhooks. Each delivery is signed with HMAC-SHA256 via the `x-plume-signature-256` header (format: `sha256=<hex>`). Failed deliveries retry up to 3 times with exponential backoff. Event types: document.created, document.sent, document.completed, document.declined, document.deleted, signer.added, signer.email_opened, signer.viewed, signer.signed, signer.declined, signer.reminded.",
 	Routes: []documentation.Route{
 		{
 			Method:       "POST",

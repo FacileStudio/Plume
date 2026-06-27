@@ -46,14 +46,15 @@ func buildSignerDTO(signer *schemas.Signer, domain string) EventSigner {
 		signingURL = fmt.Sprintf("%s/share/%s", domain, signer.Token)
 	}
 	return EventSigner{
-		ID:         signer.ID,
-		Name:       signer.Name,
-		Email:      signer.Email,
-		Role:       signer.Role,
-		Status:     signer.Status,
-		OrderNum:   signer.OrderNum,
-		SigningURL: signingURL,
-		SignedAt:   signer.SignedAt,
-		ViewedAt:   signer.ViewedAt,
+		ID:            signer.ID,
+		Name:          signer.Name,
+		Email:         signer.Email,
+		Role:          signer.Role,
+		Status:        signer.Status,
+		OrderNum:      signer.OrderNum,
+		SigningURL:    signingURL,
+		SignedAt:      signer.SignedAt,
+		ViewedAt:      signer.ViewedAt,
+		EmailOpenedAt: signer.EmailOpenedAt,
 	}
 }

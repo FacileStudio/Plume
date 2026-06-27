@@ -29,6 +29,7 @@ type SignerResponse struct {
 	OrderNum       int        `json:"order_num"`
 	SignedAt       *time.Time `json:"signed_at"`
 	ViewedAt       *time.Time `json:"viewed_at"`
+	EmailOpenedAt  *time.Time `json:"email_opened_at"`
 	IPAddress      string     `json:"ip_address,omitempty"`
 	UserAgent      string     `json:"user_agent,omitempty"`
 	LastRemindedAt *time.Time `json:"last_reminded_at"`
