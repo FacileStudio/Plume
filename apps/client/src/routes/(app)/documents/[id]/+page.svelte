@@ -7,6 +7,7 @@
 	import { spaceStore } from '$lib/stores/space.svelte';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
 	import { Separator } from '$lib/components/ui/separator';
 	import Icon from '@iconify/svelte';
 	import { toast } from 'svelte-sonner';
@@ -54,6 +55,10 @@
 	let showFieldEditor = $state(false);
 	let remindingId = $state<number | null>(null);
 	let togglingSequential = $state(false);
+	let showAddSigner = $state(false);
+	let newSignerName = $state('');
+	let newSignerEmail = $state('');
+	let addingSigner = $state(false);
 
 	const sortedSigners = $derived(
 		[...signers].sort((a, b) => a.order_num - b.order_num || a.id - b.id)
@@ -72,6 +77,28 @@
 		if (signer.status !== 'pending') return false;
 		if (signer.role !== 'signer' && signer.role !== 'approver') return false;
 		return activeOrderNum !== null && signer.order_num > activeOrderNum;
+	}
+
+	async function addSignerToDoc() {
+		if (!doc || doc.status !== 'draft') return;
+		const name = newSignerName.trim();
+		const email = newSignerEmail.trim();
+		if (!name || !email) {
+			error = 'Name and email are required';
+			return;
+		}
+		addingSigner = true;
+		error = '';
+		try {
+			const created = await api.signers.add(doc.id, name, email);
+			signers = [...signers, created];
+			newSignerName = '';
+			newSignerEmail = '';
+			showAddSigner = false;
+		} catch (e: any) {
+			error = e.message;
+		}
+		addingSigner = false;
 	}
 
 	async function toggleSequential() {
@@ -343,10 +370,47 @@
 
 	<Card.Root>
 		<Card.Header>
-			<Card.Title>Signers</Card.Title>
-			<Card.Description>{signers.length} signer{signers.length === 1 ? '' : 's'}</Card.Description>
+			<div class="flex items-start justify-between gap-4">
+				<div>
+					<Card.Title>Signers</Card.Title>
+					<Card.Description>{signers.length} signer{signers.length === 1 ? '' : 's'}</Card.Description>
+				</div>
+				{#if doc.status !== 'completed' && doc.status !== 'declined'}
+					<Button
+						variant="outline"
+						size="sm"
+						onclick={() => (showAddSigner = !showAddSigner)}
+						disabled={doc.status !== 'draft'}
+						title={doc.status !== 'draft' ? 'Signers can only be added before signing starts' : undefined}
+					>
+						<Icon icon="mdi:plus" class="h-4 w-4" />
+						Add signer
+					</Button>
+				{/if}
+			</div>
 		</Card.Header>
 		<Card.Content>
+			{#if doc.status === 'draft' && showAddSigner}
+				<div class="mb-4 rounded-lg border p-4 space-y-3">
+					<div class="grid gap-2 sm:grid-cols-2">
+						<Input bind:value={newSignerName} placeholder="Name" />
+						<Input bind:value={newSignerEmail} placeholder="Email" type="email" />
+					</div>
+					<div class="flex items-center gap-2">
+						<Button size="sm" onclick={addSignerToDoc} disabled={addingSigner}>
+							{#if addingSigner}
+								<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
+							{:else}
+								<Icon icon="mdi:plus" class="h-4 w-4" />
+							{/if}
+							Add signer
+						</Button>
+						<Button variant="ghost" size="sm" onclick={() => (showAddSigner = false)} disabled={addingSigner}>
+							Cancel
+						</Button>
+					</div>
+				</div>
+			{/if}
 			{#if signers.length === 0}
 				<p class="text-sm text-muted-foreground">No signers added yet.</p>
 			{:else}

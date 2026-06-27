@@ -1,10 +1,24 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { api } from '$lib';
-	import type { Webhook } from '$lib';
+	import type { UserProfile, Webhook } from '$lib';
 	import Icon from '@iconify/svelte';
 	import { toast } from 'svelte-sonner';
 	import { userStore } from '$lib/stores/user.svelte';
+
+	let profile = $state<UserProfile | null>(null);
+	let profileName = $state('');
+	let profileEmail = $state('');
+	let profileError = $state('');
+	let profileSuccess = $state('');
+	let profileLoading = $state(false);
+
+	let currentPassword = $state('');
+	let newPassword = $state('');
+	let confirmPassword = $state('');
+	let passwordError = $state('');
+	let passwordSuccess = $state('');
+	let passwordLoading = $state(false);
 
 	let webhooks = $state<Webhook[]>([]);
 	let showWebhookForm = $state(false);
@@ -28,12 +42,61 @@
 	let reminderIntervalDays = $state(3);
 	let reminderSaving = $state(false);
 
-	let activeTab = $state<'email' | 'reminders' | 'webhooks'>('email');
+	let activeTab = $state<'profile' | 'email' | 'reminders' | 'webhooks'>('profile');
 	const settingsTabs = [
+		{ id: 'profile', label: 'Profile', icon: 'solar:user-linear' },
 		{ id: 'email', label: 'Email', icon: 'solar:letter-linear' },
 		{ id: 'reminders', label: 'Reminders', icon: 'solar:bell-linear' },
 		{ id: 'webhooks', label: 'Webhooks', icon: 'solar:bolt-linear' }
 	] as const;
+
+	async function loadProfile() {
+		try {
+			profile = await api.auth.me();
+			profileName = profile.name ?? '';
+			profileEmail = profile.email;
+		} catch (e: any) {
+			profileError = e.message;
+		}
+	}
+
+	async function updateProfile() {
+		profileError = '';
+		profileSuccess = '';
+		profileLoading = true;
+		try {
+			profile = await api.auth.updateProfile({ name: profileName, email: profileEmail });
+			profileName = profile.name ?? '';
+			profileEmail = profile.email;
+			userStore.value = profile;
+			profileSuccess = 'Profile updated.';
+		} catch (e: any) {
+			profileError = e.message;
+		} finally {
+			profileLoading = false;
+		}
+	}
+
+	async function changePassword() {
+		passwordError = '';
+		passwordSuccess = '';
+		if (newPassword !== confirmPassword) {
+			passwordError = 'Passwords do not match.';
+			return;
+		}
+		passwordLoading = true;
+		try {
+			await api.auth.changePassword(currentPassword, newPassword);
+			passwordSuccess = 'Password changed.';
+			currentPassword = '';
+			newPassword = '';
+			confirmPassword = '';
+		} catch (e: any) {
+			passwordError = e.message;
+		} finally {
+			passwordLoading = false;
+		}
+	}
 
 	async function loadSmtp() {
 		try {
@@ -230,7 +293,7 @@
 	}
 
 	onMount(async () => {
-		await Promise.all([loadSmtp(), loadWebhooks(), loadReminderSettings()]);
+		await Promise.all([loadProfile(), loadSmtp(), loadWebhooks(), loadReminderSettings()]);
 	});
 </script>
 
@@ -238,7 +301,7 @@
 
 <div class="mb-6 border-b pb-5">
 	<h1 class="text-2xl font-bold">Settings</h1>
-	<p class="mt-1 text-sm text-muted-foreground">Manage email delivery, reminders, and webhooks.</p>
+	<p class="mt-1 text-sm text-muted-foreground">Manage your profile, email delivery, reminders, and webhooks.</p>
 </div>
 
 <div class="mb-6 flex gap-6 border-b">
@@ -256,6 +319,141 @@
 </div>
 
 <div class="max-w-2xl">
+	{#if activeTab === 'profile'}
+	<div class="space-y-6">
+		<div class="rounded-lg border p-6">
+			<div class="flex items-center gap-2 mb-4">
+				<Icon icon="solar:user-linear" class="h-5 w-5" />
+				<h2 class="text-lg font-semibold">Profile</h2>
+			</div>
+
+			{#if profile}
+				<div class="flex items-center gap-3 mb-4">
+					{#if profile.avatar_url}
+						<img src="/api{profile.avatar_url}" alt="Avatar" class="h-14 w-14 rounded-full border border-border object-cover" />
+					{:else}
+						<div class="flex h-14 w-14 items-center justify-center rounded-full border border-border bg-foreground text-sm font-semibold text-background">
+							{(profile.name || profile.email).split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)}
+						</div>
+					{/if}
+					<div>
+						<p class="text-sm font-medium">{profile.name || profile.email}</p>
+						{#if profile.avatar_source === 'oidc'}
+							<p class="text-xs text-muted-foreground">Synced from SSO</p>
+						{/if}
+					</div>
+				</div>
+
+				<form onsubmit={updateProfile} class="space-y-3">
+					<div>
+						<label for="name" class="block text-sm font-medium mb-1">Name</label>
+						<input
+							id="name"
+							bind:value={profileName}
+							placeholder="Your name"
+							class="w-full rounded-md border bg-background px-3 py-2 text-sm"
+						/>
+					</div>
+					<div>
+						<label for="email" class="block text-sm font-medium mb-1">Email</label>
+						<input
+							id="email"
+							type="email"
+							bind:value={profileEmail}
+							placeholder="you@example.com"
+							class="w-full rounded-md border bg-background px-3 py-2 text-sm"
+							required
+						/>
+					</div>
+
+					{#if profileError}
+						<p class="text-destructive text-sm">{profileError}</p>
+					{/if}
+					{#if profileSuccess}
+						<p class="text-sm text-green-600">{profileSuccess}</p>
+					{/if}
+
+					<button
+						type="submit"
+						disabled={profileLoading}
+						class="flex items-center gap-1.5 rounded-full bg-foreground px-4 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed"
+					>
+						<Icon icon="solar:diskette-linear" class="h-4 w-4" />
+						{profileLoading ? 'Saving...' : 'Save'}
+					</button>
+				</form>
+
+				<p class="text-xs text-muted-foreground mt-4">
+					Member since {new Date(profile.created_at).toLocaleDateString()}
+				</p>
+			{:else if !profileError}
+				<p class="text-sm text-muted-foreground">Loading...</p>
+			{:else}
+				<p class="text-destructive text-sm">{profileError}</p>
+			{/if}
+		</div>
+
+		<div class="rounded-lg border p-6">
+			<div class="flex items-center gap-2 mb-4">
+				<Icon icon="solar:lock-keyhole-linear" class="h-5 w-5" />
+				<h2 class="text-lg font-semibold">Change password</h2>
+			</div>
+
+			<form onsubmit={changePassword} class="space-y-3">
+				<div>
+					<label for="current-password" class="block text-sm font-medium mb-1">Current Password</label>
+					<input
+						id="current-password"
+						type="password"
+						bind:value={currentPassword}
+						class="w-full rounded-md border bg-background px-3 py-2 text-sm"
+						required
+					/>
+				</div>
+				<div>
+					<label for="new-password" class="block text-sm font-medium mb-1">New Password</label>
+					<input
+						id="new-password"
+						type="password"
+						bind:value={newPassword}
+						class="w-full rounded-md border bg-background px-3 py-2 text-sm"
+						required
+						minlength="8"
+					/>
+				</div>
+				<div>
+					<label for="confirm-password" class="block text-sm font-medium mb-1">Confirm New Password</label>
+					<input
+						id="confirm-password"
+						type="password"
+						bind:value={confirmPassword}
+						class="w-full rounded-md border bg-background px-3 py-2 text-sm"
+						required
+						minlength="8"
+					/>
+				</div>
+
+				{#if passwordError}
+					<p class="text-destructive text-sm">{passwordError}</p>
+				{/if}
+				{#if passwordSuccess}
+					<p class="text-sm text-green-600">{passwordSuccess}</p>
+				{/if}
+
+				<button
+					type="submit"
+					disabled={passwordLoading}
+					class="flex items-center gap-1.5 rounded-full bg-foreground px-4 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed"
+				>
+					<Icon icon="solar:lock-keyhole-linear" class="h-4 w-4" />
+					{passwordLoading ? 'Changing...' : 'Change Password'}
+				</button>
+			</form>
+		</div>
+	</div>
+
+	{/if}
+
 	{#if activeTab === 'email'}
 	<div class="rounded-lg border p-6">
 		<div class="flex items-center gap-2 mb-1">

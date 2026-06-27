@@ -42,8 +42,7 @@
 
 	const navLinks = [
 		{ href: '/documents', label: 'Documents', icon: 'solar:document-linear' },
-		{ href: '/spaces', label: 'Spaces', icon: 'solar:users-group-rounded-linear' },
-		{ href: '/settings', label: 'Settings', icon: 'solar:settings-linear' }
+		{ href: '/spaces', label: 'Spaces', icon: 'solar:users-group-rounded-linear' }
 	];
 </script>
 
@@ -75,7 +74,7 @@
 
 		<div class="flex flex-col gap-2 p-4">
 			<a
-				href="/profile"
+				href="/settings"
 				class="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/40 p-2.5 transition-colors hover:bg-muted"
 			>
 				{#if userStore.value?.avatar_url}
