@@ -76,6 +76,15 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 		httpjson.WriteJSON(w, http.StatusOK, resp)
 	})
 
+	router.Get("/sign/{token}/status", func(w http.ResponseWriter, request *http.Request) {
+		resp, err := service.GetSigningStatus(request.Context(), chi.URLParam(request, "token"))
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusOK, resp)
+	})
+
 	router.Get("/sign/{token}/opened.gif", func(w http.ResponseWriter, request *http.Request) {
 		service.MarkEmailOpened(request.Context(), chi.URLParam(request, "token"))
 		w.Header().Set("Content-Type", "image/gif")

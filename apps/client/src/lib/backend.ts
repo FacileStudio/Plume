@@ -148,6 +148,7 @@ export const api = {
 	signing: {
 		fileUrl: (token: string) => `/api/sign/${token}/file`,
 		get: (token: string) => request<SigningPayload>('GET', `/sign/${token}`),
+		status: (token: string) => request<SigningStatus>('GET', `/sign/${token}/status`),
 		sign: (token: string, fields: Record<string, string>) =>
 			request<{ status: string }>('POST', `/sign/${token}`, {
 				fields: Object.entries(fields).map(([id, value]) => ({ field_id: Number(id), value }))
@@ -313,6 +314,26 @@ export interface CompletedField {
 	width: number;
 	height: number;
 	value: string;
+}
+
+export interface SigningRosterEntry {
+	name: string;
+	role: string;
+	status: string;
+	order_num: number;
+	signed_at: string | null;
+	is_you: boolean;
+}
+
+export interface SigningStatus {
+	document: {
+		id: number;
+		name: string;
+		file_name: string;
+		status: string;
+	};
+	signer: SigningRosterEntry;
+	signers: SigningRosterEntry[];
 }
 
 export interface SigningPayload {

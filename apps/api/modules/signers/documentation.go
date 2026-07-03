@@ -49,6 +49,15 @@ var Documentation = documentation.Module{
 			PathParams:   []documentation.Field{{Name: "token", Type: "string", Description: "Signer token"}},
 		},
 		{
+			Method:       "GET",
+			Path:         "/sign/{token}/status",
+			Summary:      "Get signing progress",
+			Description:  "Public endpoint. Returns the participant roster and overall document status (works in any non-draft state) to power the post-signing audit view.",
+			Auth:         "public",
+			ResponseBody: "SigningStatusResponse",
+			PathParams:   []documentation.Field{{Name: "token", Type: "string", Description: "Signer token"}},
+		},
+		{
 			Method:      "POST",
 			Path:        "/sign/{token}",
 			Summary:     "Submit signature",

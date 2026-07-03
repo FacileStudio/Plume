@@ -77,3 +77,23 @@ type DocumentInfo struct {
 	FileName string `json:"file_name"`
 	Status   string `json:"status"`
 }
+
+// SigningStatusResponse is a token-scoped view of a document's overall signing
+// progress, safe to return in any non-draft state (including completed). It
+// powers the post-signing audit/progress screen shown to a signer.
+type SigningStatusResponse struct {
+	Document DocumentInfo         `json:"document"`
+	Signer   SigningRosterEntry   `json:"signer"`
+	Signers  []SigningRosterEntry `json:"signers"`
+}
+
+// SigningRosterEntry is a single participant in the signing workflow, exposing
+// only the fields other signers are allowed to see (no email, IP or user agent).
+type SigningRosterEntry struct {
+	Name     string     `json:"name"`
+	Role     string     `json:"role"`
+	Status   string     `json:"status"`
+	OrderNum int        `json:"order_num"`
+	SignedAt *time.Time `json:"signed_at"`
+	IsYou    bool       `json:"is_you"`
+}

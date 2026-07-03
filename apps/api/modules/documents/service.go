@@ -91,7 +91,11 @@ func (s *Service) resolveFilePath(ctx context.Context, record *schemas.Document)
 		return "", errors.NotFound("no file uploaded for this document")
 	}
 	originalPath := filepath.Join(s.uploadDir, record.StoragePath)
-	if record.Status == "completed" {
+	// A draft has no signatures yet, so serve the untouched upload. For every
+	// other state (pending / completed / declined) we stamp whatever field
+	// values already exist so a partially-signed document downloads with the
+	// signatures collected so far, not a blank form.
+	if record.Status != "draft" {
 		return s.getOrCreateSignedFile(ctx, record, originalPath)
 	}
 	return originalPath, nil
@@ -100,9 +104,17 @@ func (s *Service) resolveFilePath(ctx context.Context, record *schemas.Document)
 func (s *Service) getOrCreateSignedFile(ctx context.Context, doc *schemas.Document, originalPath string) (string, error) {
 	signedPath := signedFilePath(originalPath)
 
+	// signed_hash is the fingerprint of the final, fully-signed document used by
+	// verification, so only persist it once the document is completed. A pending
+	// document may still be stamped for download, but its intermediate hash must
+	// not be recorded as the authoritative one.
+	finalized := doc.Status == "completed"
+
 	if signedInfo, err := os.Stat(signedPath); err == nil {
 		if origInfo, origErr := os.Stat(originalPath); origErr == nil && signedInfo.ModTime().After(origInfo.ModTime()) {
-			s.fillSignedHash(ctx, doc, signedPath)
+			if finalized {
+				s.fillSignedHash(ctx, doc, signedPath)
+			}
 			return signedPath, nil
 		}
 		_ = os.Remove(signedPath)
@@ -130,7 +142,9 @@ func (s *Service) getOrCreateSignedFile(ctx context.Context, doc *schemas.Docume
 		_ = os.Remove(signedPath)
 		return "", errors.Internal("failed to generate signed document", err)
 	}
-	s.fillSignedHash(ctx, doc, signedPath)
+	if finalized {
+		s.fillSignedHash(ctx, doc, signedPath)
+	}
 	return signedPath, nil
 }
 

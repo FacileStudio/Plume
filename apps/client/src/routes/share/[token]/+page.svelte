@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { api } from '$lib';
-	import type { SigningPayload, Field, CompletedField } from '$lib';
+	import type { SigningPayload, Field, CompletedField, SigningStatus, SigningRosterEntry } from '$lib';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
@@ -17,6 +17,63 @@
 	let declined = $state(false);
 	let error = $state('');
 	let fieldValues = $state<Record<string, string>>({});
+	let signingStatus = $state<SigningStatus | null>(null);
+
+	// Roster progress, computed for the post-signing audit view. Viewers don't
+	// sign, so they're excluded from the signature counts but still listed.
+	const signParticipants = $derived(
+		(signingStatus?.signers ?? []).filter((s) => s.role !== 'viewer')
+	);
+	const signedCount = $derived(signParticipants.filter((s) => s.status === 'signed').length);
+	const totalSigners = $derived(signParticipants.length);
+	const someoneDeclined = $derived(
+		(signingStatus?.signers ?? []).some((s) => s.status === 'declined')
+	);
+	const isComplete = $derived(signingStatus?.document.status === 'completed');
+	const pendingNames = $derived(
+		signParticipants.filter((s) => s.status === 'pending').map((s) => s.name)
+	);
+
+	async function loadStatus(token: string) {
+		try {
+			signingStatus = await api.signing.status(token);
+		} catch {
+			// Best-effort: the download link still works without the roster.
+		}
+	}
+
+	function formatDate(value: string | null): string {
+		if (!value) return '';
+		try {
+			return new Date(value).toLocaleString(undefined, {
+				dateStyle: 'medium',
+				timeStyle: 'short'
+			});
+		} catch {
+			return value;
+		}
+	}
+
+	function rosterMeta(entry: SigningRosterEntry): { icon: string; color: string; label: string } {
+		if (entry.status === 'signed') {
+			return {
+				icon: 'solar:check-circle-bold',
+				color: 'text-green-600',
+				label: entry.signed_at ? `Signed · ${formatDate(entry.signed_at)}` : 'Signed'
+			};
+		}
+		if (entry.status === 'declined') {
+			return { icon: 'solar:close-circle-bold', color: 'text-red-500', label: 'Declined' };
+		}
+		if (entry.role === 'viewer') {
+			return { icon: 'solar:eye-linear', color: 'text-muted-foreground', label: 'Viewer' };
+		}
+		return {
+			icon: 'solar:clock-circle-linear',
+			color: 'text-muted-foreground',
+			label: 'Waiting for signature'
+		};
+	}
 
 	let pdfContainer = $state<HTMLDivElement>(undefined!);
 	let pdfPages = $state<{ num: number; width: number; height: number }[]>([]);
@@ -68,6 +125,7 @@
 		try {
 			await api.signing.sign(token, fieldValues);
 			signed = true;
+			await loadStatus(token);
 		} catch (e: any) {
 			error = e.message;
 		}
@@ -81,6 +139,7 @@
 		try {
 			await api.signing.decline(token);
 			declined = true;
+			await loadStatus(token);
 		} catch (e: any) {
 			error = e.message;
 		}
@@ -93,8 +152,10 @@
 			payload = await api.signing.get(token);
 			if (payload.signer.status === 'signed') {
 				signed = true;
+				await loadStatus(token);
 			} else if (payload.signer.status === 'declined') {
 				declined = true;
+				await loadStatus(token);
 			} else {
 				initFields(payload.fields);
 
@@ -124,7 +185,19 @@
 				pdfLoading = false;
 			}
 		} catch {
-			notFound = true;
+			// The signing view is only served while the document is pending, so a
+			// completed/declined document lands here. Fall back to the status
+			// endpoint so a returning signer still sees the audit summary.
+			try {
+				signingStatus = await api.signing.status(token);
+				if (signingStatus.signer.status === 'declined') {
+					declined = true;
+				} else {
+					signed = true;
+				}
+			} catch {
+				notFound = true;
+			}
 		}
 		loading = false;
 	});
@@ -150,14 +223,29 @@
 				<p class="text-muted-foreground">This signing link may be invalid or expired.</p>
 			</div>
 		{:else if signed}
-			<div class="flex flex-col items-center gap-6 text-center">
-				<div class="h-14 w-14 rounded-full bg-green-100 flex items-center justify-center">
-					<Icon icon="solar:check-read-linear" class="h-8 w-8 text-green-600" />
+			<div class="flex w-full max-w-md flex-col items-center gap-6">
+				<div class="flex flex-col items-center gap-3 text-center">
+					<div class="h-14 w-14 rounded-full bg-green-100 flex items-center justify-center">
+						<Icon icon="solar:check-read-linear" class="h-8 w-8 text-green-600" />
+					</div>
+					<div>
+						<h1 class="text-xl font-semibold">
+							{isComplete ? 'Document completed' : 'Document signed successfully'}
+						</h1>
+						<p class="text-muted-foreground mt-1">
+							{#if isComplete}
+								All parties have signed. The document is complete.
+							{:else if totalSigners > 1}
+								Your signature is recorded. Waiting for the remaining signers to complete it.
+							{:else}
+								Your signature is recorded. You can close this page.
+							{/if}
+						</p>
+					</div>
 				</div>
-				<div>
-					<h1 class="text-xl font-semibold">Document signed successfully</h1>
-					<p class="text-muted-foreground mt-1">You can close this page.</p>
-				</div>
+
+				{@render progressAndRoster()}
+
 				<a
 					href={api.signing.fileUrl((page.params as Record<string, string>).token)}
 					download
@@ -168,10 +256,16 @@
 				</a>
 			</div>
 		{:else if declined}
-			<div class="flex flex-col items-center gap-4 text-center">
-				<Icon icon="solar:close-circle-bold-duotone" class="h-14 w-14 text-red-500" />
-				<h1 class="text-xl font-semibold">Document declined</h1>
-				<p class="text-muted-foreground">You have declined to sign this document.</p>
+			<div class="flex w-full max-w-md flex-col items-center gap-6">
+				<div class="flex flex-col items-center gap-3 text-center">
+					<Icon icon="solar:close-circle-bold-duotone" class="h-14 w-14 text-red-500" />
+					<div>
+						<h1 class="text-xl font-semibold">Document declined</h1>
+						<p class="text-muted-foreground mt-1">You have declined to sign this document.</p>
+					</div>
+				</div>
+
+				{@render progressAndRoster()}
 			</div>
 		{:else if payload}
 			<div class="flex w-full max-w-6xl gap-8 flex-col lg:flex-row">
@@ -266,6 +360,14 @@
 						<p class="text-sm text-muted-foreground">
 							Signing as <span class="font-medium text-foreground">{payload.signer.name}</span>
 						</p>
+						<a
+							href={api.signing.fileUrl((page.params as Record<string, string>).token)}
+							download
+							class="mt-3 inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
+						>
+							<Icon icon="solar:download-minimalistic-linear" class="h-4 w-4" />
+							Download document
+						</a>
 					</div>
 
 					<Separator />
@@ -350,6 +452,66 @@
 				</div>
 			</div>
 		{/if}
+
+		{#snippet progressAndRoster()}
+			{#if signingStatus && signingStatus.signers.length > 0}
+				<div class="w-full space-y-4 rounded-xl border bg-card p-5 text-left">
+					{#if totalSigners > 0}
+						<div class="space-y-2">
+							<div class="flex items-center justify-between text-sm">
+								<span class="font-medium">Signing progress</span>
+								<span class="text-muted-foreground">{signedCount} of {totalSigners} signed</span>
+							</div>
+							<div class="h-2 w-full overflow-hidden rounded-full bg-muted">
+								<div
+									class="h-full rounded-full bg-green-500 transition-all duration-500"
+									style="width: {totalSigners ? (signedCount / totalSigners) * 100 : 0}%"
+								></div>
+							</div>
+						</div>
+						<Separator />
+					{/if}
+
+					<ul class="space-y-3">
+						{#each signingStatus.signers as entry (entry.name + '-' + entry.order_num)}
+							{@const meta = rosterMeta(entry)}
+							<li class="flex items-start gap-3">
+								<Icon icon={meta.icon} class="mt-0.5 h-5 w-5 shrink-0 {meta.color}" />
+								<div class="min-w-0 flex-1">
+									<div class="flex flex-wrap items-center gap-1.5">
+										<span class="truncate text-sm font-medium">{entry.name}</span>
+										{#if entry.is_you}
+											<span class="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">You</span>
+										{/if}
+										{#if entry.role !== 'signer'}
+											<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium capitalize text-muted-foreground">{entry.role}</span>
+										{/if}
+									</div>
+									<p class="text-xs text-muted-foreground">{meta.label}</p>
+								</div>
+							</li>
+						{/each}
+					</ul>
+
+					{#if isComplete}
+						<div class="flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">
+							<Icon icon="solar:check-read-linear" class="h-3.5 w-3.5 shrink-0" />
+							Everyone has signed. This document is finalized.
+						</div>
+					{:else if someoneDeclined}
+						<div class="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+							<Icon icon="solar:close-circle-linear" class="h-3.5 w-3.5 shrink-0" />
+							The signing process was stopped because a signer declined.
+						</div>
+					{:else if pendingNames.length > 0}
+						<div class="flex items-start gap-1.5 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+							<Icon icon="solar:clock-circle-linear" class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+							<span>Waiting on {pendingNames.join(', ')} to finalize the document.</span>
+						</div>
+					{/if}
+				</div>
+			{/if}
+		{/snippet}
 	</main>
 
 	<footer class="flex items-center justify-center border-t px-6 py-4 text-xs text-muted-foreground">

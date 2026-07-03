@@ -7,3 +7,4 @@ apps/api/node_modules/
 apps/client/.svelte-kit/
 apps/client/build/
 .env
+.gstack/

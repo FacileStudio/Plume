@@ -384,6 +384,58 @@ func (s *Service) GetSigningFilePath(ctx context.Context, token string) (string,
 	return s.docService.GetFilePathByDocID(ctx, doc.ID)
 }
 
+// GetSigningStatus returns the full participant roster and overall document
+// progress for a signing token. Unlike GetSigningView it works in any non-draft
+// state (including completed/declined), so it can power the post-signing audit
+// screen that shows who has signed and who is still outstanding.
+func (s *Service) GetSigningStatus(ctx context.Context, token string) (*SigningStatusResponse, error) {
+	var signer schemas.Signer
+	err := s.orm.WithContext(ctx).Where("token = ?", token).First(&signer).Error
+	if stderrors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, errors.NotFound("invalid signing link")
+	}
+	if err != nil {
+		return nil, errors.Internal("failed to read signer", err)
+	}
+
+	doc, err := s.docService.FindByID(ctx, signer.DocumentID)
+	if err != nil {
+		return nil, err
+	}
+	if doc.Status == "draft" {
+		return nil, errors.Invalid("document is not available")
+	}
+
+	var all []schemas.Signer
+	if err := s.orm.WithContext(ctx).Where("document_id = ?", doc.ID).
+		Order("order_num asc, id asc").Find(&all).Error; err != nil {
+		return nil, errors.Internal("failed to load signers", err)
+	}
+
+	roster := make([]SigningRosterEntry, len(all))
+	var me SigningRosterEntry
+	for i := range all {
+		entry := SigningRosterEntry{
+			Name:     all[i].Name,
+			Role:     all[i].Role,
+			Status:   all[i].Status,
+			OrderNum: all[i].OrderNum,
+			SignedAt: all[i].SignedAt,
+			IsYou:    all[i].ID == signer.ID,
+		}
+		roster[i] = entry
+		if entry.IsYou {
+			me = entry
+		}
+	}
+
+	return &SigningStatusResponse{
+		Document: DocumentInfo{ID: doc.ID, Name: doc.Name, FileName: doc.FileName, Status: doc.Status},
+		Signer:   me,
+		Signers:  roster,
+	}, nil
+}
+
 func isSignersTurn(sequential bool, current schemas.Signer, all []schemas.Signer) bool {
 	if !sequential {
 		return true
