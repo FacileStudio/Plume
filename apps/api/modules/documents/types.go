@@ -6,6 +6,7 @@ type UpdateRequest struct {
 	Name       string `json:"name"`
 	FileName   string `json:"file_name"`
 	Sequential *bool  `json:"sequential"`
+	ClientID   *int64 `json:"client_id"`
 }
 
 type StatsResponse struct {
@@ -21,6 +22,7 @@ type DocumentResponse struct {
 	FileName     string    `json:"file_name"`
 	OwnerID      int64     `json:"owner_id"`
 	Sequential   bool      `json:"sequential"`
+	ClientID     *int64    `json:"client_id,omitempty"`
 	OriginalHash string    `json:"original_hash,omitempty"`
 	SignedHash   string    `json:"signed_hash,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`

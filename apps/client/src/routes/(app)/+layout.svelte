@@ -42,6 +42,7 @@
 
 	const navLinks = [
 		{ href: '/documents', label: 'Documents', icon: 'solar:document-linear' },
+		{ href: '/clients', label: 'Clients', icon: 'solar:users-group-two-rounded-linear' },
 		{ href: '/spaces', label: 'Spaces', icon: 'solar:users-group-rounded-linear' }
 	];
 </script>

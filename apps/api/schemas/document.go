@@ -12,6 +12,7 @@ type Document struct {
 	SignedHash   string    `gorm:"column:signed_hash;index"`
 	OwnerID      int64     `gorm:"column:owner_id;index"`
 	SpaceID      *int64    `gorm:"column:space_id;index"`
+	ClientID     *int64    `gorm:"column:client_id;index"`
 	Sequential   bool      `gorm:"column:sequential;default:false"`
 	CreatedAt    time.Time `gorm:"column:created_at;autoCreateTime"`
 	UpdatedAt    time.Time `gorm:"column:updated_at;autoUpdateTime"`

@@ -101,7 +101,7 @@ export const api = {
 			return upload<Document>('POST', '/documents', formData);
 		},
 		delete: (id: number) => request<void>('DELETE', `/documents/${id}`),
-		update: (id: number, data: { name?: string; file_name?: string; sequential?: boolean }) =>
+		update: (id: number, data: { name?: string; file_name?: string; sequential?: boolean; client_id?: number | null }) =>
 			request<Document>('PUT', `/documents/${id}`, data),
 		send: (id: number) => request<Document>('POST', `/documents/${id}/send`),
 		stats: (spaceId?: number | null) =>
@@ -174,6 +174,16 @@ export const api = {
 				request<void>('DELETE', `/spaces/${spaceId}/members/${memberId}`)
 		}
 	},
+	clients: {
+		list: () => request<Client[]>('GET', '/clients'),
+		get: (id: number) => request<Client>('GET', `/clients/${id}`),
+		create: (data: { name: string; email?: string; company?: string; phone?: string; notes?: string }) =>
+			request<Client>('POST', '/clients', data),
+		update: (id: number, data: { name: string; email?: string; company?: string; phone?: string; notes?: string }) =>
+			request<Client>('PUT', `/clients/${id}`, data),
+		delete: (id: number) => request<void>('DELETE', `/clients/${id}`),
+		documents: (id: number) => request<Document[]>('GET', `/documents?client_id=${id}`)
+	},
 	verify: {
 		check: (file: File) => {
 			const formData = new FormData();
@@ -217,6 +227,7 @@ export interface Document {
 	owner_id: number;
 	sequential: boolean;
 	signer_count?: number;
+	client_id?: number | null;
 	created_at: string;
 	updated_at: string;
 }
@@ -324,6 +335,18 @@ export interface Space {
 	description: string;
 	owner_id: number;
 	role: 'owner' | 'admin' | 'member';
+	created_at: string;
+	updated_at: string;
+}
+
+export interface Client {
+	id: number;
+	name: string;
+	email: string;
+	company: string;
+	phone: string;
+	notes: string;
+	owner_id: number;
 	created_at: string;
 	updated_at: string;
 }

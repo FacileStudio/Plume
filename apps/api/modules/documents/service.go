@@ -169,7 +169,7 @@ func (s *Service) InvalidateGeneratedFiles(ctx context.Context, docID int64) {
 	}
 }
 
-func (s *Service) List(ctx context.Context, ownerID string, status string, spaceID string) ([]DocumentResponse, error) {
+func (s *Service) List(ctx context.Context, ownerID string, status string, spaceID string, clientID string) ([]DocumentResponse, error) {
 	uid, _ := strconv.ParseInt(ownerID, 10, 64)
 	query := s.orm.WithContext(ctx).Where("owner_id = ?", uid)
 	if status != "" {
@@ -180,6 +180,10 @@ func (s *Service) List(ctx context.Context, ownerID string, status string, space
 		query = query.Where("space_id = ?", sid)
 	} else {
 		query = query.Where("space_id IS NULL")
+	}
+	if clientID != "" {
+		cid, _ := strconv.ParseInt(clientID, 10, 64)
+		query = query.Where("client_id = ?", cid)
 	}
 
 	var records []schemas.Document
@@ -218,6 +222,13 @@ func (s *Service) Update(ctx context.Context, ownerID string, docID string, req 
 	}
 	if req.Sequential != nil {
 		record.Sequential = *req.Sequential
+	}
+	if req.ClientID != nil {
+		if *req.ClientID == 0 {
+			record.ClientID = nil
+		} else {
+			record.ClientID = req.ClientID
+		}
 	}
 	if err := s.orm.WithContext(ctx).Save(record).Error; err != nil {
 		return nil, errors.Internal("failed to update document", err)
@@ -441,6 +452,7 @@ func toResponse(record *schemas.Document) *DocumentResponse {
 		FileName:     record.FileName,
 		OwnerID:      record.OwnerID,
 		Sequential:   record.Sequential,
+		ClientID:     record.ClientID,
 		OriginalHash: record.OriginalHash,
 		SignedHash:   record.SignedHash,
 		CreatedAt:    record.CreatedAt,

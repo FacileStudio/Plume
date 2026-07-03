@@ -121,7 +121,8 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 			identity, _ := authcontext.IdentityFromContext(request.Context())
 			status := request.URL.Query().Get("status")
 			spaceID := request.URL.Query().Get("space_id")
-			resp, err := service.List(request.Context(), identity.UserID, status, spaceID)
+			clientID := request.URL.Query().Get("client_id")
+			resp, err := service.List(request.Context(), identity.UserID, status, spaceID, clientID)
 			if err != nil {
 				httpjson.WriteError(w, err)
 				return

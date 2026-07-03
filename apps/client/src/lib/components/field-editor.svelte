@@ -41,10 +41,13 @@
 		type: 'move' | 'resize';
 		startX: number;
 		startY: number;
-		origX: number;
-		origY: number;
 		origW: number;
 		origH: number;
+		// Where inside the field box the pointer grabbed, as a fraction (0-1)
+		// of the box's own width/height. Kept page-size independent so the
+		// grab point stays under the cursor across pages of differing sizes.
+		grabFracX: number;
+		grabFracY: number;
 		pageNum: number;
 		pointerId: number;
 	} | null>(null);
@@ -68,20 +71,52 @@
 		fields = await api.fields.list(documentId);
 	}
 
+	// Center a new field on the part of the page the user is actually looking at:
+	// the vertical band of the current page that is visible inside the scroll
+	// container, rather than a fixed spot near the top of the page.
+	function centeredPlacement(pageNum: number, widthPct: number, heightPct: number): { x: number; y: number } {
+		const pageEl = pagesContainer?.querySelector<HTMLElement>(`[data-page="${pageNum}"]`);
+		let cyPct = 50;
+		if (pageEl) {
+			const pageRect = pageEl.getBoundingClientRect();
+			const containerRect = pagesContainer?.getBoundingClientRect();
+			let visTop = pageRect.top;
+			let visBottom = pageRect.bottom;
+			if (containerRect) {
+				visTop = Math.max(pageRect.top, containerRect.top);
+				visBottom = Math.min(pageRect.bottom, containerRect.bottom);
+			}
+			if (visBottom <= visTop) {
+				visTop = pageRect.top;
+				visBottom = pageRect.bottom;
+			}
+			if (pageRect.height > 0) {
+				cyPct = (((visTop + visBottom) / 2 - pageRect.top) / pageRect.height) * 100;
+			}
+		}
+		const x = Math.max(0, Math.min(100 - widthPct, 50 - widthPct / 2));
+		const y = Math.max(0, Math.min(100 - heightPct, cyPct - heightPct / 2));
+		return { x, y };
+	}
+
 	async function addField(fieldType: string) {
 		if (!selectedSignerId) return;
 		const defaults = FIELD_DEFAULTS[fieldType];
 		const pageInfo = pages.find((p) => p.num === currentPage) ?? pages[0];
 		if (!pageInfo) return;
 
+		const widthPct = (defaults.width / pageInfo.width) * 100;
+		const heightPct = (defaults.height / pageInfo.height) * 100;
+		const { x, y } = centeredPlacement(pageInfo.num, widthPct, heightPct);
+
 		const req: CreateFieldRequest = {
 			signer_id: selectedSignerId,
 			field_type: fieldType,
 			page: pageInfo.num,
-			x: (50 / pageInfo.width) * 100,
-			y: (50 / pageInfo.height) * 100,
-			width: (defaults.width / pageInfo.width) * 100,
-			height: (defaults.height / pageInfo.height) * 100,
+			x,
+			y,
+			width: widthPct,
+			height: heightPct,
 			required: true,
 			label: ''
 		};
@@ -123,15 +158,23 @@
 		const pageEl = (e.currentTarget as HTMLElement).closest('[data-page]') as HTMLElement;
 		const pageNum = Number(pageEl.dataset.page);
 
+		// The field box carries role="button"; from either the box itself (move)
+		// or the resize handle inside it (resize) this resolves to the box, so we
+		// can measure where within the box the pointer grabbed.
+		const fieldEl = (e.currentTarget as HTMLElement).closest('[role="button"]') as HTMLElement | null;
+		const fieldRect = fieldEl?.getBoundingClientRect();
+		const grabFracX = fieldRect && fieldRect.width > 0 ? (e.clientX - fieldRect.left) / fieldRect.width : 0.5;
+		const grabFracY = fieldRect && fieldRect.height > 0 ? (e.clientY - fieldRect.top) / fieldRect.height : 0.5;
+
 		dragState = {
 			fieldId: field.id,
 			type,
 			startX: e.clientX,
 			startY: e.clientY,
-			origX: field.x,
-			origY: field.y,
 			origW: field.width,
 			origH: field.height,
+			grabFracX,
+			grabFracY,
 			pageNum,
 			pointerId: e.pointerId
 		};
@@ -160,18 +203,22 @@
 			const hit = findPageUnderPointer(e.clientX, e.clientY);
 			if (hit) {
 				if (hit.pageNum !== dragState.pageNum) {
-					dragState.startX = e.clientX;
-					dragState.startY = e.clientY;
-					dragState.origX = field.x;
-					dragState.origY = field.y;
 					dragState.pageNum = hit.pageNum;
 					field.page = hit.pageNum;
 				}
 
-				const dxPct = ((e.clientX - dragState.startX) / hit.rect.width) * 100;
-				const dyPct = ((e.clientY - dragState.startY) / hit.rect.height) * 100;
-				field.x = Math.max(0, Math.min(100 - field.width, dragState.origX + dxPct));
-				field.y = Math.max(0, Math.min(100 - field.height, dragState.origY + dyPct));
+				// Position the box absolutely from the pointer, keeping the grab
+				// point under the cursor. Field size in pixels is derived from the
+				// page currently under the pointer, so crossing to a differently
+				// sized page never makes the box jump away from the cursor.
+				const fieldWpx = (field.width / 100) * hit.rect.width;
+				const fieldHpx = (field.height / 100) * hit.rect.height;
+				const leftPx = e.clientX - dragState.grabFracX * fieldWpx;
+				const topPx = e.clientY - dragState.grabFracY * fieldHpx;
+				const xPct = ((leftPx - hit.rect.left) / hit.rect.width) * 100;
+				const yPct = ((topPx - hit.rect.top) / hit.rect.height) * 100;
+				field.x = Math.max(0, Math.min(100 - field.width, xPct));
+				field.y = Math.max(0, Math.min(100 - field.height, yPct));
 			}
 		} else {
 			const pageEl = pagesContainer?.querySelector(`[data-page="${dragState.pageNum}"]`) as HTMLElement;

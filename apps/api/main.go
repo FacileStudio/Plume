@@ -18,6 +18,7 @@ import (
 	"api/internal/logger"
 	"api/internal/middleware"
 	"api/modules/auth"
+	"api/modules/clients"
 	"api/modules/docs"
 	"api/modules/documents"
 	"api/modules/fields"
@@ -78,6 +79,7 @@ func main() {
 	signingService := signing.NewService(db, appEnv.UploadDir, docService)
 	verifyService := verify.NewService(db, docService)
 	spaceService := spaces.NewService(db)
+	clientService := clients.NewService(db)
 	reminderService := reminders.NewService(db, smtpService, webhookService, appEnv.Domain)
 
 	go func() {
@@ -142,6 +144,7 @@ func main() {
 		webhooks.RegisterRoutes(api, webhookService, authService)
 		smtp.RegisterRoutes(api, smtpService, authService)
 		spaces.RegisterRoutes(api, spaceService, authService)
+		clients.RegisterRoutes(api, clientService, authService)
 
 		verifyLimiter := middleware.NewRateLimiter(30, 10).Handler()
 		verify.RegisterRoutes(api, verifyService, verifyLimiter)

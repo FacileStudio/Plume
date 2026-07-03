@@ -3,7 +3,7 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { api } from '$lib';
-	import type { Document, Signer, Field } from '$lib';
+	import type { Document, Signer, Field, Client } from '$lib';
 	import { spaceStore } from '$lib/stores/space.svelte';
 	import * as Card from '$lib/components/ui/card/index.js';
 	import { Button } from '$lib/components/ui/button';
@@ -12,6 +12,7 @@
 	import Icon from '@iconify/svelte';
 	import { toast } from 'svelte-sonner';
 	import FieldEditor from '$lib/components/field-editor.svelte';
+	import ClientSelector from '$lib/components/client-selector.svelte';
 
 	// The space this document was opened under. If the user switches context via
 	// the space switcher, this document belongs to the previous context, so leave
@@ -29,7 +30,13 @@
 	let doc = $state<Document | null>(null);
 	let signers = $state<Signer[]>([]);
 	let fields = $state<Field[]>([]);
+	let clients = $state<Client[]>([]);
 	let loading = $state(true);
+	let updatingClient = $state(false);
+
+	const linkedClient = $derived(
+		doc?.client_id ? clients.find((c) => c.id === doc!.client_id) ?? null : null
+	);
 
 	const fieldsBySigner = $derived(
 		fields.reduce<Map<number, number>>((m, f) => m.set(f.signer_id, (m.get(f.signer_id) ?? 0) + 1), new Map())
@@ -86,6 +93,8 @@
 			return { label: 'signed', classes: 'bg-green-500/10 text-green-700 dark:text-green-400' };
 		if (signer.status === 'declined')
 			return { label: 'declined', classes: 'bg-red-500/10 text-red-700 dark:text-red-400' };
+		if (doc?.status === 'draft')
+			return { label: 'not sent', classes: 'bg-muted text-muted-foreground' };
 		if (waiting) return { label: 'waiting', classes: 'bg-muted text-muted-foreground' };
 		if (signer.viewed_at)
 			return { label: 'opened document', classes: 'bg-blue-500/10 text-blue-700 dark:text-blue-400' };
@@ -126,6 +135,24 @@
 			error = e.message;
 		}
 		togglingSequential = false;
+	}
+
+	async function selectClient(id: number | null) {
+		if (!doc || doc.status !== 'draft') return;
+		updatingClient = true;
+		try {
+			doc = await api.documents.update(doc.id, { client_id: id ?? 0 });
+		} catch (e) {
+			toast.error(e instanceof Error ? e.message : 'Failed to update client');
+		}
+		updatingClient = false;
+	}
+
+	function fillSignerFromClient(id: number | null) {
+		const client = clients.find((c) => c.id === id);
+		if (!client) return;
+		newSignerName = client.name;
+		newSignerEmail = client.email;
 	}
 
 	function copySigningLink(signer: Signer) {
@@ -221,14 +248,16 @@
 	onMount(async () => {
 		const id = Number(page.params.id);
 		try {
-			const [d, s, f] = await Promise.all([
+			const [d, s, f, c] = await Promise.all([
 				api.documents.get(id),
 				api.signers.list(id),
-				api.fields.list(id).catch(() => [])
+				api.fields.list(id).catch(() => []),
+				api.clients.list().catch(() => [])
 			]);
 			doc = d;
 			signers = s;
 			fields = f;
+			clients = c;
 		} catch {}
 		loading = false;
 		pageMounted = true;
@@ -269,6 +298,20 @@
 					{doc.file_name}
 				</p>
 			{/if}
+			<div class="mt-2 flex items-center gap-2">
+				<Icon icon="solar:user-rounded-linear" class="h-3.5 w-3.5 text-muted-foreground" />
+				{#if doc.status === 'draft'}
+					<div class="w-56 {updatingClient ? 'pointer-events-none opacity-60' : ''}">
+						<ClientSelector {clients} selectedId={doc.client_id ?? null} onselect={selectClient} />
+					</div>
+				{:else if linkedClient}
+					<a href="/clients/{linkedClient.id}" class="text-sm text-muted-foreground hover:text-foreground hover:underline">
+						{linkedClient.name}
+					</a>
+				{:else}
+					<span class="text-sm text-muted-foreground">No client</span>
+				{/if}
+			</div>
 			{#if doc.status === 'draft'}
 				<p class="mt-2.5 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium
 					{fields.length > 0 ? 'bg-green-500/10 text-green-700 dark:text-green-400' : 'bg-muted text-muted-foreground'}">
@@ -407,6 +450,14 @@
 		<Card.Content>
 			{#if doc.status === 'draft' && showAddSigner}
 				<div class="mb-4 rounded-lg border p-4 space-y-3">
+					{#if clients.length > 0}
+						<div class="flex items-center justify-between gap-2">
+							<span class="text-xs text-muted-foreground">Fill from client</span>
+							<div class="w-48">
+								<ClientSelector {clients} selectedId={null} onselect={fillSignerFromClient} />
+							</div>
+						</div>
+					{/if}
 					<div class="grid gap-2 sm:grid-cols-2">
 						<Input bind:value={newSignerName} placeholder="Name" />
 						<Input bind:value={newSignerEmail} placeholder="Email" type="email" />

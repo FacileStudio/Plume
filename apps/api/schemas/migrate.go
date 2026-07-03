@@ -5,7 +5,7 @@ import "gorm.io/gorm"
 func Migrate(db *gorm.DB) error {
 	db.Exec("DROP INDEX IF EXISTS idx_signers_token")
 
-	if err := db.AutoMigrate(&User{}, &Session{}, &Space{}, &SpaceMember{}, &Document{}, &Signer{}, &Field{}, &Webhook{}, &SmtpConfig{}); err != nil {
+	if err := db.AutoMigrate(&User{}, &Session{}, &Space{}, &SpaceMember{}, &Document{}, &Signer{}, &Field{}, &Webhook{}, &SmtpConfig{}, &Client{}); err != nil {
 		return err
 	}
 
