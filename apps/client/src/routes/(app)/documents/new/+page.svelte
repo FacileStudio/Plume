@@ -169,7 +169,7 @@
 				<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
 				Creating...
 			{:else}
-				<Icon icon="mdi:file-document-plus-outline" class="h-4 w-4" />
+				<Icon icon="mdi:plus" class="h-4 w-4" />
 				Create document
 			{/if}
 		</Button>

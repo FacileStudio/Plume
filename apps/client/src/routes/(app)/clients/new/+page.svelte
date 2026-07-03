@@ -91,7 +91,7 @@
 				<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
 				Creating...
 			{:else}
-				<Icon icon="solar:user-plus-linear" class="h-4 w-4" />
+				<Icon icon="mdi:plus" class="h-4 w-4" />
 				Create client
 			{/if}
 		</Button>

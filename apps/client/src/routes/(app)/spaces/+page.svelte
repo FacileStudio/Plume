@@ -59,7 +59,7 @@
 <div class="mb-6 flex items-center justify-between border-b pb-5">
 	<h1 class="text-2xl font-bold">Spaces</h1>
 	<Button href="/spaces/new" size="sm">
-		<Icon icon="solar:add-circle-bold-duotone" class="h-4 w-4" />
+		<Icon icon="mdi:plus" class="h-4 w-4" />
 		New space
 	</Button>
 </div>
@@ -74,7 +74,7 @@
 			<Icon icon="solar:users-group-rounded-bold-duotone" class="h-10 w-10 text-muted-foreground mb-3" />
 			<p class="text-muted-foreground">No spaces yet. Create one to collaborate with your team.</p>
 			<Button href="/spaces/new" variant="outline" class="mt-4" size="sm">
-				<Icon icon="solar:add-circle-bold-duotone" class="h-4 w-4" />
+				<Icon icon="mdi:plus" class="h-4 w-4" />
 				New space
 			</Button>
 		</div>

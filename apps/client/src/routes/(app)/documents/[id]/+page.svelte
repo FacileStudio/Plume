@@ -280,11 +280,11 @@
 		<Icon icon="solar:spinner-linear" class="h-8 w-8 animate-spin text-muted-foreground" />
 	</div>
 {:else if doc}
-	<div class="flex items-start justify-between mb-8">
-		<div>
-			<div class="flex items-center gap-3 mb-1">
-				<h1 class="text-2xl font-bold">{doc.name}</h1>
-				<span class="rounded-full px-2.5 py-0.5 text-xs font-medium
+	<div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between mb-8">
+		<div class="min-w-0">
+			<div class="flex flex-wrap items-center gap-x-3 gap-y-1 mb-1">
+				<h1 class="text-2xl font-bold break-words min-w-0">{doc.name}</h1>
+				<span class="rounded-full px-2.5 py-0.5 text-xs font-medium shrink-0
 					{doc.status === 'draft' ? 'bg-muted text-muted-foreground' : ''}
 					{doc.status === 'pending' ? 'bg-foreground/10 text-foreground' : ''}
 					{doc.status === 'completed' ? 'bg-green-500/10 text-green-700 dark:text-green-400' : ''}
@@ -301,7 +301,7 @@
 			<div class="mt-2 flex items-center gap-2">
 				<Icon icon="solar:user-rounded-linear" class="h-3.5 w-3.5 text-muted-foreground" />
 				{#if doc.status === 'draft'}
-					<div class="w-56 {updatingClient ? 'pointer-events-none opacity-60' : ''}">
+					<div class="w-full sm:w-56 {updatingClient ? 'pointer-events-none opacity-60' : ''}">
 						<ClientSelector {clients} selectedId={doc.client_id ?? null} onselect={selectClient} />
 					</div>
 				{:else if linkedClient}
@@ -325,7 +325,7 @@
 			{/if}
 		</div>
 
-		<div class="flex items-center gap-2">
+		<div class="flex flex-wrap items-center gap-2 shrink-0">
 			{#if doc.status === 'completed'}
 				<Button variant="outline" onclick={downloadDocument} disabled={downloadingDoc}>
 					{#if downloadingDoc}
@@ -451,9 +451,9 @@
 			{#if doc.status === 'draft' && showAddSigner}
 				<div class="mb-4 rounded-lg border p-4 space-y-3">
 					{#if clients.length > 0}
-						<div class="flex items-center justify-between gap-2">
+						<div class="flex flex-wrap items-center justify-between gap-2">
 							<span class="text-xs text-muted-foreground">Fill from client</span>
-							<div class="w-48">
+							<div class="w-full sm:w-48">
 								<ClientSelector {clients} selectedId={null} onselect={fillSignerFromClient} />
 							</div>
 						</div>
@@ -484,10 +484,10 @@
 					{#each sortedSigners as signer}
 						{@const waiting = isWaitingSigner(signer)}
 						{@const stage = signerStage(signer, waiting)}
-						<div class="flex items-center justify-between rounded-lg border p-4">
-							<div>
-								<p class="font-medium">{signer.name}</p>
-								<p class="text-sm text-muted-foreground">{signer.email}</p>
+						<div class="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between">
+							<div class="min-w-0">
+								<p class="font-medium break-words">{signer.name}</p>
+								<p class="text-sm text-muted-foreground truncate">{signer.email}</p>
 								{#if doc?.status === 'draft'}
 									{@const fc = fieldsBySigner.get(signer.id) ?? 0}
 									<p class="mt-1 inline-flex items-center gap-1 text-xs {fc > 0 ? 'text-green-700 dark:text-green-400' : 'text-muted-foreground'}">
@@ -525,7 +525,7 @@
 									</p>
 								{/if}
 							</div>
-							<div class="flex items-center gap-3">
+							<div class="flex flex-wrap items-center gap-3 shrink-0">
 								{#if signer.signed_at}
 									<span class="text-xs text-muted-foreground">Signed {formatDate(signer.signed_at)}</span>
 								{/if}

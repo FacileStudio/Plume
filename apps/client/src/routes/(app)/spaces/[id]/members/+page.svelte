@@ -131,7 +131,7 @@
 					{#if adding}
 						<Icon icon="solar:spinner-bold-duotone" class="h-4 w-4 animate-spin" />
 					{:else}
-						<Icon icon="solar:add-circle-bold-duotone" class="h-4 w-4" />
+						<Icon icon="mdi:plus" class="h-4 w-4" />
 						Add
 					{/if}
 				</Button>
