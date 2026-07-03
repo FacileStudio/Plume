@@ -206,12 +206,12 @@
 <svelte:head><title>{payload ? `Sign — ${payload.document.name}` : 'Sign Document'} — Plume</title></svelte:head>
 
 <div class="flex min-h-[100dvh] flex-col">
-	<header class="flex items-center gap-3 border-b px-6 py-4">
+	<header class="flex items-center gap-3 border-b px-4 py-4 sm:px-6">
 		<Icon icon="solar:document-add-bold-duotone" class="h-6 w-6" />
 		<span class="text-lg font-bold tracking-tight">Plume</span>
 	</header>
 
-	<main class="flex flex-1 justify-center p-6 {loading || notFound || signed || declined ? 'items-center' : 'items-start'}">
+	<main class="flex flex-1 justify-center p-4 sm:p-6 {loading || notFound || signed || declined ? 'items-center' : 'items-start'}">
 		{#if loading}
 			<div class="flex flex-col items-center gap-3">
 				<Icon icon="solar:spinner-linear" class="h-8 w-8 animate-spin text-muted-foreground" />
@@ -268,8 +268,8 @@
 				{@render progressAndRoster()}
 			</div>
 		{:else if payload}
-			<div class="flex w-full max-w-6xl gap-8 flex-col lg:flex-row">
-				<div bind:this={pdfContainer} class="flex-1 min-w-0 max-h-[calc(100dvh-10rem)] overflow-y-auto rounded-lg border bg-muted/30 p-4">
+			<div class="flex w-full max-w-6xl gap-6 flex-col lg:flex-row lg:gap-8">
+				<div bind:this={pdfContainer} class="flex-1 min-w-0 max-h-[60vh] lg:max-h-[calc(100dvh-10rem)] overflow-y-auto rounded-lg border bg-muted/30 p-2 sm:p-4">
 					{#if pdfLoading}
 						<div class="flex items-center justify-center py-12">
 							<span class="text-sm text-muted-foreground">Loading preview…</span>
