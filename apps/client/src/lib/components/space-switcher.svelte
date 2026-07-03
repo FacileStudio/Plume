@@ -31,7 +31,7 @@
 			onclick={() => (open = !open)}
 		>
 			<Icon
-				icon={spaceStore.active ? 'solar:users-group-rounded-bold-duotone' : 'solar:user-circle-bold-duotone'}
+				icon={spaceStore.active ? 'solar:share-circle-bold-duotone' : 'solar:user-circle-bold-duotone'}
 				class="h-[18px] w-[18px] shrink-0 text-muted-foreground"
 			/>
 			<span class="min-w-0 flex-1 truncate font-medium">
@@ -63,7 +63,7 @@
 								: 'text-foreground hover:bg-muted'}"
 							onclick={() => select(space.id)}
 						>
-							<Icon icon="solar:users-group-rounded-bold-duotone" class="h-4 w-4 shrink-0" />
+							<Icon icon="solar:share-circle-bold-duotone" class="h-4 w-4 shrink-0" />
 							<span class="min-w-0 flex-1 truncate">{space.name}</span>
 						</button>
 					{/each}

@@ -71,7 +71,7 @@
 		</div>
 	{:else if spaces.length === 0}
 		<div class="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
-			<Icon icon="solar:users-group-rounded-bold-duotone" class="h-10 w-10 text-muted-foreground mb-3" />
+			<Icon icon="solar:share-circle-bold-duotone" class="h-10 w-10 text-muted-foreground mb-3" />
 			<p class="text-muted-foreground">No spaces yet. Create one to collaborate with your team.</p>
 			<Button href="/spaces/new" variant="outline" class="mt-4" size="sm">
 				<Icon icon="mdi:plus" class="h-4 w-4" />
@@ -87,7 +87,7 @@
 						class="flex items-center gap-3 min-w-0 flex-1"
 					>
 						<div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-							<Icon icon="solar:users-group-rounded-bold-duotone" class="h-5 w-5 text-primary" />
+							<Icon icon="solar:share-circle-bold-duotone" class="h-5 w-5 text-primary" />
 						</div>
 						<div class="min-w-0">
 							<p class="font-medium truncate">{space.name}</p>
