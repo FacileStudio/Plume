@@ -3,6 +3,7 @@ module api
 go 1.25.0
 
 require (
+	github.com/FacileStudio/Journal/sdk/journal v0.0.0-20260708221941-db985ad2b1ba
 	github.com/coreos/go-oidc/v3 v3.11.0
 	github.com/go-chi/chi/v5 v5.2.3
 	github.com/go-pdf/fpdf v0.9.0

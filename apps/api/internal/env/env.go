@@ -15,13 +15,15 @@ type OIDCConfig struct {
 }
 
 type Config struct {
-	DatabaseURL string
-	Port        string
-	Domain      string
-	LogLevel    string
-	UploadDir   string
-	OIDC        *OIDCConfig
-	SSOOnly     bool
+	DatabaseURL  string
+	Port         string
+	Domain       string
+	LogLevel     string
+	UploadDir    string
+	OIDC         *OIDCConfig
+	SSOOnly      bool
+	JournalURL   string
+	JournalToken string
 }
 
 func Load() (Config, error) {
@@ -42,6 +44,8 @@ func Load() (Config, error) {
 	}
 
 	env.SSOOnly = strings.ToLower(envGet("SSO_ONLY")) == "true"
+	env.JournalURL = envGet("JOURNAL_URL")
+	env.JournalToken = envGet("JOURNAL_TOKEN")
 
 	if issuer := envGet("OIDC_ISSUER"); issuer != "" {
 		clientID := envGet("OIDC_CLIENT_ID")
