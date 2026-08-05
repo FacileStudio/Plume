@@ -247,8 +247,8 @@ func (s *Service) generateAuditTrail(docID int64, doc *schemas.Document) error {
 	s.drawInfoRow(pdf, "File", doc.FileName)
 	s.drawInfoRow(pdf, "Status", strings.ToUpper(doc.Status))
 	s.drawInfoRow(pdf, "Owner", fmt.Sprintf("%s (%s)", owner.Name, owner.Email))
-	s.drawInfoRow(pdf, "Created", doc.CreatedAt.Format("January 2, 2006 at 15:04 UTC"))
-	s.drawInfoRow(pdf, "Last updated", doc.UpdatedAt.Format("January 2, 2006 at 15:04 UTC"))
+	s.drawInfoRow(pdf, "Created", doc.CreatedAt.UTC().Format("January 2, 2006 at 15:04 UTC"))
+	s.drawInfoRow(pdf, "Last updated", doc.UpdatedAt.UTC().Format("January 2, 2006 at 15:04 UTC"))
 	if originalHash != "" {
 		s.drawInfoRow(pdf, "Original SHA-256", originalHash)
 	}
@@ -333,7 +333,7 @@ func (s *Service) generateAuditTrail(docID int64, doc *schemas.Document) error {
 		pdf.CellFormat(180, 5, fmt.Sprintf("Email: %s", signer.Email), "", 1, "L", false, 0, "")
 		pdf.CellFormat(180, 5, fmt.Sprintf("Role: %s  •  Status: %s", signer.Role, signer.Status), "", 1, "L", false, 0, "")
 		if signer.SignedAt != nil {
-			pdf.CellFormat(180, 5, fmt.Sprintf("Responded: %s", signer.SignedAt.Format("January 2, 2006 at 15:04 UTC")), "", 1, "L", false, 0, "")
+			pdf.CellFormat(180, 5, fmt.Sprintf("Responded: %s", signer.SignedAt.UTC().Format("January 2, 2006 at 15:04 UTC")), "", 1, "L", false, 0, "")
 		}
 		if signer.IPAddress != "" {
 			pdf.CellFormat(180, 5, fmt.Sprintf("IP address: %s", signer.IPAddress), "", 1, "L", false, 0, "")
@@ -409,6 +409,10 @@ func (s *Service) drawInfoRow(pdf *fpdf.Fpdf, label, value string) {
 	pdf.CellFormat(145, 6, value, "", 1, "L", false, 0, "")
 }
 
+func formatEventTimestamp(t time.Time) string {
+	return t.UTC().Format("2006-01-02 15:04 UTC")
+}
+
 func (s *Service) drawEvent(pdf *fpdf.Fpdf, t time.Time, title, detail string) {
 	y := pdf.GetY()
 	pdf.SetFillColor(30, 30, 30)
@@ -421,7 +425,7 @@ func (s *Service) drawEvent(pdf *fpdf.Fpdf, t time.Time, title, detail string) {
 	pdf.SetFont(fontFamily, "", 7)
 	pdf.SetTextColor(130, 130, 130)
 	pdf.SetXY(25, y)
-	pdf.CellFormat(40, 4, t.Format("2006-01-02 15:04 UTC"), "", 0, "L", false, 0, "")
+	pdf.CellFormat(40, 4, formatEventTimestamp(t), "", 0, "L", false, 0, "")
 
 	pdf.SetFont(fontFamily, "B", 10)
 	pdf.SetTextColor(0, 0, 0)
