@@ -39,11 +39,11 @@ var Documentation = documentation.Module{
 			PathParams:   []documentation.Field{{Name: "id", Type: "int", Description: "Webhook ID"}},
 		},
 		{
-			Method:      "DELETE",
-			Path:        "/webhooks/{id}",
-			Summary:     "Delete a webhook",
-			Auth:        "bearer",
-			PathParams:  []documentation.Field{{Name: "id", Type: "int", Description: "Webhook ID"}},
+			Method:     "DELETE",
+			Path:       "/webhooks/{id}",
+			Summary:    "Delete a webhook",
+			Auth:       "bearer",
+			PathParams: []documentation.Field{{Name: "id", Type: "int", Description: "Webhook ID"}},
 		},
 		{
 			Method:      "POST",

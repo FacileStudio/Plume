@@ -42,12 +42,12 @@ var Documentation = documentation.Module{
 			ResponseBody: "ProfileResponse",
 		},
 		{
-			Method:       "PUT",
-			Path:         "/auth/password",
-			Summary:      "Change password",
-			Description:  "Changes the authenticated user's password after verifying the current one.",
-			Auth:         "bearer",
-			RequestBody:  "ChangePasswordRequest",
+			Method:      "PUT",
+			Path:        "/auth/password",
+			Summary:     "Change password",
+			Description: "Changes the authenticated user's password after verifying the current one.",
+			Auth:        "bearer",
+			RequestBody: "ChangePasswordRequest",
 		},
 	},
 }

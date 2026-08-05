@@ -269,11 +269,11 @@ func (service *Service) SyncOIDCProfile(ctx context.Context, userID string, prov
 	}
 
 	profile := oidcavatar.Profile{
-		Name:             claims.Name,
+		Name:              claims.Name,
 		PreferredUsername: claims.PreferredUsername,
-		GivenName:        claims.GivenName,
-		FamilyName:       claims.FamilyName,
-		Picture:          claims.Picture,
+		GivenName:         claims.GivenName,
+		FamilyName:        claims.FamilyName,
+		Picture:           claims.Picture,
 	}
 
 	dirty := false

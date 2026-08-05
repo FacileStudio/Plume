@@ -136,11 +136,11 @@ func (h *oidcHandler) callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	profile := oidcavatar.Profile{
-		Name:             claims.Name,
+		Name:              claims.Name,
 		PreferredUsername: claims.PreferredUsername,
-		GivenName:        claims.GivenName,
-		FamilyName:       claims.FamilyName,
-		Picture:          claims.Picture,
+		GivenName:         claims.GivenName,
+		FamilyName:        claims.FamilyName,
+		Picture:           claims.Picture,
 	}
 	userID, token, err := h.service.upsertOIDCUser(r.Context(), claims.Email, profile, oauth2Token)
 	if err != nil {
