@@ -21,6 +21,21 @@ services:
     restart: unless-stopped
     expose:
       - "4000"
+    networks:
+      - default
+      - dokploy-network
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: dokploy-network
+      traefik.http.routers.plume-api-web.rule: "Host(`plume.facile.studio`) && PathPrefix(`/api`)"
+      traefik.http.routers.plume-api-web.entrypoints: web
+      traefik.http.routers.plume-api-web.middlewares: redirect-to-https@file
+      traefik.http.routers.plume-api-web.service: plume-api-svc
+      traefik.http.routers.plume-api-secure.rule: "Host(`plume.facile.studio`) && PathPrefix(`/api`)"
+      traefik.http.routers.plume-api-secure.entrypoints: websecure
+      traefik.http.routers.plume-api-secure.tls.certresolver: letsencrypt
+      traefik.http.routers.plume-api-secure.service: plume-api-svc
+      traefik.http.services.plume-api-svc.loadbalancer.server.port: "4000"
     environment:
       DATABASE_URL: postgres://postgres:postgres@plume-db:5432/plume?sslmode=disable
       DOMAIN: ${DOMAIN:-http://localhost:3000}
@@ -62,6 +77,8 @@ volumes:
 # 172.16.0.0/24 est en dehors de ces pools, donc Docker n'a pas à piocher
 # dans un pool plein pour créer le réseau du projet.
 networks:
+  dokploy-network:
+    external: true
   default:
     ipam:
       config:
