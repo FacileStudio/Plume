@@ -7,8 +7,11 @@ All application routes live under `/api`. Responses are JSON via `httpjson.Write
 errors share the tronc error shape. Authenticated routes want
 `Authorization: Bearer <token>`; the token comes from login, register, or the OIDC exchange.
 
-Plume also serves its own OpenAPI document at `GET /api/docs/openapi.json`, with a viewer at
-`GET /api/docs`. It covers the auth, documents, signers and webhooks modules only.
+Plume also serves its own reference at `GET /docs` — a Scalar UI over the OpenAPI 3.1 document
+at `GET /docs/openapi.json` — mounted on the root router through `tronc/apiref`, beside `/api`
+rather than behind it. The document is generated from the route registry in
+`apps/api/modules/*/documentation.go`, and `TestEveryRouteIsDocumented` fails the build if a
+registered route is missing from it.
 
 ## Health
 

@@ -7,11 +7,18 @@ var Documentation = documentation.Module{
 	Description: "Authentication routes.",
 	Routes: []documentation.Route{
 		{
+			Method:      "GET",
+			Path:        "/auth/config",
+			Summary:     "Get the auth configuration",
+			Description: "Public endpoint. Returns sso_only, oidc_enabled and, when OIDC is configured, oidc_issuer and oidc_redirect_url, so the login page can render the right options.",
+			Auth:        "",
+		},
+		{
 			Method:       "POST",
 			Path:         "/auth/register",
 			Summary:      "Register a new user",
 			Description:  "Creates a user account and returns an auth token.",
-			Auth:         "public",
+			Auth:         "",
 			RequestBody:  "RegisterRequest",
 			ResponseBody: "AuthResponse",
 		},
@@ -20,7 +27,7 @@ var Documentation = documentation.Module{
 			Path:         "/auth/login",
 			Summary:      "Authenticate a user",
 			Description:  "Authenticates credentials and returns an auth token.",
-			Auth:         "public",
+			Auth:         "",
 			RequestBody:  "LoginRequest",
 			ResponseBody: "AuthResponse",
 		},
