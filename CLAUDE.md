@@ -7,8 +7,8 @@ Self-hosted document signing platform. DocuSeal alternative, single-tenant.
 - **API**: Go 1.25, Chi router, GORM + PostgreSQL 16, fpdf + pdfcpu for PDF generation/stamping
 - **Client**: SvelteKit (Svelte 5 runes), TypeScript, Tailwind v4, shadcn-svelte (nova style), pdfjs-dist
 - **Auth**: Session tokens (Bearer), OIDC/SSO optional (Authentik-compatible)
-- **Runtime**: Bun (client), distroless container (API)
-- **Deploy**: Docker Compose (3 services: `plume-db`, `plume-api`, `plume-client`)
+- **Runtime**: Bun (client build), distroless container (API + built client)
+- **Deploy**: Docker Compose (2 services: `plume-db`, `plume-api`)
 
 ## Project Structure
 
@@ -19,13 +19,11 @@ apps/
     internal/           Shared infra (middleware, env, database, httpjson, pdfutil, hashing)
     modules/            Domain modules (auth, documents, signers, fields, signing, smtp, webhooks, verify, reminders)
     schemas/            GORM models and migrations
-    Dockerfile          Multi-stage: golang:1.24-alpine -> distroless
-  client/               SvelteKit frontend (port 3000)
+  client/               SvelteKit SPA (adapter-static), served by the API binary
     src/lib/backend.ts  API client with all typed endpoints
     src/lib/components/ Field editor, PDF viewer, signature pad, shadcn-svelte UI
     src/routes/         Pages: (app)/{dashboard,documents,profile,settings}, login, share/[token], verify
-    hooks.server.ts     Reverse proxy: /api/* -> plume-api:4000
-    Dockerfile          Multi-stage: oven/bun
+Dockerfile              Multi-stage: bun client build + golang:1.25-alpine -> distroless
 docker-compose.yml      Full stack orchestration
 .env.example            All env vars documented (all optional, defaults work)
 ```
@@ -54,7 +52,7 @@ bun run check                   # Svelte type checking
 ### Docker (project root)
 
 ```bash
-docker compose up --build       # Full stack (db + api + client)
+docker compose up --build       # Full stack (db + api serving the client)
 docker compose down             # Stop all services
 ```
 
@@ -66,17 +64,17 @@ All optional with sane defaults. See `.env.example` and `apps/api/.env.example`.
 |---|---|---|
 | `DATABASE_URL` | `postgres://postgres:postgres@db:5432/plume?sslmode=disable` | Postgres connection string |
 | `PORT` | `4000` | API listen port |
-| `DOMAIN` | `http://localhost:5173` (dev) / `http://localhost:3000` (compose) | Used for CORS and email links |
+| `DOMAIN` | `http://localhost:5173` (dev) / `http://localhost:4000` (compose) | Used for CORS and email links |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `UPLOAD_DIR` | `/data/uploads` | PDF storage directory |
-| `API_URL` | `http://localhost:4000` | Client-side: where the SvelteKit proxy sends requests |
+| `CLIENT_DIR` | `./client` | Directory holding the built SPA the API serves |
 | `OIDC_*` | unset | OIDC/SSO config (all four required if `OIDC_ISSUER` is set) |
 | `SSO_ONLY` | `false` | Disable local email/password auth |
 
 ## Architecture Notes
 
-- The SvelteKit client proxies all `/api/*` requests to the Go API via `hooks.server.ts`. The client never talks to the API directly from the browser.
-- Auth is Bearer token in localStorage, passed through the proxy.
+- One binary serves everything: API routes under `/api`, and the built SPA as the catch-all via tronc's `spa` package. The browser calls `/api/*` on the same origin, so there is no proxy and no CORS hop.
+- Auth is a Bearer token in localStorage.
 - Document workflow: `draft` -> `pending` -> `completed` / `declined`.
 - Modules are self-contained: each has routes, service, and handlers. Subrouters are composed in `main.go` via `RegisterRoutes` + `*Routes` helper functions.
 - Migrations run automatically on startup via `schemas.Migrate(db)` (GORM AutoMigrate).
