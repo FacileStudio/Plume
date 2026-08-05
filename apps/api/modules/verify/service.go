@@ -5,9 +5,9 @@ import (
 	stderrors "errors"
 	"strings"
 
-	"api/internal/errors"
-	"api/modules/documents"
-	"api/schemas"
+	"github.com/FacileStudio/Plume/apps/api/internal/errors"
+	"github.com/FacileStudio/Plume/apps/api/modules/documents"
+	"github.com/FacileStudio/Plume/apps/api/schemas"
 
 	"gorm.io/gorm"
 )

@@ -1,6 +1,6 @@
 package documents
 
-import documentation "api/internal/documentation"
+import documentation "github.com/FacileStudio/Plume/apps/api/internal/documentation"
 
 var Documentation = documentation.Module{
 	Name:        "documents",

@@ -5,8 +5,8 @@ import (
 	stderrors "errors"
 	"time"
 
-	"api/internal/errors"
-	"api/schemas"
+	"github.com/FacileStudio/Plume/apps/api/internal/errors"
+	"github.com/FacileStudio/Plume/apps/api/schemas"
 
 	"gorm.io/gorm"
 )

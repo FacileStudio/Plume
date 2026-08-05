@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"time"
 
-	"api/internal/errors"
-	"api/modules/smtp"
-	"api/modules/webhooks"
-	"api/schemas"
+	"github.com/FacileStudio/Plume/apps/api/internal/errors"
+	"github.com/FacileStudio/Plume/apps/api/modules/smtp"
+	"github.com/FacileStudio/Plume/apps/api/modules/webhooks"
+	"github.com/FacileStudio/Plume/apps/api/schemas"
 
 	"gorm.io/gorm"
 )

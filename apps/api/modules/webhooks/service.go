@@ -14,9 +14,9 @@ import (
 	"net/http"
 	"time"
 
-	"api/internal/errors"
-	"api/internal/urlsafe"
-	"api/schemas"
+	"github.com/FacileStudio/Plume/apps/api/internal/errors"
+	"github.com/FacileStudio/Plume/apps/api/internal/urlsafe"
+	"github.com/FacileStudio/Plume/apps/api/schemas"
 
 	"gorm.io/gorm"
 )

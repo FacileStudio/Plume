@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"api/schemas"
+	"github.com/FacileStudio/Plume/apps/api/schemas"
 )
 
 func BuildDocumentEvent(eventType string, doc *schemas.Document, domain string) EventPayload {

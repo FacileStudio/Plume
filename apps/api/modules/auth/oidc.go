@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
-	"api/internal/env"
-	"api/internal/errors"
-	"api/internal/httpjson"
-	"api/internal/oidcavatar"
+	"github.com/FacileStudio/Plume/apps/api/internal/env"
+	"github.com/FacileStudio/Plume/apps/api/internal/errors"
+	"github.com/FacileStudio/Plume/apps/api/internal/httpjson"
+	"github.com/FacileStudio/Plume/apps/api/internal/oidcavatar"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"

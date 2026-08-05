@@ -1,4 +1,4 @@
-module api
+module github.com/FacileStudio/Plume/apps/api
 
 go 1.25.0
 

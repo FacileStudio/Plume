@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"api/internal/errors"
-	"api/internal/hashing"
-	"api/internal/pdfutil"
-	"api/modules/documents"
-	"api/schemas"
+	"github.com/FacileStudio/Plume/apps/api/internal/errors"
+	"github.com/FacileStudio/Plume/apps/api/internal/hashing"
+	"github.com/FacileStudio/Plume/apps/api/internal/pdfutil"
+	"github.com/FacileStudio/Plume/apps/api/modules/documents"
+	"github.com/FacileStudio/Plume/apps/api/schemas"
 
 	"github.com/go-pdf/fpdf"
 	"gorm.io/gorm"

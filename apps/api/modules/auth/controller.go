@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"api/internal/errors"
+	"github.com/FacileStudio/Plume/apps/api/internal/errors"
 )
 
 type Controller struct {

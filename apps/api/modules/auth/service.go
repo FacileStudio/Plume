@@ -11,10 +11,10 @@ import (
 
 	"log/slog"
 
-	"api/internal/authcrypto"
-	"api/internal/errors"
-	"api/internal/oidcavatar"
-	"api/schemas"
+	"github.com/FacileStudio/Plume/apps/api/internal/authcrypto"
+	"github.com/FacileStudio/Plume/apps/api/internal/errors"
+	"github.com/FacileStudio/Plume/apps/api/internal/oidcavatar"
+	"github.com/FacileStudio/Plume/apps/api/schemas"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"

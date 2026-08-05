@@ -3,7 +3,7 @@ package docs
 import (
 	"net/http"
 
-	"api/internal/httpjson"
+	"github.com/FacileStudio/Plume/apps/api/internal/httpjson"
 
 	"github.com/go-chi/chi/v5"
 )

@@ -3,7 +3,7 @@ package signers
 import (
 	"testing"
 
-	"api/schemas"
+	"github.com/FacileStudio/Plume/apps/api/schemas"
 )
 
 func TestIsSignersTurn(t *testing.T) {

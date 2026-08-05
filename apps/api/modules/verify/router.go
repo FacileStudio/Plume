@@ -5,10 +5,10 @@ import (
 	"net/http"
 	"strings"
 
-	"api/internal/errors"
-	"api/internal/hashing"
-	"api/internal/httpjson"
-	"api/internal/middleware"
+	"github.com/FacileStudio/Plume/apps/api/internal/errors"
+	"github.com/FacileStudio/Plume/apps/api/internal/hashing"
+	"github.com/FacileStudio/Plume/apps/api/internal/httpjson"
+	"github.com/FacileStudio/Plume/apps/api/internal/middleware"
 
 	"github.com/go-chi/chi/v5"
 )
