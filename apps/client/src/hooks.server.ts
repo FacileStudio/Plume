@@ -14,17 +14,18 @@ export const handle: Handle = async ({ event, resolve }) => {
 
 		headers.set('X-Real-IP', event.getClientAddress());
 
-		let body: ArrayBuffer | undefined;
-		if (event.request.method !== 'GET' && event.request.method !== 'HEAD') {
-			body = await event.request.arrayBuffer();
-		}
-
-		const res = await fetch(url, {
+		const init: RequestInit & { duplex?: 'half' } = {
 			method: event.request.method,
 			headers,
-			body,
 			redirect: 'manual'
-		});
+		};
+
+		if (event.request.method !== 'GET' && event.request.method !== 'HEAD') {
+			init.body = event.request.body;
+			init.duplex = 'half';
+		}
+
+		const res = await fetch(url, init);
 
 		const responseHeaders = new Headers();
 		for (const [key, value] of res.headers.entries()) {
@@ -37,6 +38,10 @@ export const handle: Handle = async ({ event, resolve }) => {
 				responseHeaders.append('set-cookie', cookie);
 			}
 		}
+
+		responseHeaders.delete('content-encoding');
+		responseHeaders.delete('content-length');
+		responseHeaders.delete('transfer-encoding');
 
 		return new Response(res.body, {
 			status: res.status,
