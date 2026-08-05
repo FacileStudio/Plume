@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { api } from '$lib';
+	import { api, getToken } from '$lib';
 	import type { Document, Signer, Field, Client } from '$lib';
 	import { spaceStore } from '$lib/stores/space.svelte';
 	import * as Card from '$lib/components/ui/card/index.js';
@@ -204,7 +204,7 @@
 		setLoading(true);
 		try {
 			const res = await fetch(urlPath, {
-				headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+				headers: { Authorization: `Bearer ${getToken()}` }
 			});
 			if (!res.ok) throw new Error('Download failed');
 			const blob = await res.blob();

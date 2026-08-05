@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { api } from '$lib';
+	import { api, getToken } from '$lib';
 	import type { Field, Signer, CreateFieldRequest } from '$lib';
 	import { Button } from '$lib/components/ui/button';
 	import Icon from '@iconify/svelte';
@@ -282,7 +282,7 @@
 		).toString();
 
 		try {
-			const token = localStorage.getItem('token');
+			const token = getToken();
 			const response = await fetch(`/api/documents/${documentId}/file`, {
 				headers: { Authorization: `Bearer ${token}` }
 			});

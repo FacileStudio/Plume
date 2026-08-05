@@ -1,14 +1,24 @@
-function getToken(): string | null {
+const TOKEN_KEY = 'plume.token';
+const LEGACY_TOKEN_KEY = 'token';
+
+export function getToken(): string | null {
 	if (typeof window === 'undefined') return null;
-	return localStorage.getItem('token');
+	const stored = localStorage.getItem(TOKEN_KEY);
+	if (stored !== null) return stored;
+	const legacy = localStorage.getItem(LEGACY_TOKEN_KEY);
+	if (legacy === null) return null;
+	localStorage.setItem(TOKEN_KEY, legacy);
+	localStorage.removeItem(LEGACY_TOKEN_KEY);
+	return legacy;
 }
 
 export function setToken(token: string) {
-	localStorage.setItem('token', token);
+	localStorage.setItem(TOKEN_KEY, token);
 }
 
 export function clearToken() {
-	localStorage.removeItem('token');
+	localStorage.removeItem(TOKEN_KEY);
+	localStorage.removeItem(LEGACY_TOKEN_KEY);
 }
 
 export function isAuthenticated(): boolean {
