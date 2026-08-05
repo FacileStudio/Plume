@@ -5,8 +5,8 @@ import (
 	"strconv"
 
 	"github.com/FacileStudio/Plume/apps/api/internal/authcontext"
-	"github.com/FacileStudio/Plume/apps/api/internal/httpjson"
 	"github.com/FacileStudio/Plume/apps/api/internal/middleware"
+	"github.com/FacileStudio/tronc/httpjson"
 
 	"github.com/go-chi/chi/v5"
 )

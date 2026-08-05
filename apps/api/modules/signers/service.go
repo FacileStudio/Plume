@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/FacileStudio/Plume/apps/api/internal/errors"
 	"github.com/FacileStudio/Plume/apps/api/modules/documents"
 	"github.com/FacileStudio/Plume/apps/api/modules/smtp"
 	"github.com/FacileStudio/Plume/apps/api/modules/webhooks"
 	"github.com/FacileStudio/Plume/apps/api/schemas"
+	"github.com/FacileStudio/tronc/errors"
 
 	"gorm.io/gorm"
 )

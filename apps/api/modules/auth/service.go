@@ -12,9 +12,9 @@ import (
 	"log/slog"
 
 	"github.com/FacileStudio/Plume/apps/api/internal/authcrypto"
-	"github.com/FacileStudio/Plume/apps/api/internal/errors"
 	"github.com/FacileStudio/Plume/apps/api/internal/oidcavatar"
 	"github.com/FacileStudio/Plume/apps/api/schemas"
+	"github.com/FacileStudio/tronc/errors"
 
 	gooidc "github.com/coreos/go-oidc/v3/oidc"
 	"golang.org/x/oauth2"
