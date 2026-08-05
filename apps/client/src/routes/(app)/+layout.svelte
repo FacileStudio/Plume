@@ -91,7 +91,7 @@
 				</div>
 			</a>
 			<a
-				href="/api/docs"
+				href="/docs"
 				target="_blank"
 				rel="noopener"
 				class="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

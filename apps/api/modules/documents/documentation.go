@@ -25,6 +25,14 @@ var Documentation = documentation.Module{
 		},
 		{
 			Method:       "GET",
+			Path:         "/documents/stats",
+			Summary:      "Get document counts by status",
+			Description:  "Returns the dashboard counters for the authenticated user's documents.",
+			Auth:         "bearer",
+			ResponseBody: "StatsResponse",
+		},
+		{
+			Method:       "GET",
 			Path:         "/documents/{id}",
 			Summary:      "Get a document",
 			Auth:         "bearer",
@@ -45,6 +53,14 @@ var Documentation = documentation.Module{
 			Summary:    "Delete a document",
 			Auth:       "bearer",
 			PathParams: []documentation.Field{{Name: "id", Type: "int", Description: "Document ID"}},
+		},
+		{
+			Method:      "GET",
+			Path:        "/documents/{id}/file",
+			Summary:     "Download the document PDF",
+			Description: "Streams the stored PDF. Responds with application/pdf rather than JSON.",
+			Auth:        "bearer",
+			PathParams:  []documentation.Field{{Name: "id", Type: "int", Description: "Document ID"}},
 		},
 		{
 			Method:       "POST",

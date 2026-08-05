@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -18,7 +19,6 @@ import (
 	"github.com/FacileStudio/Plume/apps/api/internal/middleware"
 	"github.com/FacileStudio/Plume/apps/api/modules/auth"
 	"github.com/FacileStudio/Plume/apps/api/modules/clients"
-	"github.com/FacileStudio/Plume/apps/api/modules/docs"
 	"github.com/FacileStudio/Plume/apps/api/modules/documents"
 	"github.com/FacileStudio/Plume/apps/api/modules/fields"
 	"github.com/FacileStudio/Plume/apps/api/modules/reminders"
@@ -31,6 +31,7 @@ import (
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 
 	"github.com/FacileStudio/Journal/sdk/journal"
+	"github.com/FacileStudio/tronc/apiref"
 	"github.com/FacileStudio/tronc/health"
 	"github.com/FacileStudio/tronc/healthcheck"
 	"github.com/FacileStudio/tronc/httpx"
@@ -38,6 +39,7 @@ import (
 	troncmiddleware "github.com/FacileStudio/tronc/middleware"
 	"github.com/FacileStudio/tronc/spa"
 	"github.com/go-chi/chi/v5"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -97,20 +99,10 @@ func run() error {
 		return err
 	}
 
-	authService := auth.NewService(db, appEnv.UploadDir, appLogger)
-	smtpService := smtp.NewService(db)
-	webhookService := webhooks.NewService(db)
-	docService := documents.NewService(db, smtpService, webhookService, appEnv.Domain, appEnv.UploadDir)
-	signerService := signers.NewService(db, docService, webhookService, smtpService, appEnv.Domain)
-	fieldService := fields.NewService(db, docService)
-	signingService := signing.NewService(db, appEnv.UploadDir, docService)
-	verifyService := verify.NewService(db, docService)
-	spaceService := spaces.NewService(db)
-	clientService := clients.NewService(db)
-	reminderService := reminders.NewService(db, smtpService, webhookService, appEnv.Domain)
+	svc := newServices(db, appEnv, appLogger)
 
 	go func() {
-		count, err := docService.BackfillHashes(context.Background())
+		count, err := svc.documents.BackfillHashes(context.Background())
 		if err != nil {
 			appLogger.Warn("hash backfill failed", slog.Any("error", err))
 			return
@@ -120,57 +112,7 @@ func run() error {
 		}
 	}()
 
-	docsRegistry := documentation.Response{
-		Modules: []documentation.Module{
-			auth.Documentation,
-			documents.Documentation,
-			signers.Documentation,
-			webhooks.Documentation,
-		},
-	}
-
-	router := httpx.NewRouter(httpx.Config{
-		Logger: appLogger,
-		CORS: troncmiddleware.CORSConfig{
-			AllowedOrigins: appEnv.CORSAllowedOrigins,
-		},
-	})
-	router.Use(middleware.SecurityHeaders)
-
-	health.Mount(router, health.DB(sqlDB))
-
-	router.Route("/api", func(api chi.Router) {
-		docs.RegisterRoutes(api, documentation.OpenAPI(docsRegistry))
-
-		avatarFS := http.StripPrefix("/api/files/", http.FileServer(http.Dir(appEnv.UploadDir)))
-		api.Get("/files/*", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Cache-Control", "public, max-age=86400, immutable")
-			avatarFS.ServeHTTP(w, r)
-		})
-
-		auth.RegisterRoutes(api, authService, appEnv)
-		documents.RegisterRoutes(api, docService, authService,
-			signers.DocumentRoutes(signerService),
-			fields.DocumentRoutes(fieldService),
-			signing.DocumentRoutes(signingService),
-		)
-		signers.RegisterRoutes(api, signerService, authService,
-			reminders.SignerRoutes(reminderService),
-		)
-		webhooks.RegisterRoutes(api, webhookService, authService)
-		smtp.RegisterRoutes(api, smtpService, authService)
-		spaces.RegisterRoutes(api, spaceService, authService)
-		clients.RegisterRoutes(api, clientService, authService)
-
-		verifyLimiter := middleware.NewRateLimiter(30, 10).Handler()
-		verify.RegisterRoutes(api, verifyService, verifyLimiter)
-	})
-
-	clientDir := spa.DirFromEnv()
-	if spa.Available(clientDir) {
-		router.Handle("/*", spa.Handler(spa.Config{Dir: clientDir}))
-		appLogger.Info("serving client", slog.String("dir", clientDir))
-	}
+	router := buildRouter(svc, sqlDB, appEnv, appLogger)
 
 	addr := ":" + strconv.Itoa(appEnv.Port)
 	server := &http.Server{
@@ -184,8 +126,8 @@ func run() error {
 	shutdownSignal, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	reminders.Start(shutdownSignal, reminderService, appLogger)
-	auth.StartSessionCleanup(shutdownSignal, authService)
+	reminders.Start(shutdownSignal, svc.reminders, appLogger)
+	auth.StartSessionCleanup(shutdownSignal, svc.auth)
 
 	serverErrCh := make(chan error, 1)
 	go func() {
@@ -211,4 +153,105 @@ func run() error {
 	}
 
 	return nil
+}
+
+type services struct {
+	auth      *auth.Service
+	smtp      *smtp.Service
+	webhooks  *webhooks.Service
+	documents *documents.Service
+	signers   *signers.Service
+	fields    *fields.Service
+	signing   *signing.Service
+	verify    *verify.Service
+	spaces    *spaces.Service
+	clients   *clients.Service
+	reminders *reminders.Service
+}
+
+func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) *services {
+	smtpService := smtp.NewService(db)
+	webhookService := webhooks.NewService(db)
+	docService := documents.NewService(db, smtpService, webhookService, appEnv.Domain, appEnv.UploadDir)
+	return &services{
+		auth:      auth.NewService(db, appEnv.UploadDir, appLogger),
+		smtp:      smtpService,
+		webhooks:  webhookService,
+		documents: docService,
+		signers:   signers.NewService(db, docService, webhookService, smtpService, appEnv.Domain),
+		fields:    fields.NewService(db, docService),
+		signing:   signing.NewService(db, appEnv.UploadDir, docService),
+		verify:    verify.NewService(db, docService),
+		spaces:    spaces.NewService(db),
+		clients:   clients.NewService(db),
+		reminders: reminders.NewService(db, smtpService, webhookService, appEnv.Domain),
+	}
+}
+
+func apiReference() apiref.Config {
+	return apiref.Config{
+		Title:       "Plume API",
+		Description: "Self-hosted document signing platform. All routes are served under the /api prefix.",
+		Servers:     []string{"/api"},
+		Registry: documentation.Response{
+			Modules: []documentation.Module{
+				auth.Documentation,
+				documents.Documentation,
+				fields.Documentation,
+				signers.Documentation,
+				signing.Documentation,
+				verify.Documentation,
+				spaces.Documentation,
+				clients.Documentation,
+				smtp.Documentation,
+				webhooks.Documentation,
+			},
+		},
+	}
+}
+
+func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slog.Logger) chi.Router {
+	router := httpx.NewRouter(httpx.Config{
+		Logger: appLogger,
+		CORS: troncmiddleware.CORSConfig{
+			AllowedOrigins: appEnv.CORSAllowedOrigins,
+		},
+	})
+	router.Use(middleware.SecurityHeaders)
+
+	health.Mount(router, health.DB(sqlDB))
+	apiref.Mount(router, apiReference())
+
+	router.Route("/api", func(api chi.Router) {
+		avatarFS := http.StripPrefix("/api/files/", http.FileServer(http.Dir(appEnv.UploadDir)))
+		api.Get("/files/*", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Cache-Control", "public, max-age=86400, immutable")
+			avatarFS.ServeHTTP(w, r)
+		})
+
+		auth.RegisterRoutes(api, svc.auth, appEnv)
+		documents.RegisterRoutes(api, svc.documents, svc.auth,
+			signers.DocumentRoutes(svc.signers),
+			fields.DocumentRoutes(svc.fields),
+			signing.DocumentRoutes(svc.signing),
+		)
+		signers.RegisterRoutes(api, svc.signers, svc.auth,
+			reminders.SignerRoutes(svc.reminders),
+		)
+		webhooks.RegisterRoutes(api, svc.webhooks, svc.auth)
+		smtp.RegisterRoutes(api, svc.smtp, svc.auth)
+		spaces.RegisterRoutes(api, svc.spaces, svc.auth)
+		clients.RegisterRoutes(api, svc.clients, svc.auth)
+
+		verifyLimiter := middleware.NewRateLimiter(30, 10).Handler()
+		verify.RegisterRoutes(api, svc.verify, verifyLimiter)
+	})
+
+	clientDir := spa.DirFromEnv()
+	if spa.Available(clientDir) {
+		router.Handle("/*", spa.Handler(spa.Config{Dir: clientDir}))
+		appLogger.Info("serving client", slog.String("dir", clientDir))
+	}
+
+	return router
 }
