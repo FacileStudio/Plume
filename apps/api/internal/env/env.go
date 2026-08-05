@@ -2,8 +2,9 @@ package env
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
+
+	troncenv "github.com/FacileStudio/tronc/env"
 )
 
 type OIDCConfig struct {
@@ -15,66 +16,54 @@ type OIDCConfig struct {
 }
 
 type Config struct {
-	DatabaseURL  string
-	Port         string
-	Domain       string
-	LogLevel     string
-	UploadDir    string
-	OIDC         *OIDCConfig
-	SSOOnly      bool
-	JournalURL   string
-	JournalToken string
+	troncenv.Core
+	Domain    string
+	UploadDir string
+	OIDC      *OIDCConfig
+	SSOOnly   bool
 }
 
 func Load() (Config, error) {
-	env := Config{
-		DatabaseURL: valueOrDefault("DATABASE_URL", "postgres://postgres:postgres@db:5432/plume?sslmode=disable"),
-		Port:        valueOrDefault("PORT", "4000"),
-		Domain:      valueOrDefault("DOMAIN", "http://localhost:5173"),
-		LogLevel:    valueOrDefault("LOG_LEVEL", "info"),
-		UploadDir:   valueOrDefault("UPLOAD_DIR", "/data/uploads"),
+	core, err := troncenv.LoadCore()
+	if err != nil {
+		return Config{}, err
 	}
-
-	port, err := strconv.Atoi(env.Port)
-	if err != nil || port < 1 || port > 65535 {
+	if core.Port < 1 || core.Port > 65535 {
 		return Config{}, fmt.Errorf("PORT must be a valid TCP port")
 	}
-	if err := validateLogLevel(env.LogLevel); err != nil {
+	if err := validateLogLevel(core.LogLevel); err != nil {
 		return Config{}, err
 	}
 
-	env.SSOOnly = strings.ToLower(envGet("SSO_ONLY")) == "true"
-	env.JournalURL = envGet("JOURNAL_URL")
-	env.JournalToken = envGet("JOURNAL_TOKEN")
+	ssoOnly, err := troncenv.Bool("SSO_ONLY", false)
+	if err != nil {
+		return Config{}, err
+	}
 
-	if issuer := envGet("OIDC_ISSUER"); issuer != "" {
-		clientID := envGet("OIDC_CLIENT_ID")
-		clientSecret := envGet("OIDC_CLIENT_SECRET")
-		redirectURL := envGet("OIDC_REDIRECT_URL")
+	env := Config{
+		Core:      core,
+		Domain:    troncenv.String("DOMAIN", "http://localhost:5173"),
+		UploadDir: troncenv.String("UPLOAD_DIR", "/data/uploads"),
+		SSOOnly:   ssoOnly,
+	}
+
+	if issuer := troncenv.String("OIDC_ISSUER", ""); issuer != "" {
+		clientID := troncenv.String("OIDC_CLIENT_ID", "")
+		clientSecret := troncenv.String("OIDC_CLIENT_SECRET", "")
+		redirectURL := troncenv.String("OIDC_REDIRECT_URL", "")
 		if clientID == "" || clientSecret == "" || redirectURL == "" {
 			return Config{}, fmt.Errorf("OIDC_CLIENT_ID, OIDC_CLIENT_SECRET, and OIDC_REDIRECT_URL are required when OIDC_ISSUER is set")
-		}
-		successURL := envGet("OIDC_SUCCESS_URL")
-		if successURL == "" {
-			successURL = env.Domain
 		}
 		env.OIDC = &OIDCConfig{
 			Issuer:       issuer,
 			ClientID:     clientID,
 			ClientSecret: clientSecret,
 			RedirectURL:  redirectURL,
-			SuccessURL:   successURL,
+			SuccessURL:   troncenv.String("OIDC_SUCCESS_URL", env.Domain),
 		}
 	}
 
 	return env, nil
-}
-
-func valueOrDefault(key string, fallback string) string {
-	if value := envGet(key); value != "" {
-		return value
-	}
-	return fallback
 }
 
 func validateLogLevel(level string) error {

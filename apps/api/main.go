@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -43,12 +44,17 @@ func main() {
 	if healthcheck.Handle(os.Args) {
 		return
 	}
+	if err := run(); err != nil {
+		os.Exit(1)
+	}
+}
 
+func run() error {
 	appEnv, err := env.Load()
 	appLogger := logger.New(logger.Config{})
 	if err != nil {
 		appLogger.Error("failed to load config", slog.Any("error", err))
-		return
+		return err
 	}
 	var journalClient *journal.Client
 	appLogger = logger.New(logger.Config{
@@ -68,17 +74,17 @@ func main() {
 	db, err := database.Open(appEnv.DatabaseURL)
 	if err != nil {
 		appLogger.Error("failed to open database", slog.Any("error", err))
-		return
+		return err
 	}
 
 	if err := schemas.Migrate(db); err != nil {
 		appLogger.Error("failed to run migrations", slog.Any("error", err))
-		return
+		return err
 	}
 	sqlDB, err := db.DB()
 	if err != nil {
 		appLogger.Error("failed to access database handle", slog.Any("error", err))
-		return
+		return err
 	}
 	defer func() {
 		if err := sqlDB.Close(); err != nil {
@@ -88,7 +94,7 @@ func main() {
 
 	if err := os.MkdirAll(filepath.Join(appEnv.UploadDir, "avatars"), 0o755); err != nil {
 		appLogger.Error("failed to create avatars directory", slog.Any("error", err))
-		return
+		return err
 	}
 
 	authService := auth.NewService(db, appEnv.UploadDir, appLogger)
@@ -126,7 +132,7 @@ func main() {
 	router := httpx.NewRouter(httpx.Config{
 		Logger: appLogger,
 		CORS: troncmiddleware.CORSConfig{
-			AllowedOrigins: []string{appEnv.Domain},
+			AllowedOrigins: appEnv.CORSAllowedOrigins,
 		},
 	})
 	router.Use(middleware.SecurityHeaders)
@@ -166,7 +172,7 @@ func main() {
 		appLogger.Info("serving client", slog.String("dir", clientDir))
 	}
 
-	addr := ":" + appEnv.Port
+	addr := ":" + strconv.Itoa(appEnv.Port)
 	server := &http.Server{
 		Addr:              addr,
 		Handler:           router,
@@ -191,6 +197,7 @@ func main() {
 	case err := <-serverErrCh:
 		if !errors.Is(err, http.ErrServerClosed) {
 			appLogger.Error("server stopped", slog.Any("error", err))
+			return err
 		}
 	case <-shutdownSignal.Done():
 		appLogger.Info("server shutting down")
@@ -198,8 +205,10 @@ func main() {
 		defer cancel()
 		if err := server.Shutdown(shutdownContext); err != nil {
 			appLogger.Error("server shutdown failed", slog.Any("error", err))
-			return
+			return err
 		}
 		appLogger.Info("server stopped")
 	}
+
+	return nil
 }
