@@ -4,9 +4,14 @@
 	import { page } from '$app/state';
 	import { api, setToken, isAuthenticated } from '$lib';
 	import Icon from '@iconify/svelte';
-	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
-	import { Label } from '$lib/components/ui/label';
+
+	const inputClass =
+		'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50';
+	const labelClass = 'text-sm font-medium leading-none';
+	const primaryButtonClass =
+		'inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:pointer-events-none disabled:opacity-50';
+	const outlineButtonClass =
+		'inline-flex h-10 w-full items-center justify-center rounded-md border border-border bg-background px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50';
 
 	let tab = $state<'login' | 'register'>('login');
 	let email = $state('');
@@ -59,11 +64,11 @@
 	<div class="hidden lg:flex lg:w-1/2 flex-col bg-black px-12 py-10">
 		<a href="/" class="flex items-center gap-3 mb-auto">
 			<Icon icon="solar:document-add-bold-duotone" class="w-7 h-7 text-white" />
-			<span class="text-xl font-bold tracking-tight text-white">Plume</span>
+			<span class="text-xl font-bold font-heading tracking-tight text-white">Plume</span>
 		</a>
 
 		<div class="mb-auto">
-			<h2 class="text-4xl font-bold text-white leading-tight tracking-tight">
+			<h2 class="text-4xl font-bold font-heading text-white leading-tight tracking-tight">
 				Send it. Sign it.<br />Seal it.
 			</h2>
 			<p class="mt-4 text-sm text-white/50 max-w-xs leading-relaxed">
@@ -79,14 +84,14 @@
 	<div class="flex w-full lg:w-1/2 flex-col items-center justify-center px-8 py-12 bg-background">
 		<div class="w-full max-w-sm">
 			<div class="mb-8">
-				<h1 class="text-2xl font-bold tracking-tight text-foreground">
+				<h1 class="text-2xl font-bold font-heading tracking-tight text-foreground">
 					{!ssoOnly && tab === 'register' ? 'Create account' : 'Welcome back'}
 				</h1>
 				<p class="mt-1.5 text-sm text-muted-foreground">
 					{!ssoOnly && tab === 'register'
 						? 'Sign up to start signing documents.'
 						: ssoOnly
-							? 'Sign in with your organization account.'
+							? 'Sign in with your organization account to access Plume.'
 							: 'Log in to your Plume account.'}
 				</p>
 			</div>
@@ -95,43 +100,67 @@
 				<div class="h-40"></div>
 			{:else}
 				{#if !ssoOnly}
-					<div class="mb-6 flex rounded-lg border border-border bg-muted p-1 gap-1">
+					<div class="mb-6 flex rounded-lg border border-border bg-muted p-1 gap-1" role="tablist">
 						<button
+							type="button"
+							role="tab"
+							aria-selected={tab === 'login'}
 							class="flex-1 rounded-md py-1.5 text-sm font-medium transition-colors {tab === 'login'
 								? 'bg-background text-foreground shadow-sm'
 								: 'text-muted-foreground hover:text-foreground'}"
 							onclick={() => { tab = 'login'; message = ''; }}
-						>
-							Log in
-						</button>
+						>Log in</button>
 						<button
+							type="button"
+							role="tab"
+							aria-selected={tab === 'register'}
 							class="flex-1 rounded-md py-1.5 text-sm font-medium transition-colors {tab === 'register'
 								? 'bg-background text-foreground shadow-sm'
 								: 'text-muted-foreground hover:text-foreground'}"
 							onclick={() => { tab = 'register'; message = ''; }}
-						>
-							Register
-						</button>
+						>Register</button>
 					</div>
 
 					<form onsubmit={submit} class="space-y-4">
 						<div class="space-y-1.5">
-							<Label for="email">Email</Label>
-							<Input id="email" type="email" bind:value={email} placeholder="you@example.com" required />
+							<label for="email" class={labelClass}>Email</label>
+							<input
+								id="email"
+								type="email"
+								bind:value={email}
+								placeholder="you@example.com"
+								autocomplete="email"
+								required
+								disabled={busy}
+								class={inputClass}
+							/>
 						</div>
 
 						<div class="space-y-1.5">
-							<Label for="password">Password</Label>
-							<Input id="password" type="password" bind:value={password} placeholder="••••••••" required />
+							<label for="password" class={labelClass}>Password</label>
+							<input
+								id="password"
+								type="password"
+								bind:value={password}
+								placeholder="••••••••"
+								autocomplete={tab === 'register' ? 'new-password' : 'current-password'}
+								required
+								disabled={busy}
+								class={inputClass}
+							/>
 						</div>
 
 						{#if message}
-							<p class="text-sm text-destructive">{message}</p>
+							<p class="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+								{message}
+							</p>
 						{/if}
 
-						<Button type="submit" class="w-full" disabled={busy}>
-							{tab === 'register' ? 'Create account' : 'Log in'}
-						</Button>
+						<button type="submit" disabled={busy} class={primaryButtonClass}>
+							{busy
+								? tab === 'register' ? 'Creating account…' : 'Logging in…'
+								: tab === 'register' ? 'Create account' : 'Log in'}
+						</button>
 					</form>
 				{/if}
 
@@ -145,10 +174,12 @@
 					{/if}
 
 					<a href="/api/auth/oidc" class="block">
-						<Button variant="outline" class="w-full" type="button">
-							Continue with SSO
-						</Button>
+						<button type="button" class={outlineButtonClass}>Continue with SSO</button>
 					</a>
+				{/if}
+
+				{#if ssoOnly && !oidcEnabled}
+					<p class="text-sm text-destructive">SSO is not configured. Contact your administrator.</p>
 				{/if}
 			{/if}
 		</div>
