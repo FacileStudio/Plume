@@ -58,18 +58,21 @@ docker compose down             # Stop all services
 
 ## Environment Variables
 
-All optional with sane defaults. See `.env.example` and `apps/api/.env.example`.
+Read through `tronc/env`. See `.env.example` and `apps/api/.env.example`.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `DATABASE_URL` | `postgres://postgres:postgres@db:5432/plume?sslmode=disable` | Postgres connection string |
-| `PORT` | `4000` | API listen port |
-| `DOMAIN` | `http://localhost:5173` (dev) / `http://localhost:4000` (compose) | Used for CORS and email links |
+| `DATABASE_URL` | **required** | Postgres connection string. No default since the tronc/env adoption — an app that boots against a database that isn't there just 500s later |
+| `APP_ENV` | `development` | `development`, `staging`, `production`. Never gates security behaviour |
+| `PORT` | `8080` | API listen port. Compose and `.env.example` pin `4000` |
+| `DOMAIN` | `http://localhost:5173` (dev) / `http://localhost:4000` (compose) | Public app URL: email links, OIDC success redirect, and the CORS origin |
+| `CORS_ALLOWED_ORIGINS` | falls back to `DOMAIN` | Canonical CORS name. Overrides the CORS origin only; email links still follow `DOMAIN` |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 | `UPLOAD_DIR` | `/data/uploads` | PDF storage directory |
 | `CLIENT_DIR` | `./client` | Directory holding the built SPA the API serves |
 | `OIDC_*` | unset | OIDC/SSO config (all four required if `OIDC_ISSUER` is set) |
 | `SSO_ONLY` | `false` | Disable local email/password auth |
+| `JOURNAL_URL`, `JOURNAL_TOKEN` | unset | Ship logs to Journal. Both must be set or nothing ships |
 
 ## Architecture Notes
 
