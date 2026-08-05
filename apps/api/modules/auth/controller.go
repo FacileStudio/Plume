@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/FacileStudio/Plume/apps/api/internal/errors"
 )
@@ -44,7 +45,7 @@ func (controller *Controller) getMe(context context.Context, userID string) (*Pr
 		AvatarURL:            user.AvatarURL,
 		AvatarSource:         user.AvatarSource,
 		ReminderIntervalDays: user.ReminderIntervalDays,
-		CreatedAt:            user.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt:            user.CreatedAt.Format(time.RFC3339),
 	}, nil
 }
 
@@ -72,7 +73,7 @@ func (controller *Controller) updateMe(context context.Context, userID string, r
 		AvatarURL:            user.AvatarURL,
 		AvatarSource:         user.AvatarSource,
 		ReminderIntervalDays: user.ReminderIntervalDays,
-		CreatedAt:            user.CreatedAt.Format("2006-01-02T15:04:05Z"),
+		CreatedAt:            user.CreatedAt.Format(time.RFC3339),
 	}, nil
 }
 
