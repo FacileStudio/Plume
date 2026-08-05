@@ -35,6 +35,7 @@ import (
 	"github.com/FacileStudio/tronc/httpx"
 	"github.com/FacileStudio/tronc/logger"
 	troncmiddleware "github.com/FacileStudio/tronc/middleware"
+	"github.com/FacileStudio/tronc/spa"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -158,6 +159,12 @@ func main() {
 		verifyLimiter := middleware.NewRateLimiter(30, 10).Handler()
 		verify.RegisterRoutes(api, verifyService, verifyLimiter)
 	})
+
+	clientDir := spa.DirFromEnv()
+	if spa.Available(clientDir) {
+		router.Handle("/*", spa.Handler(spa.Config{Dir: clientDir}))
+		appLogger.Info("serving client", slog.String("dir", clientDir))
+	}
 
 	addr := ":" + appEnv.Port
 	server := &http.Server{
