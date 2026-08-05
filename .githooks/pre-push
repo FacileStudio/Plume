@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+#
+# Quality gate, run before every push.
+#
+# This repo gates on the Go half only: its client carries pre-existing
+# svelte-check errors, so gating on the full check would block every push
+# until those are cleared. Run `sh scripts/check.sh` for the whole picture,
+# and once the client reaches zero errors drop the --go-only below.
+#
+# Bypass once with:      git push --no-verify
+# Enable in a clone with: git config core.hooksPath .githooks   (or mise run hooks)
+
+set -eu
+exec sh "$(git rev-parse --show-toplevel)/scripts/check.sh" --go-only
