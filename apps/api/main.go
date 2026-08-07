@@ -174,7 +174,7 @@ func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) *servic
 	webhookService := webhooks.NewService(db)
 	docService := documents.NewService(db, smtpService, webhookService, appEnv.Domain, appEnv.UploadDir)
 	return &services{
-		auth:      auth.NewService(db, appEnv.UploadDir, appLogger),
+		auth:      auth.NewService(db, appLogger),
 		smtp:      smtpService,
 		webhooks:  webhookService,
 		documents: docService,

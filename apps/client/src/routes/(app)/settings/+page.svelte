@@ -331,16 +331,25 @@
 			{#if profile}
 				<div class="flex items-center gap-3 mb-4">
 					{#if profile.avatar_url}
-						<img src="/api{profile.avatar_url}" alt="Avatar" class="h-14 w-14 rounded-full border border-border object-cover" />
+						<img src={profile.avatar_url} alt="Avatar" class="h-14 w-14 rounded-full border border-border object-cover" />
 					{:else}
 						<div class="flex h-14 w-14 items-center justify-center rounded-full border border-border bg-foreground text-sm font-semibold text-background">
 							{(profile.name || profile.email).split(' ').map((w: string) => w[0]).join('').toUpperCase().slice(0, 2)}
 						</div>
 					{/if}
+					<!-- Plume has no avatar upload, so the picture is always the one single sign-on
+					     holds. Saying where it lives beats a control that would never appear. -->
 					<div>
 						<p class="text-sm font-medium">{profile.name || profile.email}</p>
 						{#if profile.avatar_source === 'oidc'}
-							<p class="text-xs text-muted-foreground">Synced from SSO</p>
+							<p class="text-xs text-muted-foreground">
+								Your photo comes from single sign-on. Change it there and it updates here within
+								a few minutes.
+							</p>
+						{:else}
+							<p class="text-xs text-muted-foreground">
+								No photo in single sign-on yet — add one there and it appears here.
+							</p>
 						{/if}
 					</div>
 				</div>

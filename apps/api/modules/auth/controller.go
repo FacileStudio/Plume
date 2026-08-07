@@ -42,8 +42,8 @@ func (controller *Controller) getMe(context context.Context, userID string) (*Pr
 		ID:                   strconv.FormatInt(user.ID, 10),
 		Email:                user.Email,
 		Name:                 user.Name,
-		AvatarURL:            user.AvatarURL,
-		AvatarSource:         user.AvatarSource,
+		AvatarURL:            user.Avatar(),
+		AvatarSource:         user.AvatarOrigin(),
 		ReminderIntervalDays: user.ReminderIntervalDays,
 		CreatedAt:            user.CreatedAt.Format(time.RFC3339),
 	}, nil
@@ -70,8 +70,8 @@ func (controller *Controller) updateMe(context context.Context, userID string, r
 		ID:                   strconv.FormatInt(user.ID, 10),
 		Email:                user.Email,
 		Name:                 user.Name,
-		AvatarURL:            user.AvatarURL,
-		AvatarSource:         user.AvatarSource,
+		AvatarURL:            user.Avatar(),
+		AvatarSource:         user.AvatarOrigin(),
 		ReminderIntervalDays: user.ReminderIntervalDays,
 		CreatedAt:            user.CreatedAt.Format(time.RFC3339),
 	}, nil
