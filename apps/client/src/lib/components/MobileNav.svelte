@@ -64,7 +64,7 @@
 		>
 			{#if user?.avatar_url && !avatarFailed}
 				<img
-					src="/api{user.avatar_url}"
+					src={user.avatar_url}
 					alt={userLabel}
 					class="h-7 w-7 rounded-full border border-border object-cover"
 					onerror={() => (avatarFailed = true)}

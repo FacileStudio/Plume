@@ -1,20 +1,14 @@
+// Package oidcavatar reads the profile claims Authentik returns at login.
+//
+// It used to download the picture and keep a copy under UPLOAD_DIR. It no longer does: the
+// URL Authentik hands over is public, cacheable and served by Porte, so a local copy was a
+// cache of something we are not the source of — one that a container rebuild silently
+// emptied while the database went on pointing at it. Storing the URL removes the copy, the
+// SSRF surface that fetching an attacker-influenced URL from inside our own network opened,
+// and any chance of avatar writes wandering into the volume Plume keeps signed documents in.
 package oidcavatar
 
-import (
-	"context"
-	"fmt"
-	"io"
-	"log/slog"
-	"net"
-	"net/http"
-	"net/url"
-	"os"
-	"path/filepath"
-	"strings"
-	"time"
-)
-
-const maxAvatarSize = 5 << 20
+import "strings"
 
 type Profile struct {
 	Name              string
@@ -38,113 +32,20 @@ func (p Profile) DisplayName() string {
 	return ""
 }
 
-func FetchAvatar(pictureURL, storageDir string, userID int64, logger *slog.Logger) (string, error) {
-	parsed, err := url.Parse(pictureURL)
-	if err != nil {
-		return "", fmt.Errorf("invalid picture URL: %w", err)
+// PhotoURL returns the picture claim when it is a photo somebody actually chose, and ""
+// when it is not.
+//
+// The distinction is the whole reason this function exists. Authentik never omits the
+// claim: a user with no photo gets "data:image/svg+xml;base64,…", its own rendering of
+// their initials. Testing `picture != ""` — which every app in the suite did — therefore
+// reads "has an avatar" as always true, which is why an upload could never be offered as
+// the fallback and why the old fetch logged a failed HTTPS check on every sync.
+//
+// An https URL is a file in Porte's media store. Anything else is a placeholder we can
+// draw better ourselves, so it is reported as no photo at all.
+func PhotoURL(pictureClaim string) string {
+	if strings.HasPrefix(strings.ToLower(pictureClaim), "https://") {
+		return pictureClaim
 	}
-	if parsed.Scheme != "https" {
-		return "", fmt.Errorf("picture URL must use HTTPS")
-	}
-
-	host := parsed.Hostname()
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		return "", fmt.Errorf("DNS lookup failed for %s: %w", host, err)
-	}
-	for _, ip := range ips {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() {
-			return "", fmt.Errorf("picture URL resolves to private/loopback address")
-		}
-	}
-
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 3 {
-				return fmt.Errorf("too many redirects")
-			}
-			return nil
-		},
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pictureURL, nil)
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to fetch avatar: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("avatar fetch returned status %d", resp.StatusCode)
-	}
-
-	ct := resp.Header.Get("Content-Type")
-	ext, ok := avatarExtension(ct)
-	if !ok {
-		return "", fmt.Errorf("unsupported content type: %s", ct)
-	}
-
-	avatarDir := filepath.Join(storageDir, "avatars")
-	if err := os.MkdirAll(avatarDir, 0o755); err != nil {
-		return "", fmt.Errorf("failed to create avatar directory: %w", err)
-	}
-
-	filename := fmt.Sprintf("oidc-%d-%d.%s", userID, time.Now().UnixNano(), ext)
-	fullPath := filepath.Join(avatarDir, filename)
-
-	f, err := os.Create(fullPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to create avatar file: %w", err)
-	}
-	defer f.Close()
-
-	limited := io.LimitReader(resp.Body, maxAvatarSize+1)
-	n, err := io.Copy(f, limited)
-	if err != nil {
-		os.Remove(fullPath)
-		return "", fmt.Errorf("failed to write avatar: %w", err)
-	}
-	if n > maxAvatarSize {
-		os.Remove(fullPath)
-		return "", fmt.Errorf("avatar exceeds %d bytes", maxAvatarSize)
-	}
-
-	relativePath := filepath.Join("avatars", filename)
-	logger.Info("fetched OIDC avatar", slog.Int64("user_id", userID), slog.String("path", relativePath))
-	return relativePath, nil
-}
-
-func RemoveFile(storageDir, relativePath string) {
-	if !strings.HasPrefix(relativePath, "avatars/") {
-		return
-	}
-	fullPath := filepath.Join(storageDir, relativePath)
-	os.Remove(fullPath)
-}
-
-func avatarExtension(ct string) (string, bool) {
-	ct = strings.ToLower(strings.TrimSpace(ct))
-	if idx := strings.Index(ct, ";"); idx != -1 {
-		ct = strings.TrimSpace(ct[:idx])
-	}
-	switch ct {
-	case "image/png":
-		return "png", true
-	case "image/jpeg":
-		return "jpg", true
-	case "image/gif":
-		return "gif", true
-	case "image/webp":
-		return "webp", true
-	default:
-		return "", false
-	}
+	return ""
 }

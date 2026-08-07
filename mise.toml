@@ -5,6 +5,14 @@ go = "1.25"
 description = "Install client dependencies"
 run = 'cd apps/client && bun install --frozen-lockfile'
 
+[tasks.db-up]
+description = "Start a local Postgres for the database-backed tests"
+run = "sh ./scripts/postgres-up.sh"
+
+[tasks.db-down]
+description = "Stop the local Postgres"
+run = "sh ./scripts/postgres-down.sh"
+
 [tasks.check]
 description = "Run the full quality gate: every Go module, then the client"
 run = "sh ./scripts/check.sh"
