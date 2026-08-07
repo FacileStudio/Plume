@@ -142,7 +142,7 @@ func (h *oidcHandler) callback(w http.ResponseWriter, r *http.Request) {
 		FamilyName:        claims.FamilyName,
 		Picture:           claims.Picture,
 	}
-	userID, token, err := h.service.upsertOIDCUser(r.Context(), claims.Email, profile, oauth2Token)
+	userID, token, err := h.service.upsertOIDCUser(r.Context(), idToken.Subject, claims.Email, true, profile, oauth2Token)
 	if err != nil {
 		httpjson.WriteError(w, err)
 		return
