@@ -2,13 +2,13 @@
 #
 # Quality gate, run before every push.
 #
-# This repo gates on the Go half only: its client carries pre-existing
-# svelte-check errors, so gating on the full check would block every push
-# until those are cleared. Run `sh scripts/check.sh` for the whole picture,
-# and once the client reaches zero errors drop the --go-only below.
+# Gates on the full check — Go modules and the client. The client reached zero
+# svelte-check errors on 2026-08-07, so the --go-only escape hatch this hook
+# used to carry is gone. Two a11y warnings remain in field-editor.svelte;
+# warnings do not fail the gate.
 #
 # Bypass once with:      git push --no-verify
 # Enable in a clone with: git config core.hooksPath .githooks   (or mise run hooks)
 
 set -eu
-exec sh "$(git rev-parse --show-toplevel)/scripts/check.sh" --go-only
+exec sh "$(git rev-parse --show-toplevel)/scripts/check.sh"
