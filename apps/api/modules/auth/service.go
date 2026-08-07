@@ -140,14 +140,27 @@ func (service *Service) Authenticate(context context.Context, authorization stri
 	return service.authenticateRequest(context, authorization)
 }
 
-func (service *Service) upsertOIDCUser(context context.Context, email string, profile oidcavatar.Profile, oauth2Token *oauth2.Token) (userID string, token string, err error) {
+func (service *Service) upsertOIDCUser(context context.Context, subject string, email string, emailTrusted bool, profile oidcavatar.Profile, oauth2Token *oauth2.Token) (userID string, token string, err error) {
 	var record schemas.User
-	err = service.orm.WithContext(context).Where("email = ?", email).First(&record).Error
-	if err != nil && !stderrors.Is(err, gorm.ErrRecordNotFound) {
-		return "", "", errors.Internal("failed to look up user", err)
+	found := false
+	if subject != "" {
+		lookupErr := service.orm.WithContext(context).Where("oidc_subject = ?", subject).First(&record).Error
+		if lookupErr == nil {
+			found = true
+		} else if !stderrors.Is(lookupErr, gorm.ErrRecordNotFound) {
+			return "", "", errors.Internal("failed to look up user", lookupErr)
+		}
+	}
+	if !found && emailTrusted {
+		lookupErr := service.orm.WithContext(context).Where("email = ?", email).First(&record).Error
+		if lookupErr == nil {
+			found = true
+		} else if !stderrors.Is(lookupErr, gorm.ErrRecordNotFound) {
+			return "", "", errors.Internal("failed to look up user", lookupErr)
+		}
 	}
 
-	isNew := stderrors.Is(err, gorm.ErrRecordNotFound)
+	isNew := !found
 	if isNew {
 		record = schemas.User{Email: email}
 		if displayName := profile.DisplayName(); displayName != "" {
@@ -195,6 +208,15 @@ func (service *Service) upsertOIDCUser(context context.Context, email string, pr
 		if saveErr := service.orm.WithContext(context).Save(&record).Error; saveErr != nil {
 			service.logger.Warn("failed to save OIDC profile updates", slog.Any("error", saveErr), slog.Int64("user_id", record.ID))
 		}
+	}
+
+	if subject != "" && (record.OIDCSubject == nil || *record.OIDCSubject != subject) {
+		record.OIDCSubject = &subject
+		service.orm.WithContext(context).Select("oidc_subject").Save(&record)
+	}
+	if email != "" && record.Email != email {
+		record.Email = email
+		service.orm.WithContext(context).Select("email").Save(&record)
 	}
 
 	token, err = authcrypto.NewToken()

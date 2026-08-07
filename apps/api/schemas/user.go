@@ -9,6 +9,7 @@ type User struct {
 	AvatarURL            string    `gorm:"column:avatar_url"`
 	AvatarSource         string    `gorm:"column:avatar_source"`
 	OIDCPictureURL       string    `gorm:"column:oidc_picture_url"`
+	OIDCSubject          *string   `gorm:"column:oidc_subject;uniqueIndex"`
 	PasswordHash         string    `gorm:"column:password_hash"`
 	ReminderIntervalDays int       `gorm:"column:reminder_interval_days;default:3"`
 	OIDCAccessToken      string    `gorm:"column:oidc_access_token"`
