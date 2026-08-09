@@ -83,7 +83,7 @@ func (h *oidcHandler) login(w http.ResponseWriter, r *http.Request) {
 func (h *oidcHandler) callback(w http.ResponseWriter, r *http.Request) {
 	stateCookie, err := r.Cookie(oidcStateCookie)
 	if err != nil || subtle.ConstantTimeCompare([]byte(stateCookie.Value), []byte(r.URL.Query().Get("state"))) != 1 {
-		httpjson.WriteError(w, errors.Invalid("invalid oauth2 state"))
+		h.fail(w, r, "login session expired, please try again")
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
@@ -97,19 +97,19 @@ func (h *oidcHandler) callback(w http.ResponseWriter, r *http.Request) {
 
 	oauth2Token, err := h.oauth2Cfg.Exchange(r.Context(), r.URL.Query().Get("code"))
 	if err != nil {
-		httpjson.WriteError(w, errors.Internal("failed to exchange code", err))
+		h.fail(w, r, "identity provider rejected the login")
 		return
 	}
 
 	rawIDToken, ok := oauth2Token.Extra("id_token").(string)
 	if !ok {
-		httpjson.WriteError(w, errors.Internal("missing id_token in response", nil))
+		h.fail(w, r, "identity provider returned no id_token")
 		return
 	}
 
 	idToken, err := h.verifier.Verify(r.Context(), rawIDToken)
 	if err != nil {
-		httpjson.WriteError(w, errors.Unauthorized("invalid id_token"))
+		h.fail(w, r, "identity provider returned an invalid id_token")
 		return
 	}
 
@@ -123,15 +123,15 @@ func (h *oidcHandler) callback(w http.ResponseWriter, r *http.Request) {
 		Picture           string `json:"picture"`
 	}
 	if err := idToken.Claims(&claims); err != nil {
-		httpjson.WriteError(w, errors.Internal("failed to parse claims", err))
+		h.fail(w, r, "could not read the identity provider response")
 		return
 	}
 	if claims.Email == "" {
-		httpjson.WriteError(w, errors.Invalid("OIDC provider did not return an email"))
+		h.fail(w, r, "identity provider did not return an email")
 		return
 	}
 	if !isEmailVerified(claims.EmailVerified) {
-		httpjson.WriteError(w, errors.Invalid("email not verified by your identity provider"))
+		h.fail(w, r, "email not verified by your identity provider")
 		return
 	}
 
@@ -144,13 +144,13 @@ func (h *oidcHandler) callback(w http.ResponseWriter, r *http.Request) {
 	}
 	userID, token, err := h.service.upsertOIDCUser(r.Context(), idToken.Subject, claims.Email, true, profile, oauth2Token)
 	if err != nil {
-		httpjson.WriteError(w, err)
+		h.fail(w, r, "could not sign you in")
 		return
 	}
 
 	code, err := randomState()
 	if err != nil {
-		httpjson.WriteError(w, errors.Internal("failed to generate auth code", err))
+		h.fail(w, r, "could not sign you in")
 		return
 	}
 	h.codes.Store(code, pendingCode{
@@ -209,10 +209,25 @@ func isEmailVerified(v any) bool {
 	case bool:
 		return val
 	case string:
-		return strings.EqualFold(val, "true")
+		return !strings.EqualFold(val, "false")
+	case nil:
+		return true
 	default:
-		return false
+		return true
 	}
+}
+
+func (h *oidcHandler) fail(w http.ResponseWriter, r *http.Request, reason string) {
+	dest, err := url.Parse(h.successURL)
+	if err != nil {
+		httpjson.WriteError(w, errors.Invalid(reason))
+		return
+	}
+	dest.Path = strings.TrimSuffix(dest.Path, "/") + "/login"
+	q := dest.Query()
+	q.Set("error", reason)
+	dest.RawQuery = q.Encode()
+	http.Redirect(w, r, dest.String(), http.StatusFound)
 }
 
 func randomState() (string, error) {
