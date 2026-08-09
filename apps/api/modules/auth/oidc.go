@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	stderrors "errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -130,11 +131,6 @@ func (h *oidcHandler) callback(w http.ResponseWriter, r *http.Request) {
 		h.fail(w, r, "identity provider did not return an email")
 		return
 	}
-	if !isEmailVerified(claims.EmailVerified) {
-		h.fail(w, r, "email not verified by your identity provider")
-		return
-	}
-
 	profile := oidcavatar.Profile{
 		Name:              claims.Name,
 		PreferredUsername: claims.PreferredUsername,
@@ -142,9 +138,9 @@ func (h *oidcHandler) callback(w http.ResponseWriter, r *http.Request) {
 		FamilyName:        claims.FamilyName,
 		Picture:           claims.Picture,
 	}
-	userID, token, err := h.service.upsertOIDCUser(r.Context(), idToken.Subject, claims.Email, true, profile, oauth2Token)
+	userID, token, err := h.service.upsertOIDCUser(r.Context(), idToken.Subject, claims.Email, isEmailVerified(claims.EmailVerified), profile, oauth2Token)
 	if err != nil {
-		h.fail(w, r, "could not sign you in")
+		h.fail(w, r, signInFailure(err))
 		return
 	}
 
@@ -215,6 +211,14 @@ func isEmailVerified(v any) bool {
 	default:
 		return true
 	}
+}
+
+func signInFailure(err error) string {
+	var apiErr *errors.Error
+	if stderrors.As(err, &apiErr) && apiErr.Code == "invalid_argument" {
+		return apiErr.Message
+	}
+	return "could not sign you in"
 }
 
 func (h *oidcHandler) fail(w http.ResponseWriter, r *http.Request, reason string) {
