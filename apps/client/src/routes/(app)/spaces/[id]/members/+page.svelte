@@ -4,10 +4,20 @@
 	import { goto } from '$app/navigation';
 	import { api } from '$lib';
 	import type { Space, SpaceMember } from '$lib';
-	import { Button } from '$lib/components/ui/button';
-	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
-	import Icon from '@iconify/svelte';
-	import { toast } from 'svelte-sonner';
+	import {
+		Badge,
+		Button,
+		ConfirmModal,
+		EmptyState,
+		Field,
+		Input,
+		Select,
+		SettingsRow,
+		SettingsSection,
+		Spinner,
+		icons,
+		toast
+	} from '@facile/muse';
 
 	let space = $state<Space | null>(null);
 	let members = $state<SpaceMember[]>([]);
@@ -17,29 +27,29 @@
 	let addRole = $state('member');
 	let adding = $state(false);
 
-	let removeTarget = $state<SpaceMember | null>(null);
-	let removing = $state(false);
+	let confirmRemove = $state(false);
+	let pendingRemove = $state<SpaceMember | null>(null);
 
 	const spaceId = $derived(Number(page.params.id));
 	const isAdminOrOwner = $derived(space?.role === 'owner' || space?.role === 'admin');
 
-	function roleBadge(role: string): string {
-		if (role === 'owner') return 'bg-amber-500/10 text-amber-600';
-		if (role === 'admin') return 'bg-blue-500/10 text-blue-600';
-		return 'bg-muted text-muted-foreground';
-	}
+	const roleTone = { owner: 'owner', admin: 'admin', member: 'neutral' } as const;
 
-	async function addMember() {
+	async function addMember(event: SubmitEvent) {
+		event.preventDefault();
 		if (!addEmail.trim()) return;
 		adding = true;
 		try {
-			const member = await api.spaces.members.add(spaceId, { email: addEmail.trim(), role: addRole });
+			const member = await api.spaces.members.add(spaceId, {
+				email: addEmail.trim(),
+				role: addRole
+			});
 			members = [...members, member];
 			addEmail = '';
 			addRole = 'member';
 			toast.success('Member added');
 		} catch (e) {
-			toast.error(e instanceof Error ? e.message : 'Failed to add member');
+			toast.danger(e instanceof Error ? e.message : 'Failed to add member');
 		}
 		adding = false;
 	}
@@ -50,22 +60,27 @@
 			members = members.map((m) => (m.id === updated.id ? updated : m));
 			toast.success('Role updated');
 		} catch (e) {
-			toast.error(e instanceof Error ? e.message : 'Failed to update role');
+			toast.danger(e instanceof Error ? e.message : 'Failed to update role');
 		}
 	}
 
-	async function confirmRemove() {
-		if (!removeTarget) return;
-		removing = true;
+	function askRemove(member: SpaceMember) {
+		pendingRemove = member;
+		confirmRemove = true;
+	}
+
+	async function runRemove() {
+		const target = pendingRemove;
+		if (!target) return;
 		try {
-			await api.spaces.members.remove(spaceId, removeTarget.id);
-			members = members.filter((m) => m.id !== removeTarget!.id);
-			removeTarget = null;
-			toast.success('Member removed');
+			await api.spaces.members.remove(spaceId, target.id);
 		} catch (e) {
-			toast.error(e instanceof Error ? e.message : 'Failed to remove member');
+			toast.danger(e instanceof Error ? e.message : 'Failed to remove member');
+			throw e;
 		}
-		removing = false;
+		members = members.filter((m) => m.id !== target.id);
+		pendingRemove = null;
+		toast.success('Member removed');
 	}
 
 	onMount(async () => {
@@ -88,124 +103,109 @@
 
 {#if loading}
 	<div class="flex min-h-[40dvh] items-center justify-center">
-		<Icon icon="solar:spinner-bold-duotone" class="h-8 w-8 animate-spin text-muted-foreground" />
+		<Spinner size="lg" />
 	</div>
 {:else if space}
-	<div class="mb-6 border-b pb-5">
-		<div class="flex items-center gap-3 mb-3">
-			<a href="/spaces/{spaceId}" class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground hover:bg-muted">
-				<Icon icon="solar:arrow-left-linear" class="h-5 w-5" />
-			</a>
-			<span class="text-sm text-muted-foreground">{space.name}</span>
+	<div class="flex max-w-2xl flex-col gap-10">
+		<div class="flex flex-col gap-2">
+			<Button
+				href="/spaces/{spaceId}"
+				variant="ghost"
+				size="sm"
+				icon={icons.chevronLeft}
+				class="w-fit -ml-3"
+			>
+				{space.name}
+			</Button>
+			<h1 class="text-fc-2xl font-semibold text-fc-fg">Members</h1>
+			<p class="text-fc-sm text-fc-fg-muted">
+				{members.length} member{members.length === 1 ? '' : 's'} in this space. Owners cannot be
+				removed.
+			</p>
 		</div>
-		<div class="flex items-center justify-between">
-			<h1 class="text-lg font-semibold">Members</h1>
-		</div>
-	</div>
 
-	<div class="space-y-6">
 		{#if isAdminOrOwner}
-			<form onsubmit={addMember} class="flex items-end gap-3">
-				<div class="flex-1">
-					<label for="member-email" class="mb-1.5 block text-sm font-medium">Email</label>
-					<input
-						id="member-email"
-						type="email"
-						bind:value={addEmail}
-						placeholder="colleague@example.com"
-						class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-					/>
-				</div>
-				<div class="w-32">
-					<label for="member-role" class="mb-1.5 block text-sm font-medium">Role</label>
-					<select
-						id="member-role"
-						bind:value={addRole}
-						class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+			<SettingsSection
+				title="Add a member"
+				description="They get access to every document in this space straight away."
+			>
+				<form onsubmit={addMember} class="flex flex-col gap-3 sm:flex-row sm:items-end">
+					<Field label="Email" class="min-w-0 flex-1">
+						<Input
+							bind:value={addEmail}
+							type="email"
+							placeholder="colleague@example.com"
+							required
+						/>
+					</Field>
+					<Field label="Role" class="sm:w-40">
+						<Select bind:value={addRole}>
+							<option value="member">Member</option>
+							<option value="admin">Admin</option>
+						</Select>
+					</Field>
+					<Button
+						type="submit"
+						icon={icons.plus}
+						disabled={adding || !addEmail.trim()}
+						size="lg"
+						class="sm:shrink-0"
 					>
-						<option value="member">Member</option>
-						<option value="admin">Admin</option>
-					</select>
-				</div>
-				<Button type="submit" disabled={adding || !addEmail.trim()} size="sm" class="h-10">
-					{#if adding}
-						<Icon icon="solar:spinner-bold-duotone" class="h-4 w-4 animate-spin" />
-					{:else}
-						<Icon icon="mdi:plus" class="h-4 w-4" />
-						Add
-					{/if}
-				</Button>
-			</form>
+						{adding ? 'Adding…' : 'Add'}
+					</Button>
+				</form>
+			</SettingsSection>
 		{/if}
 
-		<div>
-			<h2 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">
-				{members.length} member{members.length !== 1 ? 's' : ''}
-			</h2>
-			<div class="grid gap-3">
-				{#each members as member}
-					<div class="flex items-center justify-between rounded-lg border border-border p-4 transition-colors hover:bg-muted/50">
-						<div class="flex items-center gap-3 min-w-0">
-							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold">
-								{(member.name || member.email).charAt(0).toUpperCase()}
-							</div>
-							<div class="min-w-0">
-								<p class="text-sm font-medium truncate">{member.name || member.email}</p>
-								<p class="text-xs text-muted-foreground truncate">{member.email}</p>
-							</div>
-						</div>
-						<div class="flex items-center gap-3 shrink-0">
-							{#if isAdminOrOwner && member.role !== 'owner'}
-								<select
-									value={member.role}
-									onchange={(e) => updateRole(member, e.currentTarget.value)}
-									class="h-8 rounded-lg border border-border bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
-								>
-									<option value="member">Member</option>
-									<option value="admin">Admin</option>
-								</select>
-								<button
-									onclick={() => (removeTarget = member)}
-									class="rounded-md p-1.5 text-muted-foreground transition-colors hover:text-red-500 hover:bg-muted"
-									aria-label="Remove member"
-								>
-									<Icon icon="solar:trash-bin-trash-bold-duotone" class="h-4 w-4" />
-								</button>
-							{:else}
-								<span class="rounded-full px-2.5 py-0.5 text-xs font-medium {roleBadge(member.role)}">
-									{member.role}
-								</span>
-							{/if}
-						</div>
-					</div>
+		<SettingsSection
+			title="People"
+			description="Change a role or revoke access."
+			bare={members.length === 0}
+		>
+			{#if members.length === 0}
+				<EmptyState
+					icon={icons.usersGroup}
+					title="No one here yet"
+					description="Add a teammate above and they will show up in this list."
+				/>
+			{:else}
+				{#each members as member (member.id)}
+					<SettingsRow label={member.name || member.email} description={member.email}>
+						{#if isAdminOrOwner && member.role !== 'owner'}
+							<Select
+								value={member.role}
+								aria-label="Role for {member.name || member.email}"
+								class="h-9 w-36 text-fc-sm"
+								onchange={(e) => updateRole(member, e.currentTarget.value)}
+							>
+								<option value="member">Member</option>
+								<option value="admin">Admin</option>
+							</Select>
+							<Button
+								variant="ghost-danger"
+								icon={icons.remove}
+								aria-label="Remove {member.name || member.email}"
+								onclick={() => askRemove(member)}
+							>
+								Remove
+							</Button>
+						{:else}
+							<Badge tone={roleTone[member.role]}>{member.role}</Badge>
+						{/if}
+					</SettingsRow>
 				{/each}
-			</div>
-		</div>
+			{/if}
+		</SettingsSection>
 	</div>
 {/if}
 
-<AlertDialog.Root open={removeTarget !== null} onOpenChange={(open) => { if (!open) removeTarget = null; }}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Remove member</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to remove <strong>{removeTarget?.name || removeTarget?.email}</strong> from this space?
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel disabled={removing}>Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action
-				class="!bg-red-600 !text-white hover:!bg-red-700"
-				onclick={confirmRemove}
-				disabled={removing}
-			>
-				{#if removing}
-					<Icon icon="solar:spinner-bold-duotone" class="h-4 w-4 animate-spin" />
-					Removing...
-				{:else}
-					Remove
-				{/if}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<ConfirmModal
+	bind:open={confirmRemove}
+	tone="danger"
+	title="Remove {pendingRemove?.name || pendingRemove?.email || 'this member'}?"
+	description="They lose access to every document in this space immediately."
+	confirmLabel="Remove member"
+	cancelLabel="Keep access"
+	onConfirm={runRemove}
+	onCancel={() => (pendingRemove = null)}
+/>

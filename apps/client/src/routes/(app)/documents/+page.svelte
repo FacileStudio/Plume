@@ -2,15 +2,31 @@
 	import { onMount } from 'svelte';
 	import { api } from '$lib';
 	import type { Document } from '$lib';
-	import { Button } from '$lib/components/ui/button';
-	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
-	import Icon from '@iconify/svelte';
+	import {
+		Badge,
+		Button,
+		Card,
+		ConfirmModal,
+		EmptyState,
+		Skeleton,
+		Table,
+		icons,
+		toast
+	} from '@facile/muse';
 	import { spaceStore } from '$lib/stores/space.svelte';
+
+	const statusTone = {
+		draft: 'neutral',
+		pending: 'info',
+		completed: 'success',
+		declined: 'danger'
+	} as const;
 
 	let documents = $state<Document[]>([]);
 	let loading = $state(true);
-	let deleteTarget = $state<Document | null>(null);
-	let deleting = $state(false);
+	let mounted = $state(false);
+	let confirmDelete = $state(false);
+	let pendingDelete = $state<Document | null>(null);
 
 	function formatDate(iso: string): string {
 		return new Date(iso).toLocaleDateString('en-US', {
@@ -20,24 +36,36 @@
 		});
 	}
 
-	async function confirmDelete() {
-		if (!deleteTarget) return;
-		deleting = true;
-		try {
-			await api.documents.delete(deleteTarget.id);
-			documents = documents.filter((d) => d.id !== deleteTarget!.id);
-			deleteTarget = null;
-		} catch {}
-		deleting = false;
+	function signerLabel(count: number): string {
+		return `${count} signer${count === 1 ? '' : 's'}`;
 	}
 
-	let mounted = $state(false);
+	function askDelete(doc: Document) {
+		pendingDelete = doc;
+		confirmDelete = true;
+	}
+
+	async function runDelete() {
+		const target = pendingDelete;
+		if (!target) return;
+		try {
+			await api.documents.delete(target.id);
+			documents = documents.filter((d) => d.id !== target.id);
+			pendingDelete = null;
+			toast.success('Document deleted');
+		} catch (e) {
+			toast.danger(e instanceof Error ? e.message : 'Failed to delete the document');
+			throw e;
+		}
+	}
 
 	async function load() {
 		loading = true;
 		try {
 			documents = await api.documents.list(spaceStore.activeId);
-		} catch {}
+		} catch (e) {
+			toast.danger(e instanceof Error ? e.message : 'Failed to load documents');
+		}
 		loading = false;
 	}
 
@@ -54,89 +82,124 @@
 
 <svelte:head><title>Documents — Plume</title></svelte:head>
 
-<div class="mb-6 flex items-center justify-between border-b pb-5">
-	<h1 class="text-2xl font-bold">Documents</h1>
-	<Button href="/documents/new">
-		<Icon icon="mdi:plus" class="h-4 w-4" />
-		New document
-	</Button>
+<div class="flex flex-col gap-10">
+	<div class="flex flex-wrap items-start justify-between gap-4">
+		<div class="flex min-w-0 flex-col gap-1">
+			<h1 class="text-fc-2xl font-semibold text-fc-fg">Documents</h1>
+			<p class="text-fc-sm text-fc-fg-muted">
+				Everything you have sent out for signature, and everything still in draft.
+			</p>
+		</div>
+		<Button href="/documents/new" icon={icons.plus}>New document</Button>
+	</div>
+
+	<section class="flex flex-col gap-4">
+		{#if loading}
+			<div class="flex flex-col gap-2">
+				{#each [0, 1, 2, 3] as row (row)}
+					<Skeleton class="h-14 w-full" />
+				{/each}
+			</div>
+		{:else if documents.length === 0}
+			<EmptyState
+				icon="solar:document-text-linear"
+				title="No documents yet"
+				description="Upload a PDF, place the fields, and send it out for signature."
+			>
+				<Button href="/documents/new" icon={icons.plus}>New document</Button>
+			</EmptyState>
+		{:else}
+			<div class="hidden md:block">
+				<Table>
+					<thead>
+						<tr>
+							<th scope="col">Document</th>
+							<th scope="col">Created</th>
+							<th scope="col">Signers</th>
+							<th scope="col">Status</th>
+							<th aria-label="Actions"></th>
+						</tr>
+					</thead>
+					<tbody>
+						{#each documents as doc (doc.id)}
+							<tr>
+								<td>
+									<a
+										href="/documents/{doc.id}"
+										class="flex min-w-0 items-center gap-2.5 text-fc-fg hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fc-ring"
+									>
+										<iconify-icon
+											icon="solar:document-text-linear"
+											width="16"
+											height="16"
+											class="block shrink-0 text-fc-fg-muted"
+										></iconify-icon>
+										<span class="truncate font-medium">{doc.name}</span>
+									</a>
+								</td>
+								<td class="whitespace-nowrap text-fc-fg-muted">{formatDate(doc.created_at)}</td>
+								<td class="whitespace-nowrap text-fc-fg-muted">
+									{doc.signer_count === undefined ? '—' : signerLabel(doc.signer_count)}
+								</td>
+								<td><Badge tone={statusTone[doc.status]}>{doc.status}</Badge></td>
+								<td>
+									<div class="flex justify-end">
+										<Button
+											variant="ghost-danger"
+											size="sm"
+											icon={icons.remove}
+											aria-label="Delete {doc.name}"
+											onclick={() => askDelete(doc)}
+										>
+											Delete
+										</Button>
+									</div>
+								</td>
+							</tr>
+						{/each}
+					</tbody>
+				</Table>
+			</div>
+
+			<div class="flex flex-col gap-2 md:hidden">
+				{#each documents as doc (doc.id)}
+					<Card class="flex flex-col gap-3">
+						<div class="flex min-w-0 items-start justify-between gap-3">
+							<a href="/documents/{doc.id}" class="flex min-w-0 flex-col gap-1">
+								<span class="truncate text-fc-sm font-medium text-fc-fg">{doc.name}</span>
+								<span class="text-fc-xs text-fc-fg-muted">
+									{formatDate(doc.created_at)}
+									{#if doc.signer_count !== undefined}
+										· {signerLabel(doc.signer_count)}
+									{/if}
+								</span>
+							</a>
+							<Badge tone={statusTone[doc.status]}>{doc.status}</Badge>
+						</div>
+						<div class="flex justify-end">
+							<Button
+								variant="ghost-danger"
+								size="lg"
+								icon={icons.remove}
+								aria-label="Delete {doc.name}"
+								onclick={() => askDelete(doc)}
+							>
+								Delete
+							</Button>
+						</div>
+					</Card>
+				{/each}
+			</div>
+		{/if}
+	</section>
 </div>
 
-{#if loading}
-	<div class="flex min-h-[40dvh] items-center justify-center">
-		<Icon icon="solar:spinner-linear" class="h-8 w-8 animate-spin text-muted-foreground" />
-	</div>
-{:else if documents.length === 0}
-	<div class="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
-		<Icon icon="solar:document-linear" class="h-10 w-10 text-muted-foreground mb-3" />
-		<p class="text-muted-foreground">No documents yet. Create your first one.</p>
-		<Button href="/documents/new" variant="outline" class="mt-4">
-			<Icon icon="mdi:plus" class="h-4 w-4" />
-			New document
-		</Button>
-	</div>
-{:else}
-	<div class="space-y-2">
-		{#each documents as doc}
-			<div class="flex items-center justify-between rounded-lg border p-4">
-				<a
-					href="/documents/{doc.id}"
-					class="flex items-center gap-3 min-w-0 flex-1 hover:underline"
-				>
-					<Icon icon="solar:document-text-linear" class="h-5 w-5 shrink-0 text-muted-foreground" />
-					<div class="min-w-0">
-						<p class="font-medium truncate">{doc.name}</p>
-						<p class="text-sm text-muted-foreground">{formatDate(doc.created_at)}</p>
-					</div>
-				</a>
-				<div class="flex items-center gap-3 shrink-0">
-					{#if doc.signer_count !== undefined}
-						<span class="text-sm text-muted-foreground">{doc.signer_count} signer{doc.signer_count === 1 ? '' : 's'}</span>
-					{/if}
-					<span class="rounded-full px-2.5 py-0.5 text-xs font-medium
-						{doc.status === 'draft' ? 'bg-muted text-muted-foreground' : ''}
-						{doc.status === 'pending' ? 'bg-foreground/10 text-foreground' : ''}
-						{doc.status === 'completed' ? 'bg-green-500/10 text-green-700 dark:text-green-400' : ''}
-						{doc.status === 'declined' ? 'bg-red-500/10 text-red-700 dark:text-red-400' : ''}
-					">{doc.status}</span>
-					<button
-						onclick={() => (deleteTarget = doc)}
-						class="rounded-md p-1.5 text-muted-foreground transition-colors hover:text-red-500 hover:bg-muted"
-					>
-						<Icon icon="solar:trash-bin-trash-linear" class="h-4 w-4" />
-					</button>
-				</div>
-			</div>
-		{/each}
-	</div>
-{/if}
-
-<AlertDialog.Root open={deleteTarget !== null} onOpenChange={(open) => { if (!open) deleteTarget = null; }}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Delete document</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This action cannot be undone. The document and all associated signers and fields will be permanently removed.
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel disabled={deleting}>
-				<Icon icon="solar:close-circle-linear" class="h-4 w-4" />
-				Cancel
-			</AlertDialog.Cancel>
-			<AlertDialog.Action
-				class="!bg-red-600 !text-white hover:!bg-red-700"
-				onclick={confirmDelete}
-				disabled={deleting}
-			>
-				{#if deleting}
-					<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
-					Deleting...
-				{:else}
-					<Icon icon="solar:trash-bin-trash-linear" class="h-4 w-4" />
-					Delete
-				{/if}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<ConfirmModal
+	bind:open={confirmDelete}
+	tone="danger"
+	title="Delete {pendingDelete?.name ?? 'this document'}?"
+	description="The document, its signers and every field placed on it are removed permanently. This cannot be undone."
+	confirmLabel="Delete document"
+	onConfirm={runDelete}
+	onCancel={() => (pendingDelete = null)}
+/>

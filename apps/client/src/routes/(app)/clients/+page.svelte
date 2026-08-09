@@ -2,28 +2,39 @@
 	import { onMount } from 'svelte';
 	import { api } from '$lib';
 	import type { Client } from '$lib';
-	import { Button } from '$lib/components/ui/button';
-	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
-	import Icon from '@iconify/svelte';
-	import { toast } from 'svelte-sonner';
+	import {
+		Button,
+		Card,
+		ConfirmModal,
+		EmptyState,
+		Spinner,
+		Table,
+		icons,
+		toast
+	} from '@facile/muse';
 
 	let clients = $state<Client[]>([]);
 	let loading = $state(true);
-	let deleteTarget = $state<Client | null>(null);
-	let deleting = $state(false);
+	let confirmDelete = $state(false);
+	let pendingDelete = $state<Client | null>(null);
 
-	async function confirmDelete() {
-		if (!deleteTarget) return;
-		deleting = true;
+	function askDelete(client: Client) {
+		pendingDelete = client;
+		confirmDelete = true;
+	}
+
+	async function runDelete() {
+		const target = pendingDelete;
+		if (!target) return;
 		try {
-			await api.clients.delete(deleteTarget.id);
-			clients = clients.filter((c) => c.id !== deleteTarget!.id);
-			deleteTarget = null;
-			toast.success('Client deleted');
+			await api.clients.delete(target.id);
 		} catch (e) {
-			toast.error(e instanceof Error ? e.message : 'Failed to delete client');
+			toast.danger(e instanceof Error ? e.message : 'Failed to delete client');
+			throw e;
 		}
-		deleting = false;
+		clients = clients.filter((c) => c.id !== target.id);
+		pendingDelete = null;
+		toast.success('Client deleted');
 	}
 
 	onMount(async () => {
@@ -36,82 +47,109 @@
 
 <svelte:head><title>Clients — Plume</title></svelte:head>
 
-<div class="mb-6 flex items-center justify-between border-b pb-5">
-	<h1 class="text-2xl font-bold">Clients</h1>
-	<Button href="/clients/new">
-		<Icon icon="mdi:plus" class="h-4 w-4" />
-		New client
-	</Button>
+<div class="flex flex-col gap-10">
+	<div class="flex flex-wrap items-start justify-between gap-4">
+		<div class="flex min-w-0 flex-col gap-2">
+			<h1 class="text-fc-2xl font-semibold text-fc-fg">Clients</h1>
+			<p class="text-fc-sm text-fc-fg-muted">
+				The people and companies you send documents to.
+			</p>
+		</div>
+		<Button href="/clients/new" icon={icons.plus}>New client</Button>
+	</div>
+
+	{#if loading}
+		<div class="flex min-h-[40dvh] items-center justify-center">
+			<Spinner size="lg" />
+		</div>
+	{:else if clients.length === 0}
+		<EmptyState
+			icon={icons.usersGroup}
+			title="No clients yet"
+			description="Add your first one and it will show up here, along with every document linked to it."
+		>
+			<Button href="/clients/new" variant="outline" icon={icons.plus}>New client</Button>
+		</EmptyState>
+	{:else}
+		<div class="hidden md:block">
+			<Table>
+				<thead>
+					<tr>
+						<th scope="col">Client</th>
+						<th scope="col">Company</th>
+						<th scope="col">Phone</th>
+						<th aria-label="Actions"></th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each clients as client (client.id)}
+						<tr>
+							<td>
+								<a
+									href="/clients/{client.id}"
+									class="flex min-w-0 flex-col rounded-fc-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fc-ring"
+								>
+									<span class="truncate font-medium text-fc-fg">{client.name}</span>
+									<span class="truncate text-fc-xs text-fc-fg-muted">
+										{client.email || 'No email'}
+									</span>
+								</a>
+							</td>
+							<td class="text-fc-fg-muted">{client.company || '—'}</td>
+							<td class="text-fc-fg-muted">{client.phone || '—'}</td>
+							<td class="text-right">
+								<Button
+									variant="ghost-danger"
+									size="sm"
+									icon={icons.remove}
+									aria-label="Delete {client.name}"
+									onclick={() => askDelete(client)}
+								>
+									Delete
+								</Button>
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</Table>
+		</div>
+
+		<div class="flex flex-col gap-2 md:hidden">
+			{#each clients as client (client.id)}
+				<Card class="flex flex-col gap-3">
+					<a
+						href="/clients/{client.id}"
+						class="flex min-w-0 flex-col rounded-fc-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fc-ring"
+					>
+						<span class="truncate text-fc-sm font-medium text-fc-fg">{client.name}</span>
+						<span class="truncate text-fc-xs text-fc-fg-muted">
+							{client.email || client.company || 'No contact details'}
+						</span>
+					</a>
+					<div class="flex items-center justify-end">
+						<Button
+							variant="ghost-danger"
+							size="lg"
+							icon={icons.remove}
+							aria-label="Delete {client.name}"
+							onclick={() => askDelete(client)}
+						>
+							Delete
+						</Button>
+					</div>
+				</Card>
+			{/each}
+		</div>
+	{/if}
 </div>
 
-{#if loading}
-	<div class="flex min-h-[40dvh] items-center justify-center">
-		<Icon icon="solar:spinner-linear" class="h-8 w-8 animate-spin text-muted-foreground" />
-	</div>
-{:else if clients.length === 0}
-	<div class="flex flex-col items-center justify-center rounded-lg border border-dashed p-12 text-center">
-		<Icon icon="solar:users-group-two-rounded-linear" class="h-10 w-10 text-muted-foreground mb-3" />
-		<p class="text-muted-foreground">No clients yet. Add your first one.</p>
-		<Button href="/clients/new" variant="outline" class="mt-4">
-			<Icon icon="mdi:plus" class="h-4 w-4" />
-			New client
-		</Button>
-	</div>
-{:else}
-	<div class="space-y-2">
-		{#each clients as c}
-			<div class="flex items-center justify-between rounded-lg border p-4">
-				<a
-					href="/clients/{c.id}"
-					class="flex items-center gap-3 min-w-0 flex-1 hover:underline"
-				>
-					<Icon icon="solar:user-rounded-linear" class="h-5 w-5 shrink-0 text-muted-foreground" />
-					<div class="min-w-0">
-						<p class="font-medium truncate">{c.name}</p>
-						<p class="text-sm text-muted-foreground truncate">
-							{c.email || c.company || 'No contact details'}
-						</p>
-					</div>
-				</a>
-				<div class="flex items-center gap-3 shrink-0">
-					<button
-						onclick={() => (deleteTarget = c)}
-						class="rounded-md p-1.5 text-muted-foreground transition-colors hover:text-red-500 hover:bg-muted"
-					>
-						<Icon icon="solar:trash-bin-trash-linear" class="h-4 w-4" />
-					</button>
-				</div>
-			</div>
-		{/each}
-	</div>
-{/if}
-
-<AlertDialog.Root open={deleteTarget !== null} onOpenChange={(open) => { if (!open) deleteTarget = null; }}>
-	<AlertDialog.Content>
-		<AlertDialog.Header>
-			<AlertDialog.Title>Delete client</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This action cannot be undone. Documents linked to this client will be unlinked.
-			</AlertDialog.Description>
-		</AlertDialog.Header>
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel disabled={deleting}>
-				<Icon icon="solar:close-circle-linear" class="h-4 w-4" />
-				Cancel
-			</AlertDialog.Cancel>
-			<AlertDialog.Action
-				class="!bg-red-600 !text-white hover:!bg-red-700"
-				onclick={confirmDelete}
-				disabled={deleting}
-			>
-				{#if deleting}
-					<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
-					Deleting...
-				{:else}
-					<Icon icon="solar:trash-bin-trash-linear" class="h-4 w-4" />
-					Delete
-				{/if}
-			</AlertDialog.Action>
-		</AlertDialog.Footer>
-	</AlertDialog.Content>
-</AlertDialog.Root>
+<ConfirmModal
+	bind:open={confirmDelete}
+	tone="danger"
+	title="Delete {pendingDelete?.name ?? 'this client'}?"
+	description="This cannot be undone. Documents linked to this client are kept, but unlinked."
+	confirmLabel="Delete client"
+	cancelLabel="Keep client"
+	onConfirm={runDelete}
+	onCancel={() => (pendingDelete = null)}
+/>

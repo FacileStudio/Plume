@@ -4,8 +4,16 @@
 	import { goto } from '$app/navigation';
 	import { api } from '$lib';
 	import type { Space, SpaceMember } from '$lib';
-	import { Button } from '$lib/components/ui/button';
-	import Icon from '@iconify/svelte';
+	import {
+		Badge,
+		Button,
+		EmptyState,
+		SettingsRow,
+		SettingsSection,
+		Spinner,
+		StatCard,
+		icons
+	} from '@facile/muse';
 
 	let space = $state<Space | null>(null);
 	let members = $state<SpaceMember[]>([]);
@@ -13,12 +21,9 @@
 
 	const spaceId = $derived(Number(page.params.id));
 	const isAdminOrOwner = $derived(space?.role === 'owner' || space?.role === 'admin');
+	const preview = $derived(members.slice(0, 5));
 
-	function roleBadge(role: string): string {
-		if (role === 'owner') return 'bg-amber-500/10 text-amber-600';
-		if (role === 'admin') return 'bg-blue-500/10 text-blue-600';
-		return 'bg-muted text-muted-foreground';
-	}
+	const roleTone = { owner: 'owner', admin: 'admin', member: 'neutral' } as const;
 
 	function formatDate(iso: string): string {
 		return new Date(iso).toLocaleDateString('en-US', {
@@ -46,84 +51,69 @@
 
 <svelte:head><title>{space?.name ?? 'Space'} — Plume</title></svelte:head>
 
+{#snippet membersAction()}
+	{#if members.length > 5}
+		<Button variant="outline" size="sm" href="/spaces/{spaceId}/members">View all members</Button>
+	{/if}
+{/snippet}
+
 {#if loading}
 	<div class="flex min-h-[40dvh] items-center justify-center">
-		<Icon icon="solar:spinner-bold-duotone" class="h-8 w-8 animate-spin text-muted-foreground" />
+		<Spinner size="lg" />
 	</div>
 {:else if space}
-	<div class="mb-6 border-b pb-5">
-		<div class="flex items-center gap-3 mb-3">
-			<a href="/spaces" class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground hover:bg-muted">
-				<Icon icon="solar:arrow-left-linear" class="h-5 w-5" />
-			</a>
-			<span class="text-sm text-muted-foreground">{space.name}</span>
-		</div>
-		<div class="flex items-center justify-between">
-			<div>
-				<h1 class="text-lg font-semibold">{space.name}</h1>
-				{#if space.description}
-					<p class="mt-1 text-sm text-muted-foreground">{space.description}</p>
-				{/if}
-			</div>
-			<div class="flex items-center gap-2">
-				<Button variant="outline" size="sm" href="/spaces/{spaceId}/members">
-					<Icon icon="solar:users-group-rounded-bold-duotone" class="h-4 w-4" />
-					Members ({members.length})
-				</Button>
-				{#if isAdminOrOwner}
-					<Button variant="outline" size="sm" href="/spaces/{spaceId}/settings">
-						<Icon icon="solar:settings-bold-duotone" class="h-4 w-4" />
-						Settings
-					</Button>
-				{/if}
-			</div>
-		</div>
-	</div>
-
-	<div class="space-y-6">
-		<div>
-			<h2 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Members</h2>
-			<div class="grid gap-3">
-				{#each members.slice(0, 5) as member}
-					<div class="flex items-center justify-between rounded-lg border border-border p-4 transition-colors hover:bg-muted/50">
-						<div class="flex items-center gap-3 min-w-0">
-							<div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-xs font-semibold">
-								{(member.name || member.email).charAt(0).toUpperCase()}
-							</div>
-							<div class="min-w-0">
-								<p class="text-sm font-medium truncate">{member.name || member.email}</p>
-								<p class="text-xs text-muted-foreground truncate">{member.email}</p>
-							</div>
-						</div>
-						<span class="rounded-full px-2.5 py-0.5 text-xs font-medium {roleBadge(member.role)}">
-							{member.role}
-						</span>
+	<div class="flex flex-col gap-10">
+		<div class="flex flex-col gap-4">
+			<Button href="/spaces" variant="ghost" size="sm" icon={icons.chevronLeft} class="w-fit -ml-3">
+				Spaces
+			</Button>
+			<div class="flex flex-wrap items-start justify-between gap-4">
+				<div class="flex min-w-0 flex-col gap-2">
+					<div class="flex min-w-0 flex-wrap items-center gap-3">
+						<h1 class="truncate text-fc-2xl font-semibold text-fc-fg">{space.name}</h1>
+						<Badge tone={roleTone[space.role]}>{space.role}</Badge>
 					</div>
-				{/each}
-			</div>
-			{#if members.length > 5}
-				<div class="mt-4 text-center">
-					<Button href="/spaces/{spaceId}/members" variant="outline" size="sm">View all members</Button>
+					<p class="text-fc-sm text-fc-fg-muted">
+						{space.description || 'No description yet.'}
+					</p>
 				</div>
-			{/if}
+				<div class="flex shrink-0 items-center gap-2">
+					<Button variant="outline" icon={icons.usersGroup} href="/spaces/{spaceId}/members">
+						Members ({members.length})
+					</Button>
+					{#if isAdminOrOwner}
+						<Button variant="outline" icon={icons.settings} href="/spaces/{spaceId}/settings">
+							Settings
+						</Button>
+					{/if}
+				</div>
+			</div>
 		</div>
 
-		<div class="rounded-lg border border-border bg-muted/20 p-4">
-			<h2 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-3">Details</h2>
-			<div class="space-y-2.5 text-sm">
-				<div class="flex justify-between">
-					<span class="text-muted-foreground">Your role</span>
-					<span class="rounded-full px-2.5 py-0.5 text-xs font-medium {roleBadge(space.role)}">{space.role}</span>
-				</div>
-				<div class="flex justify-between">
-					<span class="text-muted-foreground">Created</span>
-					<span>{formatDate(space.created_at)}</span>
-				</div>
-				<div class="flex justify-between">
-					<span class="text-muted-foreground">Members</span>
-					<span>{members.length}</span>
-				</div>
-			</div>
-		</div>
+		<section class="grid gap-4 sm:grid-cols-2">
+			<StatCard label="Members" value={members.length} />
+			<StatCard label="Created" value={formatDate(space.created_at)} />
+		</section>
+
+		<SettingsSection
+			title="Members"
+			description="The people who can see everything in this space."
+			bare={members.length === 0}
+			actions={membersAction}
+		>
+			{#if members.length === 0}
+				<EmptyState
+					icon={icons.usersGroup}
+					title="No one here yet"
+					description="Invite a teammate and they will see this space as soon as they accept."
+				/>
+			{:else}
+				{#each preview as member (member.id)}
+					<SettingsRow label={member.name || member.email} description={member.email}>
+						<Badge tone={roleTone[member.role]}>{member.role}</Badge>
+					</SettingsRow>
+				{/each}
+			{/if}
+		</SettingsSection>
 	</div>
 {/if}

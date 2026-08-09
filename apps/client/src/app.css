@@ -1,6 +1,16 @@
 @import '@facile/muse/styles';
 @source '../node_modules/@facile/muse/src';
 
+/*
+ * muse owns the palette; this block only aliases the app's older semantic names onto it.
+ * The app tree itself is on muse components and muse tokens now, so the block exists for the
+ * landing and login screens, which stay raw-element on purpose as the suite's reference
+ * implementation of that convention. Removing a key here deletes the matching Tailwind
+ * utility across the whole app with no build error and no type error, so treat the key set as
+ * the contract and change values, never names. Class names are deliberately not written out
+ * anywhere in this file: Tailwind v4's scanner is a plain text scan that does not know what a
+ * comment is, so naming a utility here would emit a rule for it.
+ */
 @theme inline {
 	--font-sans: var(--font-fc-body);
 	--font-heading: var(--font-fc-title);

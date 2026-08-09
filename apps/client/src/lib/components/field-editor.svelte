@@ -2,8 +2,19 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { api, getToken } from '$lib';
 	import type { Field, Signer, CreateFieldRequest } from '$lib';
-	import { Button } from '$lib/components/ui/button';
-	import Icon from '@iconify/svelte';
+	import {
+		Alert,
+		Badge,
+		Button,
+		ConfirmModal,
+		IconButton,
+		Input,
+		Spinner,
+		USER_COLORS,
+		cn,
+		icons,
+		toast
+	} from '@facile/muse';
 
 	let { documentId, signers, onclose }: {
 		documentId: number;
@@ -11,13 +22,19 @@
 		onclose: () => void;
 	} = $props();
 
-	const SIGNER_COLORS = ['#3b82f6', '#22c55e', '#f97316', '#a855f7', '#ec4899'];
 	const FIELD_DEFAULTS: Record<string, { width: number; height: number }> = {
 		signature: { width: 200, height: 50 },
 		text: { width: 150, height: 30 },
 		date: { width: 120, height: 30 },
 		checkbox: { width: 30, height: 30 }
 	};
+
+	const FIELD_TYPES: { type: string; label: string; icon: string }[] = [
+		{ type: 'signature', label: 'Signature', icon: 'solar:pen-new-round-linear' },
+		{ type: 'text', label: 'Text', icon: 'solar:text-linear' },
+		{ type: 'date', label: 'Date', icon: icons.calendar },
+		{ type: 'checkbox', label: 'Checkbox', icon: 'solar:check-square-linear' }
+	];
 
 	let fields = $state<Field[]>([]);
 	let selectedSignerId = $state<number>(0);
@@ -32,6 +49,9 @@
 	let pdfError = $state('');
 	let pagesContainer = $state<HTMLDivElement>();
 	let currentPage = $state(1);
+
+	let confirmDelete = $state(false);
+	let pendingDeleteId = $state<number | null>(null);
 
 	let pages = $state<{ num: number; width: number; height: number }[]>([]);
 	let pageCanvases = $state<Map<number, HTMLCanvasElement>>(new Map());
@@ -56,7 +76,7 @@
 
 	function signerColor(signerId: number): string {
 		const idx = signers.findIndex((s) => s.id === signerId);
-		return SIGNER_COLORS[idx % SIGNER_COLORS.length];
+		return USER_COLORS[idx % USER_COLORS.length];
 	}
 
 	function signerName(signerId: number): string {
@@ -121,15 +141,32 @@
 			label: ''
 		};
 
-		const created = await api.fields.create(documentId, req);
-		fields = [...fields, created];
-		selectedFieldId = created.id;
+		try {
+			const created = await api.fields.create(documentId, req);
+			fields = [...fields, created];
+			selectedFieldId = created.id;
+		} catch {
+			toast.danger('Could not add the field');
+		}
 	}
 
-	async function deleteField(fieldId: number) {
-		await api.fields.delete(documentId, fieldId);
-		fields = fields.filter((f) => f.id !== fieldId);
-		if (selectedFieldId === fieldId) selectedFieldId = null;
+	function askDelete(fieldId: number) {
+		pendingDeleteId = fieldId;
+		confirmDelete = true;
+	}
+
+	async function deleteField() {
+		const fieldId = pendingDeleteId;
+		if (fieldId === null) return;
+		try {
+			await api.fields.delete(documentId, fieldId);
+			fields = fields.filter((f) => f.id !== fieldId);
+			if (selectedFieldId === fieldId) selectedFieldId = null;
+			pendingDeleteId = null;
+		} catch {
+			toast.danger('Could not delete the field');
+			throw new Error('delete failed');
+		}
 	}
 
 	async function persistField(field: Field) {
@@ -327,40 +364,40 @@
 
 <svelte:window onpointermove={handlePointerMove} onpointerup={handlePointerUp} />
 
-<div class="fixed inset-0 z-50 flex flex-col bg-background">
-	<div class="flex items-center justify-between px-4 py-3 border-b bg-background">
-		<div class="flex items-center gap-3">
-			<h2 class="text-lg font-semibold">Prepare fields</h2>
+<div class="fixed inset-0 z-50 flex h-dvh flex-col bg-fc-page">
+	<div class="flex items-center justify-between gap-3 border-b border-fc-border px-4 py-3">
+		<div class="flex min-w-0 items-center gap-3">
+			<h2 class="truncate text-fc-lg font-semibold text-fc-fg">Prepare fields</h2>
 			{#if pages.length > 1}
-				<span class="text-sm text-muted-foreground">Page {currentPage} / {pages.length}</span>
+				<Badge tone="neutral">Page {currentPage} / {pages.length}</Badge>
 			{/if}
 		</div>
-		<Button onclick={onclose}>
-			<Icon icon="solar:check-circle-linear" class="h-4 w-4" />
-			Save & close
-		</Button>
+		<Button icon={icons.check} onclick={onclose}>Save &amp; close</Button>
 	</div>
 
 	{#if loading}
 		<div class="flex flex-1 items-center justify-center">
-			<Icon icon="solar:spinner-linear" class="h-8 w-8 animate-spin text-muted-foreground" />
+			<Spinner size="lg" />
 		</div>
 	{:else if pdfError}
-		<div class="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-			{pdfError}
+		<div class="flex flex-1 items-start justify-center p-6">
+			<Alert tone="danger" class="w-full max-w-fc-sm">{pdfError}</Alert>
 		</div>
 	{:else}
-		<div class="flex flex-1 overflow-hidden">
-			<div bind:this={pagesContainer} class="flex-1 overflow-y-auto p-6 bg-muted/30">
+		<div class="flex min-h-0 flex-1 flex-col-reverse md:flex-row">
+			<div
+				bind:this={pagesContainer}
+				class="pdf-pages min-h-0 flex-1 overflow-y-auto bg-fc-surface p-4 sm:p-6"
+			>
 				{#each pages as pg}
 					<div
-						class="relative mx-auto mb-6 shadow-lg"
+						class="relative mx-auto mb-6 rounded-fc-md shadow-lg"
 						style="max-width: {pg.width}px;"
 						data-page={pg.num}
 					>
 						{#if pageCanvases.get(pg.num)}
 							{@const canvas = pageCanvases.get(pg.num)!}
-							<div class="pdf-canvas-host" use:appendCanvas={canvas}></div>
+							<div class="pdf-canvas-host overflow-hidden rounded-fc-md" use:appendCanvas={canvas}></div>
 						{/if}
 
 						<div
@@ -374,37 +411,43 @@
 								<div
 									role="button"
 									tabindex="0"
-									class="absolute flex items-center justify-center text-xs font-medium select-none cursor-grab"
+									class="absolute flex cursor-grab select-none items-center justify-center rounded-fc-xs text-fc-xs font-medium"
 									style="
 										left: {field.x}%;
 										top: {field.y}%;
 										width: {field.width}%;
 										height: {field.height}%;
-										background: {isSelected ? `${color}30` : `${color}20`};
+										background: color-mix(in oklab, {color} {isSelected ? 40 : 24}%, transparent);
 										border: 2px {isSelected ? 'solid' : 'dashed'} {color};
-										color: {color};
+										color: var(--page-ink);
 									"
 									onpointerdown={(e) => handlePointerDown(e, field, 'move')}
 								>
-									<span class="truncate px-1 pointer-events-none">
+									<span class="pointer-events-none truncate px-1">
 										{field.label || field.field_type} &middot; {signerName(field.signer_id)}
 									</span>
 
 									{#if isSelected}
 										<button
-											class="absolute -top-2 -right-2 h-5 w-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center text-xs hover:scale-110 transition-transform"
-											onpointerdown={(e: PointerEvent) => { e.preventDefault(); e.stopPropagation(); deleteField(field.id); }}
+											type="button"
+											aria-label="Delete field"
+											class="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-fc-pill bg-fc-danger text-fc-danger-fg transition-transform hover:scale-110"
+											onpointerdown={(e: PointerEvent) => {
+												e.preventDefault();
+												e.stopPropagation();
+												askDelete(field.id);
+											}}
 										>
-											<Icon icon="solar:close-circle-bold" class="h-3.5 w-3.5 pointer-events-none" />
+											<iconify-icon icon={icons.close} width="14" height="14" class="pointer-events-none block"></iconify-icon>
 										</button>
 
 										<!-- svelte-ignore a11y_no_static_element_interactions -->
 										<div
-											class="absolute bottom-0 right-0 h-4 w-4 cursor-nwse-resize flex items-end justify-end"
+											class="absolute bottom-0 right-0 flex size-4 cursor-nwse-resize items-end justify-end"
 											onpointerdown={(e) => handlePointerDown(e, field, 'resize')}
 										>
 											<svg width="10" height="10" viewBox="0 0 10 10" class="pointer-events-none">
-												<path d="M10 0 L10 10 L0 10 Z" fill={color} opacity="0.7" />
+												<path d="M10 0 L10 10 L0 10 Z" fill={color} opacity="0.9" />
 											</svg>
 										</div>
 									{/if}
@@ -415,78 +458,85 @@
 				{/each}
 			</div>
 
-			<div class="w-72 border-l bg-background p-4 overflow-y-auto flex flex-col gap-4">
-				<div>
-					<p class="text-sm font-medium mb-1.5">Signer</p>
+			<div
+				class="flex w-full shrink-0 flex-col gap-6 overflow-y-auto border-b border-fc-border p-4 md:w-72 md:border-b-0 md:border-l"
+			>
+				<div class="flex flex-col gap-2">
+					<p class="text-fc-sm font-medium text-fc-fg">Signer</p>
 					<div class="flex flex-col gap-1">
 						{#each signers as signer, i}
-							{@const color = SIGNER_COLORS[i % SIGNER_COLORS.length]}
+							{@const color = USER_COLORS[i % USER_COLORS.length]}
+							{@const isActive = selectedSignerId === signer.id}
 							<button
-								class="flex items-center gap-2 rounded-md border px-3 py-2 text-sm text-left transition-colors hover:bg-muted"
-								class:bg-muted={selectedSignerId === signer.id}
-								class:border-foreground={selectedSignerId === signer.id}
+								type="button"
+								class={cn(
+									'flex min-h-11 w-full items-center gap-2.5 rounded-fc-md px-3 py-2 text-left text-fc-sm transition-colors',
+									isActive
+										? 'bg-fc-accent font-medium text-fc-accent-fg'
+										: 'text-fc-fg hover:bg-fc-surface'
+								)}
 								onclick={() => (selectedSignerId = signer.id)}
 							>
-								<span class="h-3 w-3 rounded-full shrink-0" style="background: {color};"></span>
-								<span class="truncate">{signer.name}</span>
+								<span class="size-3 shrink-0 rounded-fc-pill" style="background: {color};"></span>
+								<span class="min-w-0 flex-1 truncate">{signer.name}</span>
 							</button>
 						{/each}
 					</div>
 				</div>
 
 				<div class="flex flex-col gap-2">
-					<p class="text-sm font-medium">Add field</p>
-					<Button variant="outline" class="justify-start" onclick={() => addField('signature')}>
-						<Icon icon="solar:pen-new-round-linear" class="h-4 w-4" />
-						Signature
-					</Button>
-					<Button variant="outline" class="justify-start" onclick={() => addField('text')}>
-						<Icon icon="solar:text-linear" class="h-4 w-4" />
-						Text
-					</Button>
-					<Button variant="outline" class="justify-start" onclick={() => addField('date')}>
-						<Icon icon="solar:calendar-linear" class="h-4 w-4" />
-						Date
-					</Button>
-					<Button variant="outline" class="justify-start" onclick={() => addField('checkbox')}>
-						<Icon icon="solar:check-square-linear" class="h-4 w-4" />
-						Checkbox
-					</Button>
+					<p class="text-fc-sm font-medium text-fc-fg">Add field</p>
+					{#each FIELD_TYPES as ft}
+						<Button
+							variant="outline"
+							icon={ft.icon}
+							class="justify-start"
+							onclick={() => addField(ft.type)}
+						>
+							{ft.label}
+						</Button>
+					{/each}
 				</div>
 
 				{#if fields.length > 0}
-					<div>
-						<p class="text-sm font-medium mb-2">Placed fields ({fields.length})</p>
-						<div class="flex flex-col gap-1.5">
+					<div class="flex flex-col gap-2">
+						<p class="text-fc-sm font-medium text-fc-fg">Placed fields ({fields.length})</p>
+						<div class="flex flex-col gap-1">
 							{#each fields as field}
 								{@const color = signerColor(field.signer_id)}
 								{@const isActive = selectedFieldId === field.id}
 								<div
-									class="flex items-center gap-1.5 rounded-md border px-3 py-2 transition-colors cursor-pointer hover:bg-muted"
-									class:border-foreground={isActive}
-									class:bg-muted={isActive}
-									onclick={() => (selectedFieldId = field.id)}
+									class={cn(
+										'flex min-h-11 items-center gap-2 rounded-fc-md px-2 py-1 transition-colors',
+										isActive ? 'bg-fc-surface' : 'hover:bg-fc-surface'
+									)}
 								>
-									<span class="h-2.5 w-2.5 rounded-full shrink-0" style="background: {color};"></span>
+									<span class="size-2.5 shrink-0 rounded-fc-pill" style="background: {color};"></span>
 									{#if isActive}
-										<input
-											type="text"
-											value={field.label || ''}
+										<Input
+											value={field.label ?? ''}
 											placeholder={field.field_type}
-											class="flex-1 min-w-0 bg-transparent text-sm border-none outline-none placeholder:text-muted-foreground"
-											onclick={(e) => e.stopPropagation()}
+											aria-label="Field label"
+											class="min-w-0 flex-1"
 											onchange={(e) => renameField(field, (e.currentTarget as HTMLInputElement).value)}
 										/>
 									{:else}
-										<span class="flex-1 min-w-0 truncate text-sm">{field.label || field.field_type}</span>
+										<button
+											type="button"
+											class="min-w-0 flex-1 truncate text-left text-fc-sm text-fc-fg"
+											onclick={() => (selectedFieldId = field.id)}
+										>
+											{field.label || field.field_type}
+										</button>
 									{/if}
-									<span class="text-[10px] text-muted-foreground shrink-0">p{field.page}</span>
-									<button
-										class="rounded-md p-1 text-muted-foreground transition-colors hover:text-red-500 shrink-0"
-										onclick={(e) => { e.stopPropagation(); deleteField(field.id); }}
+									<span class="shrink-0 text-fc-xs text-fc-fg-muted">p{field.page}</span>
+									<IconButton
+										variant="danger"
+										aria-label="Delete field"
+										onclick={() => askDelete(field.id)}
 									>
-										<Icon icon="solar:trash-bin-trash-linear" class="h-3.5 w-3.5" />
-									</button>
+										<iconify-icon icon={icons.remove} width="16" height="16" class="block"></iconify-icon>
+									</IconButton>
 								</div>
 							{/each}
 						</div>
@@ -496,3 +546,25 @@
 		</div>
 	{/if}
 </div>
+
+<ConfirmModal
+	bind:open={confirmDelete}
+	tone="danger"
+	title="Delete this field?"
+	description="The field is removed from the document. Signers will no longer be asked to fill it."
+	confirmLabel="Delete"
+	onConfirm={deleteField}
+	onCancel={() => (pendingDeleteId = null)}
+/>
+
+<style>
+	/*
+	 * The pages column renders PDF paper, which is white in both themes, so the field
+	 * boxes drawn on top of it cannot take their label colour from `fc-fg` — that flips
+	 * to near-white in dark mode and disappears against the page. Pinned ink, matching
+	 * the signature pad's paper surface.
+	 */
+	.pdf-pages {
+		--page-ink: oklch(0.145 0 0);
+	}
+</style>

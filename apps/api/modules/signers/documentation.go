@@ -61,7 +61,7 @@ var Documentation = documentation.Module{
 			Method:      "POST",
 			Path:        "/sign/{token}",
 			Summary:     "Submit signature",
-			Description: "Public endpoint. Submits field values and records the signature.",
+			Description: "Public endpoint. Submits field values and records the signature. Rejected with invalid_argument if any field the sender marked required for this signer is left empty (a checkbox must be ticked; every other type must be non-blank).",
 			Auth:        "",
 			RequestBody: "SubmitSignatureRequest",
 			PathParams:  []documentation.Field{{Name: "token", Type: "string", Description: "Signer token"}},

@@ -1,21 +1,45 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { api } from '$lib';
-	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
-	import { Label } from '$lib/components/ui/label';
-	import { Separator } from '$lib/components/ui/separator';
+	import {
+		Button,
+		Dropzone,
+		Field,
+		IconButton,
+		Input,
+		SettingsSection,
+		UploadProgress,
+		icons,
+		toast
+	} from '@facile/muse';
 	import { spaceStore } from '$lib/stores/space.svelte';
-	import Icon from '@iconify/svelte';
 
 	const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 	let name = $state('');
-	let file = $state<File | null>(null);
+	let nameError = $state('');
+	let files = $state<File[]>([]);
+	let uploadStatus = $state<'pending' | 'uploading' | 'error'>('pending');
+	let uploadError = $state('');
 	let signers = $state<{ name: string; email: string }[]>([{ name: '', email: '' }]);
-	let error = $state('');
 	let submitting = $state(false);
-	let dragging = $state(false);
+
+	const file = $derived(files[0] ?? null);
+
+	const uploadItems = $derived(
+		file
+			? [
+					{
+						id: 'pdf',
+						name: file.name,
+						size: file.size,
+						progress: uploadStatus === 'uploading' ? 0 : 100,
+						status: uploadStatus,
+						error: uploadError || undefined
+					}
+				]
+			: []
+	);
 
 	function addSigner() {
 		signers = [...signers, { name: '', email: '' }];
@@ -25,53 +49,50 @@
 		signers = signers.filter((_, i) => i !== index);
 	}
 
-	function validateFile(f: File): string | null {
-		if (f.type !== 'application/pdf') return 'Only PDF files are accepted';
-		if (f.size > MAX_FILE_SIZE) return `File is too large (${(f.size / 1024 / 1024).toFixed(1)} MB). Maximum size is 10 MB.`;
-		return null;
+	function clearFile() {
+		if (submitting) return;
+		files = [];
+		uploadStatus = 'pending';
+		uploadError = '';
 	}
 
-	function handleDrop(e: DragEvent) {
-		e.preventDefault();
-		dragging = false;
-		const dropped = e.dataTransfer?.files?.[0];
-		if (dropped) {
-			const err = validateFile(dropped);
-			if (err) {
-				error = err;
-				return;
-			}
-			error = '';
-			file = dropped;
+	function rejectFiles(rejections: { file: File; reason: 'type' | 'size' | 'count' }[]) {
+		const first = rejections[0];
+		if (!first) return;
+		if (first.reason === 'type') {
+			toast.danger('Only PDF files are accepted');
+			return;
 		}
-	}
-
-	function handleFileInput(e: Event) {
-		const input = e.currentTarget as HTMLInputElement;
-		const selected = input.files?.[0];
-		if (selected) {
-			const err = validateFile(selected);
-			if (err) {
-				error = err;
-				return;
-			}
-			error = '';
-			file = selected;
+		if (first.reason === 'size') {
+			toast.danger(
+				`${first.file.name} is too large (${(first.file.size / 1024 / 1024).toFixed(1)} MB). Maximum size is 10 MB.`
+			);
+			return;
 		}
+		toast.danger('Only one PDF can be attached to a document');
 	}
 
-	async function submit() {
-		error = '';
+	function acceptFiles() {
+		uploadStatus = 'pending';
+		uploadError = '';
+	}
+
+	async function submit(event: SubmitEvent) {
+		event.preventDefault();
+		nameError = '';
+
 		if (!name.trim()) {
-			error = 'Document name is required';
+			nameError = 'Document name is required';
 			return;
 		}
 		if (!file) {
-			error = 'Please upload a PDF file';
+			toast.danger('Please upload a PDF file');
 			return;
 		}
 
 		submitting = true;
+		uploadStatus = 'uploading';
+		uploadError = '';
 		try {
 			const doc = await api.documents.create(name, file, spaceStore.activeId);
 
@@ -81,8 +102,11 @@
 			}
 
 			goto(`/documents/${doc.id}`);
-		} catch (e: any) {
-			error = e.message;
+		} catch (e) {
+			const message = e instanceof Error ? e.message : 'Failed to create the document';
+			uploadStatus = 'error';
+			uploadError = message;
+			toast.danger(message);
 			submitting = false;
 		}
 	}
@@ -90,88 +114,85 @@
 
 <svelte:head><title>New Document — Plume</title></svelte:head>
 
-<div class="max-w-lg">
-	<div class="mb-8">
-		<a href="/documents" class="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4">
-			<Icon icon="solar:arrow-left-linear" class="h-4 w-4" />
+<div class="flex max-w-2xl flex-col gap-10">
+	<div class="flex flex-col gap-3">
+		<Button
+			href="/documents"
+			variant="ghost"
+			size="sm"
+			icon={icons.chevronLeft}
+			class="self-start px-2"
+		>
 			Back to documents
-		</a>
-		<h1 class="text-2xl font-bold">New document</h1>
+		</Button>
+		<div class="flex flex-col gap-1">
+			<h1 class="text-fc-2xl font-semibold text-fc-fg">New document</h1>
+			<p class="text-fc-sm text-fc-fg-muted">
+				Upload the PDF and list who has to sign it. Fields are placed on the next screen.
+			</p>
+		</div>
 	</div>
 
-	<form onsubmit={submit} class="space-y-6">
-		<div class="space-y-2">
-			<Label for="doc-name">Document name</Label>
-			<Input id="doc-name" bind:value={name} placeholder="Contract, NDA, Agreement..." required />
-		</div>
+	<form onsubmit={submit} class="flex flex-col gap-10">
+		<SettingsSection title="Document" description="The PDF your signers will receive.">
+			<Field label="Document name" error={nameError}>
+				<Input bind:value={name} placeholder="Contract, NDA, Agreement…" required />
+			</Field>
 
-		<div class="space-y-2">
-			<Label>PDF file</Label>
-			<label
-				class="flex flex-col items-center justify-center rounded-lg border-2 border-dashed p-8 cursor-pointer transition-colors
-					{dragging ? 'border-foreground bg-muted/50' : 'border-border hover:border-foreground/30'}"
-				ondragover={(e) => { e.preventDefault(); dragging = true; }}
-				ondragleave={() => (dragging = false)}
-				ondrop={handleDrop}
-			>
-				{#if file}
-					<Icon icon="solar:file-check-linear" class="h-8 w-8 text-green-600 mb-2" />
-					<p class="text-sm font-medium">{file.name}</p>
-					<p class="text-xs text-muted-foreground mt-1">{(file.size / 1024).toFixed(0)} KB</p>
-				{:else}
-					<Icon icon="solar:upload-linear" class="h-8 w-8 text-muted-foreground mb-2" />
-					<p class="text-sm text-muted-foreground">Drag & drop a PDF or click to browse</p>
+			<div class="flex flex-col gap-2">
+				<span class="text-fc-sm text-fc-fg">PDF file</span>
+				<Dropzone
+					bind:files
+					accept=".pdf,application/pdf"
+					maxSize={MAX_FILE_SIZE}
+					disabled={submitting}
+					label="Drop a PDF here"
+					hint="PDF only · 10 MB maximum"
+					onFiles={acceptFiles}
+					onReject={rejectFiles}
+				/>
+				{#if uploadItems.length > 0}
+					<UploadProgress items={uploadItems} showTotal={false} onCancel={clearFile} />
 				{/if}
-				<input type="file" accept=".pdf,application/pdf" onchange={handleFileInput} class="hidden" />
-			</label>
-		</div>
-
-		<Separator />
-
-		<div class="space-y-4">
-			<div class="flex items-center justify-between">
-				<Label>Signers</Label>
-				<button
-					type="button"
-					onclick={addSigner}
-					class="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-				>
-					<Icon icon="mdi:plus" class="h-4 w-4" />
-					Add signer
-				</button>
 			</div>
+		</SettingsSection>
 
-			{#each signers as signer, i}
-				<div class="flex items-start gap-2">
-					<div class="flex-1 space-y-2">
-						<Input bind:value={signer.name} placeholder="Name" />
-						<Input bind:value={signer.email} placeholder="Email" type="email" />
+		<SettingsSection
+			title="Signers"
+			description="Everyone who has to sign. You can add more later, while the document is still a draft."
+		>
+			{#snippet actions()}
+				<Button variant="outline" size="sm" icon={icons.plus} onclick={addSigner}>Add signer</Button>
+			{/snippet}
+
+			{#each signers as signer, i (i)}
+				<div
+					class="flex items-end gap-3 border-t border-fc-border pt-4 first:border-t-0 first:pt-0"
+				>
+					<div class="grid min-w-0 flex-1 gap-3 sm:grid-cols-2">
+						<Field label="Name">
+							<Input bind:value={signer.name} placeholder="Jane Doe" />
+						</Field>
+						<Field label="Email">
+							<Input bind:value={signer.email} type="email" placeholder="jane@example.com" />
+						</Field>
 					</div>
 					{#if signers.length > 1}
-						<button
-							type="button"
+						<IconButton
+							variant="danger"
+							aria-label="Remove signer {i + 1}"
 							onclick={() => removeSigner(i)}
-							class="mt-2 rounded-md p-1.5 text-muted-foreground transition-colors hover:text-red-500 hover:bg-muted"
 						>
-							<Icon icon="solar:trash-bin-trash-linear" class="h-4 w-4" />
-						</button>
+							<iconify-icon icon={icons.remove} width="18" height="18" class="block"
+							></iconify-icon>
+						</IconButton>
 					{/if}
 				</div>
 			{/each}
-		</div>
+		</SettingsSection>
 
-		{#if error}
-			<p class="text-sm text-destructive">{error}</p>
-		{/if}
-
-		<Button type="submit" disabled={submitting} class="w-full">
-			{#if submitting}
-				<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
-				Creating...
-			{:else}
-				<Icon icon="mdi:plus" class="h-4 w-4" />
-				Create document
-			{/if}
+		<Button type="submit" size="lg" icon={icons.plus} disabled={submitting} class="w-full">
+			{submitting ? 'Creating…' : 'Create document'}
 		</Button>
 	</form>
 </div>

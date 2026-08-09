@@ -1,26 +1,28 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { api } from '$lib';
-	import { Button } from '$lib/components/ui/button';
-	import Icon from '@iconify/svelte';
-	import { toast } from 'svelte-sonner';
+	import { Button, Card, Field, Input, Textarea, icons, toast } from '@facile/muse';
 	import { spaceStore } from '$lib/stores/space.svelte';
 
 	let name = $state('');
 	let description = $state('');
 	let saving = $state(false);
 
-	async function create() {
+	async function create(event: SubmitEvent) {
+		event.preventDefault();
 		if (!name.trim()) return;
 		saving = true;
 		try {
-			const space = await api.spaces.create({ name: name.trim(), description: description.trim() });
+			const space = await api.spaces.create({
+				name: name.trim(),
+				description: description.trim()
+			});
 			spaceStore.spaces = [...spaceStore.spaces, space];
 			spaceStore.activeId = space.id;
 			toast.success('Space created');
 			goto(`/spaces/${space.id}`);
 		} catch (e) {
-			toast.error(e instanceof Error ? e.message : 'Failed to create space');
+			toast.danger(e instanceof Error ? e.message : 'Failed to create space');
 		}
 		saving = false;
 	}
@@ -28,47 +30,37 @@
 
 <svelte:head><title>New Space — Plume</title></svelte:head>
 
-<div class="mb-6 border-b pb-5">
-	<div class="flex items-center gap-3">
-		<a href="/spaces" class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground hover:bg-muted">
-			<Icon icon="solar:arrow-left-linear" class="h-5 w-5" />
-		</a>
-		<h1 class="text-lg font-semibold">New space</h1>
+<div class="flex max-w-xl flex-col gap-10">
+	<div class="flex flex-col gap-2">
+		<Button href="/spaces" variant="ghost" size="sm" icon={icons.chevronLeft} class="w-fit -ml-3">
+			Back to spaces
+		</Button>
+		<h1 class="text-fc-2xl font-semibold text-fc-fg">New space</h1>
+		<p class="text-fc-sm text-fc-fg-muted">
+			A space is a shared workspace. You start as its owner and can invite people afterwards.
+		</p>
 	</div>
-</div>
 
-<div>
-	<form onsubmit={create} class="max-w-xl space-y-6">
-		<div>
-			<label for="space-name" class="mb-1.5 block text-sm font-medium">Name</label>
-			<input
-				id="space-name"
-				type="text"
-				bind:value={name}
-				placeholder="My team"
-				class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-			/>
-		</div>
-		<div>
-			<label for="space-description" class="mb-1.5 block text-sm font-medium">Description</label>
-			<textarea
-				id="space-description"
-				bind:value={description}
-				placeholder="What is this space for?"
-				rows="3"
-				class="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-			></textarea>
-		</div>
-		<div class="flex items-center gap-3">
-			<Button type="submit" disabled={saving || !name.trim()}>
-				{#if saving}
-					<Icon icon="solar:spinner-bold-duotone" class="h-4 w-4 animate-spin" />
-					Creating...
-				{:else}
-					Create space
-				{/if}
+	<form onsubmit={create} class="flex flex-col gap-4">
+		<Card class="flex flex-col gap-4">
+			<Field label="Name">
+				<Input bind:value={name} placeholder="My team" required />
+			</Field>
+			<Field label="Description" helper="Optional — what the space is for.">
+				<Textarea bind:value={description} rows={3} placeholder="Client contracts and NDAs." />
+			</Field>
+		</Card>
+
+		<div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+			<Button href="/spaces" variant="ghost" class="w-full sm:w-auto">Cancel</Button>
+			<Button
+				type="submit"
+				icon={icons.plus}
+				disabled={saving || !name.trim()}
+				class="w-full sm:w-auto"
+			>
+				{saving ? 'Creating…' : 'Create space'}
 			</Button>
-			<Button variant="outline" href="/spaces">Cancel</Button>
 		</div>
 	</form>
 </div>

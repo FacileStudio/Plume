@@ -102,5 +102,17 @@ Bypass once with `git push --no-verify`.
 - Handlers return through `httpjson.WriteJSON` and `httpjson.WriteError` from tronc, so
   error shapes stay uniform.
 - The client is Svelte 5 runes only — `$state`, `$props`, `$derived`, `$effect` — enforced
-  through `dynamicCompileOptions` in `svelte.config.js`. UI primitives under
-  `src/lib/components/ui/` are shadcn-svelte managed; do not hand-edit them.
+  through `dynamicCompileOptions` in `svelte.config.js`.
+- UI comes from `@facile/muse`, pinned to a tag. Compose its components rather than writing
+  markup, and read `CHARTE.md` plus `demo/src/pages/` in the muse checkout before building a
+  page — the demo is the visual spec, the charte is the prose. The two local components that
+  remain (`field-editor`, `signature-pad`) exist because muse has no PDF field placer and no
+  signature canvas.
+- After adding an icon anywhere, or after bumping `@facile/muse`, run `bun run icons` in
+  `apps/client`. It rescans both trees, refetches the collections and fails loudly on a glyph
+  that does not exist — which is the point: an unbundled icon silently restores a runtime
+  call to `api.iconify.design` from the user's browser.
+- `vite dev` will not start without `optimizeDeps.exclude: ['@facile/muse']` in
+  `vite.config.ts`. muse ships uncompiled `.svelte.ts` rune modules, and the dev-only
+  dependency optimizer hands them to esbuild with no TypeScript transform. `vite build` never
+  runs the optimizer, so the gate stays green while dev is completely broken.

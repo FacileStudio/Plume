@@ -3,7 +3,6 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { api, setToken, isAuthenticated } from '$lib';
-	import Icon from '@iconify/svelte';
 
 	const inputClass =
 		'flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50';
@@ -63,7 +62,12 @@
 <div class="flex min-h-screen">
 	<div class="hidden lg:flex lg:w-1/2 flex-col bg-black px-12 py-10">
 		<a href="/" class="flex items-center gap-3 mb-auto">
-			<Icon icon="solar:document-add-bold-duotone" class="w-7 h-7 text-white" />
+			<iconify-icon
+				icon="solar:pen-new-square-bold-duotone"
+				width="28"
+				height="28"
+				class="block size-7 text-white"
+			></iconify-icon>
 			<span class="text-xl font-bold font-heading tracking-tight text-white">Plume</span>
 		</a>
 

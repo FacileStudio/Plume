@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import Icon from '@iconify/svelte';
+	import { Button } from '@facile/muse';
 
 	let {
 		value = $bindable(''),
@@ -19,6 +19,8 @@
 	let points: { x: number; y: number; time: number }[] = [];
 	let strokes: { x: number; y: number; time: number }[][] = [];
 	let ratio = 1;
+	let ink = 'black';
+	let paper = 'white';
 
 	function getPos(e: MouseEvent | TouchEvent): { x: number; y: number } {
 		const rect = canvas.getBoundingClientRect();
@@ -128,7 +130,7 @@
 		tempCanvas.width = canvas.width;
 		tempCanvas.height = canvas.height;
 		const tempCtx = tempCanvas.getContext('2d')!;
-		tempCtx.fillStyle = '#ffffff';
+		tempCtx.fillStyle = paper;
 		tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
 		tempCtx.drawImage(canvas, 0, 0);
 		value = tempCanvas.toDataURL('image/png');
@@ -136,7 +138,7 @@
 
 	function redrawAll() {
 		ctx.clearRect(0, 0, canvas.width, canvas.height);
-		ctx.strokeStyle = '#000000';
+		ctx.strokeStyle = ink;
 		ctx.lineCap = 'round';
 		ctx.lineJoin = 'round';
 
@@ -189,17 +191,22 @@
 		ratio = window.devicePixelRatio || 1;
 		canvas.width = width * ratio;
 		canvas.height = height * ratio;
+
+		const surface = getComputedStyle(canvas);
+		ink = surface.getPropertyValue('--sig-ink').trim() || ink;
+		paper = surface.getPropertyValue('--sig-paper').trim() || paper;
+
 		ctx = canvas.getContext('2d')!;
-		ctx.strokeStyle = '#000000';
+		ctx.strokeStyle = ink;
 		ctx.lineCap = 'round';
 		ctx.lineJoin = 'round';
 	});
 </script>
 
-<div class="space-y-2">
+<div class="flex flex-col gap-3">
 	<div
-		class="relative rounded-lg border-2 border-dashed border-border bg-white transition-colors"
-		class:border-foreground={drawing}
+		class="signature-paper relative rounded-fc-lg border-2 border-dashed transition-colors"
+		class:is-drawing={drawing}
 		style="width: 100%; aspect-ratio: {width}/{height};"
 	>
 		<canvas
@@ -216,31 +223,59 @@
 
 		{#if !hasStrokes && !drawing}
 			<div class="pointer-events-none absolute inset-0 flex items-center justify-center">
-				<span class="text-sm text-muted-foreground/50">Draw your signature here</span>
+				<span class="signature-hint text-fc-sm">Draw your signature here</span>
 			</div>
 		{/if}
 
-		<div class="absolute bottom-0 left-0 right-0 mx-4 border-t border-muted-foreground/20"></div>
+		<div class="signature-rule absolute bottom-0 left-0 right-0 mx-4 border-t"></div>
 	</div>
 
 	<div class="flex items-center gap-2">
-		<button
-			type="button"
+		<Button
+			variant="outline"
+			size="sm"
+			icon="solar:undo-left-linear"
 			onclick={undo}
 			disabled={!hasStrokes}
-			class="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
 		>
-			<Icon icon="solar:undo-left-linear" class="h-3.5 w-3.5" />
 			Undo
-		</button>
-		<button
-			type="button"
+		</Button>
+		<Button
+			variant="ghost-danger"
+			size="sm"
+			icon="solar:eraser-linear"
 			onclick={clear}
 			disabled={!hasStrokes}
-			class="inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
 		>
-			<Icon icon="solar:eraser-linear" class="h-3.5 w-3.5" />
 			Clear
-		</button>
+		</Button>
 	</div>
 </div>
+
+<style>
+	/*
+	 * A signature is stamped into a PDF that gets printed, so this surface is paper, not
+	 * chrome: it stays light in dark mode on purpose. muse's palette has no theme-invariant
+	 * paper/ink pair, so the two are declared here and read back by the canvas through
+	 * getComputedStyle, which keeps the drawn ink and the on-screen surface in lockstep.
+	 */
+	.signature-paper {
+		--sig-paper: oklch(1 0 0);
+		--sig-ink: oklch(0.145 0 0);
+		--sig-muted: oklch(0.556 0 0);
+		background: var(--sig-paper);
+		border-color: color-mix(in oklab, var(--sig-muted) 35%, transparent);
+	}
+
+	.signature-paper.is-drawing {
+		border-color: var(--sig-ink);
+	}
+
+	.signature-rule {
+		border-color: color-mix(in oklab, var(--sig-muted) 25%, transparent);
+	}
+
+	.signature-hint {
+		color: color-mix(in oklab, var(--sig-muted) 60%, transparent);
+	}
+</style>
