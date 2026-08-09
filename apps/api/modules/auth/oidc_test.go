@@ -13,6 +13,7 @@ func TestIsEmailVerified(t *testing.T) {
 		{"true", true},
 		{"false", false},
 		{"FALSE", false},
+		{42, false},
 	}
 	for _, c := range cases {
 		if got := isEmailVerified(c.claim); got != c.want {
