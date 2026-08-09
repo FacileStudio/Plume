@@ -2,13 +2,24 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { api } from '$lib';
-	import type { SigningPayload, Field, CompletedField, SigningStatus, SigningRosterEntry } from '$lib';
-	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
-	import { Label } from '$lib/components/ui/label';
-	import { Separator } from '$lib/components/ui/separator';
+	import type { SigningPayload, Field as SigningField, CompletedField, SigningStatus, SigningRosterEntry } from '$lib';
+	import {
+		Alert,
+		Badge,
+		Button,
+		Card,
+		Checkbox,
+		ConfirmModal,
+		Divider,
+		EmptyState,
+		Field,
+		Input,
+		Spinner,
+		icons,
+		toast
+	} from '@facile/muse';
 	import SignaturePad from '$lib/components/signature-pad.svelte';
-	import Icon from '@iconify/svelte';
+
 	let payload = $state<SigningPayload | null>(null);
 	let loading = $state(true);
 	let notFound = $state(false);
@@ -16,11 +27,12 @@
 	let signed = $state(false);
 	let declined = $state(false);
 	let error = $state('');
+	let declineError = $state('');
+	let confirmDecline = $state(false);
 	let fieldValues = $state<Record<string, string>>({});
 	let signingStatus = $state<SigningStatus | null>(null);
+	let validated = $state(false);
 
-	// Roster progress, computed for the post-signing audit view. Viewers don't
-	// sign, so they're excluded from the signature counts but still listed.
 	const signParticipants = $derived(
 		(signingStatus?.signers ?? []).filter((s) => s.role !== 'viewer')
 	);
@@ -34,12 +46,13 @@
 		signParticipants.filter((s) => s.status === 'pending').map((s) => s.name)
 	);
 
-	async function loadStatus(token: string) {
+	const token = $derived((page.params as Record<string, string>).token);
+	const fileUrl = $derived(api.signing.fileUrl(token));
+
+	async function loadStatus(t: string) {
 		try {
-			signingStatus = await api.signing.status(token);
-		} catch {
-			// Best-effort: the download link still works without the roster.
-		}
+			signingStatus = await api.signing.status(t);
+		} catch {}
 	}
 
 	function formatDate(value: string | null): string {
@@ -54,34 +67,31 @@
 		}
 	}
 
-	function rosterMeta(entry: SigningRosterEntry): { icon: string; color: string; label: string } {
+	function rosterMeta(entry: SigningRosterEntry): { icon: string; tone: string; label: string } {
 		if (entry.status === 'signed') {
 			return {
-				icon: 'solar:check-circle-bold',
-				color: 'text-green-600',
+				icon: icons.check,
+				tone: 'text-fc-success',
 				label: entry.signed_at ? `Signed · ${formatDate(entry.signed_at)}` : 'Signed'
 			};
 		}
 		if (entry.status === 'declined') {
-			return { icon: 'solar:close-circle-bold', color: 'text-red-500', label: 'Declined' };
+			return { icon: icons.error, tone: 'text-fc-danger', label: 'Declined' };
 		}
 		if (entry.role === 'viewer') {
-			return { icon: 'solar:eye-linear', color: 'text-muted-foreground', label: 'Viewer' };
+			return { icon: icons.eye, tone: 'text-fc-fg-muted', label: 'Viewer' };
 		}
-		return {
-			icon: 'solar:clock-circle-linear',
-			color: 'text-muted-foreground',
-			label: 'Waiting for signature'
-		};
+		return { icon: icons.clock, tone: 'text-fc-fg-muted', label: 'Waiting for signature' };
 	}
 
 	let pdfContainer = $state<HTMLDivElement>(undefined!);
 	let pdfPages = $state<{ num: number; width: number; height: number }[]>([]);
 	let pdfCanvases = $state<Map<number, HTMLCanvasElement>>(new Map());
 	let pdfLoading = $state(true);
+	let pdfFailed = $state(false);
 	let activeFieldId = $state<number | null>(null);
 
-	function fieldsForPage(pageNum: number): Field[] {
+	function fieldsForPage(pageNum: number): SigningField[] {
 		return (payload?.fields ?? []).filter((f) => f.page === pageNum);
 	}
 
@@ -100,7 +110,7 @@
 		return { destroy() { canvas.remove(); } };
 	}
 
-	function initFields(fields: Field[]) {
+	function initFields(fields: SigningField[]) {
 		const values: Record<string, string> = {};
 		for (const f of fields) {
 			values[String(f.id)] = f.value ?? '';
@@ -108,7 +118,7 @@
 		fieldValues = values;
 	}
 
-	function fieldLabel(f: Field): string {
+	function fieldLabel(f: SigningField): string {
 		switch (f.field_type) {
 			case 'signature': return 'Signature';
 			case 'text': return 'Text';
@@ -118,8 +128,53 @@
 		}
 	}
 
+	function labelFor(f: SigningField): string {
+		return `${f.label || fieldLabel(f)}${f.required ? ' *' : ''}`;
+	}
+
+	// Mirrors the server's completion guard: a checkbox has to be ticked, everything else
+	// only has to be non-blank. The server still re-checks — this is the affordance, not the
+	// enforcement — so the two rules staying in step is a courtesy, not a security boundary.
+	function isFilled(field: SigningField, value: string): boolean {
+		if (field.field_type === 'checkbox') return value === 'true';
+		return value.trim() !== '';
+	}
+
+	const missingFields = $derived(
+		validated
+			? (payload?.fields ?? []).filter(
+					(f) => f.required && !isFilled(f, fieldValues[String(f.id)] ?? '')
+				)
+			: []
+	);
+	const missingIds = $derived(missingFields.map((f) => f.id));
+
+	function focusField(fieldId: number) {
+		const host = document.querySelector<HTMLElement>(`[data-field-control="${fieldId}"]`);
+		if (!host) return;
+		const control = host.matches('input, [tabindex]')
+			? host
+			: host.querySelector<HTMLElement>('input, [tabindex]');
+		control?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		control?.focus();
+	}
+
 	async function signDocument() {
-		const token = (page.params as Record<string, string>).token;
+		validated = true;
+		const missing = (payload?.fields ?? []).filter(
+			(f) => f.required && !isFilled(f, fieldValues[String(f.id)] ?? '')
+		);
+		if (missing.length > 0) {
+			error = '';
+			toast.danger(
+				missing.length === 1
+					? 'One required field is still empty.'
+					: `${missing.length} required fields are still empty.`
+			);
+			focusField(missing[0].id);
+			return;
+		}
+
 		submitting = true;
 		error = '';
 		try {
@@ -133,21 +188,21 @@
 	}
 
 	async function declineDocument() {
-		const token = (page.params as Record<string, string>).token;
 		submitting = true;
-		error = '';
+		declineError = '';
 		try {
 			await api.signing.decline(token);
 			declined = true;
 			await loadStatus(token);
 		} catch (e: any) {
-			error = e.message;
+			declineError = e?.message ?? 'Could not decline this document.';
+			throw e;
+		} finally {
+			submitting = false;
 		}
-		submitting = false;
 	}
 
 	onMount(async () => {
-		const token = (page.params as Record<string, string>).token;
 		try {
 			payload = await api.signing.get(token);
 			if (payload.signer.status === 'signed') {
@@ -166,8 +221,7 @@
 				).toString();
 
 				try {
-					const url = api.signing.fileUrl(token);
-					const pdf = await pdfjsLib.getDocument(url).promise;
+					const pdf = await pdfjsLib.getDocument(fileUrl).promise;
 					for (let i = 1; i <= pdf.numPages; i++) {
 						const pg = await pdf.getPage(i);
 						const viewport = pg.getViewport({ scale: 1.5 });
@@ -181,13 +235,12 @@
 						pdfCanvases.set(i, canvas);
 						await pg.render({ canvasContext: canvas.getContext('2d')!, canvas, viewport }).promise;
 					}
-				} catch {}
+				} catch {
+					pdfFailed = pdfPages.length === 0;
+				}
 				pdfLoading = false;
 			}
 		} catch {
-			// The signing view is only served while the document is pending, so a
-			// completed/declined document lands here. Fall back to the status
-			// endpoint so a returning signer still sees the audit summary.
 			try {
 				signingStatus = await api.signing.status(token);
 				if (signingStatus.signer.status === 'declined') {
@@ -205,146 +258,198 @@
 
 <svelte:head><title>{payload ? `Sign — ${payload.document.name}` : 'Sign Document'} — Plume</title></svelte:head>
 
-<div class="flex min-h-[100dvh] flex-col">
-	<header class="flex items-center gap-3 border-b px-4 py-4 sm:px-6">
-		<Icon icon="solar:document-add-bold-duotone" class="h-6 w-6" />
-		<span class="text-lg font-bold tracking-tight">Plume</span>
-	</header>
-
-	<main class="flex flex-1 justify-center p-4 sm:p-6 {loading || notFound || signed || declined ? 'items-center' : 'items-start'}">
-		{#if loading}
-			<div class="flex flex-col items-center gap-3">
-				<Icon icon="solar:spinner-linear" class="h-8 w-8 animate-spin text-muted-foreground" />
-			</div>
-		{:else if notFound}
-			<div class="flex flex-col items-center gap-4 text-center">
-				<Icon icon="solar:eye-closed-linear" class="h-12 w-12 text-muted-foreground" />
-				<h1 class="text-xl font-semibold">Link not found</h1>
-				<p class="text-muted-foreground">This signing link may be invalid or expired.</p>
-			</div>
-		{:else if signed}
-			<div class="flex w-full max-w-md flex-col items-center gap-6">
-				<div class="flex flex-col items-center gap-3 text-center">
-					<div class="h-14 w-14 rounded-full bg-green-100 flex items-center justify-center">
-						<Icon icon="solar:check-read-linear" class="h-8 w-8 text-green-600" />
+{#snippet progressAndRoster()}
+	{#if signingStatus && signingStatus.signers.length > 0}
+		<Card class="flex w-full flex-col gap-4 text-left">
+			{#if totalSigners > 0}
+				<div class="flex flex-col gap-2">
+					<div class="flex items-center justify-between gap-3 text-fc-sm">
+						<span class="font-medium text-fc-fg">Signing progress</span>
+						<span class="text-fc-fg-muted">{signedCount} of {totalSigners} signed</span>
 					</div>
-					<div>
-						<h1 class="text-xl font-semibold">
-							{isComplete ? 'Document completed' : 'Document signed successfully'}
-						</h1>
-						<p class="text-muted-foreground mt-1">
-							{#if isComplete}
-								All parties have signed. The document is complete.
-							{:else if totalSigners > 1}
-								Your signature is recorded. Waiting for the remaining signers to complete it.
-							{:else}
-								Your signature is recorded. You can close this page.
-							{/if}
-						</p>
+					<div
+						class="h-2 w-full overflow-hidden rounded-fc-pill bg-fc-surface"
+						role="progressbar"
+						aria-valuemin={0}
+						aria-valuemax={totalSigners}
+						aria-valuenow={signedCount}
+						aria-label="Signing progress"
+					>
+						<div
+							class="h-full rounded-fc-pill bg-fc-success transition-all duration-500 motion-reduce:transition-none"
+							style="width: {totalSigners ? (signedCount / totalSigners) * 100 : 0}%"
+						></div>
 					</div>
 				</div>
+				<Divider class="my-0" />
+			{/if}
+
+			<ul class="flex flex-col gap-3">
+				{#each signingStatus.signers as entry (entry.name + '-' + entry.order_num)}
+					{@const meta = rosterMeta(entry)}
+					<li class="flex items-start gap-3">
+						<span class="mt-0.5 shrink-0 {meta.tone}">
+							<iconify-icon icon={meta.icon} width="18" height="18" class="block"></iconify-icon>
+						</span>
+						<div class="min-w-0 flex-1">
+							<div class="flex flex-wrap items-center gap-1.5">
+								<span class="truncate text-fc-sm font-medium text-fc-fg">{entry.name}</span>
+								{#if entry.is_you}
+									<Badge tone="accent">You</Badge>
+								{/if}
+								{#if entry.role !== 'signer'}
+									<Badge tone="neutral" class="capitalize">{entry.role}</Badge>
+								{/if}
+							</div>
+							<p class="text-fc-xs text-fc-fg-muted">{meta.label}</p>
+						</div>
+					</li>
+				{/each}
+			</ul>
+
+			{#if isComplete}
+				<Alert tone="success">Everyone has signed. This document is finalized.</Alert>
+			{:else if someoneDeclined}
+				<Alert tone="danger">The signing process was stopped because a signer declined.</Alert>
+			{:else if pendingNames.length > 0}
+				<Alert tone="neutral">Waiting on {pendingNames.join(', ')} to finalize the document.</Alert>
+			{/if}
+		</Card>
+	{/if}
+{/snippet}
+
+<div class="flex min-h-[100dvh] flex-col bg-fc-page text-fc-fg">
+	<header class="flex items-center gap-2 border-b border-fc-border px-4 py-4 sm:px-6">
+		<iconify-icon icon="solar:pen-new-square-bold-duotone" width="24" height="24" class="block"
+		></iconify-icon>
+		<span class="text-fc-lg font-semibold tracking-tight">Plume</span>
+	</header>
+
+	<main
+		class="flex flex-1 justify-center p-4 sm:p-6 {loading || notFound || signed || declined
+			? 'items-center'
+			: 'items-start'}"
+	>
+		{#if loading}
+			<Spinner size="lg" label="Loading document" />
+		{:else if notFound}
+			<div class="w-full max-w-md">
+				<EmptyState
+					icon={icons.eyeClosed}
+					title="Link not found"
+					description="This signing link may be invalid, already used, or expired. Ask the sender for a fresh one."
+				/>
+			</div>
+		{:else if signed}
+			<div class="flex w-full max-w-md flex-col gap-4">
+				<Alert
+					tone="success"
+					title={isComplete ? 'Document completed' : 'Document signed successfully'}
+				>
+					{#if isComplete}
+						All parties have signed. The document is complete.
+					{:else if totalSigners > 1}
+						Your signature is recorded. Waiting for the remaining signers to complete it.
+					{:else}
+						Your signature is recorded. You can close this page.
+					{/if}
+				</Alert>
 
 				{@render progressAndRoster()}
 
-				<a
-					href={api.signing.fileUrl((page.params as Record<string, string>).token)}
+				<Button
+					variant="outline"
+					size="lg"
+					href={fileUrl}
 					download
-					class="inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors hover:bg-muted"
+					icon={icons.download}
+					class="w-full"
 				>
-					<Icon icon="solar:download-minimalistic-linear" class="h-4 w-4" />
 					Download document
-				</a>
+				</Button>
 			</div>
 		{:else if declined}
-			<div class="flex w-full max-w-md flex-col items-center gap-6">
-				<div class="flex flex-col items-center gap-3 text-center">
-					<Icon icon="solar:close-circle-bold-duotone" class="h-14 w-14 text-red-500" />
-					<div>
-						<h1 class="text-xl font-semibold">Document declined</h1>
-						<p class="text-muted-foreground mt-1">You have declined to sign this document.</p>
-					</div>
-				</div>
+			<div class="flex w-full max-w-md flex-col gap-4">
+				<Alert tone="danger" title="Document declined">
+					You have declined to sign this document.
+				</Alert>
 
 				{@render progressAndRoster()}
 			</div>
 		{:else if payload}
-			<div class="flex w-full max-w-6xl gap-6 flex-col lg:flex-row lg:gap-8">
-				<div bind:this={pdfContainer} class="flex-1 min-w-0 max-h-[60vh] lg:max-h-[calc(100dvh-10rem)] overflow-y-auto rounded-lg border bg-muted/30 p-2 sm:p-4">
+			<div class="flex w-full max-w-6xl flex-col gap-4 lg:flex-row lg:gap-8">
+				<div
+					bind:this={pdfContainer}
+					class="max-h-[60dvh] min-w-0 flex-1 overflow-y-auto rounded-fc-md bg-fc-component p-2 sm:p-4 lg:max-h-[calc(100dvh-10rem)]"
+				>
 					{#if pdfLoading}
-						<div class="flex items-center justify-center py-12">
-							<span class="text-sm text-muted-foreground">Loading preview…</span>
+						<div class="flex items-center justify-center gap-3 py-12 text-fc-sm text-fc-fg-muted">
+							<Spinner size="sm" />
+							Loading preview…
+						</div>
+					{:else if pdfFailed}
+						<div class="py-8">
+							<Alert tone="warning" title="Preview unavailable">
+								The document could not be rendered in the browser. You can still download it, review
+								it, and fill the fields on the right.
+							</Alert>
 						</div>
 					{:else}
-						{#each pdfPages as pg}
+						{#each pdfPages as pg (pg.num)}
 							<div class="relative mx-auto mb-4" style="max-width: {pg.width}px;" data-page={pg.num}>
 								{#if pdfCanvases.get(pg.num)}
 									{@const canvas = pdfCanvases.get(pg.num)!}
 									<div use:appendCanvas={canvas}></div>
 								{/if}
-								<div class="absolute inset-0 pointer-events-none">
-									{#each fieldsForPage(pg.num) as field}
+								<div class="pointer-events-none absolute inset-0">
+									{#each fieldsForPage(pg.num) as field (field.id)}
 										{@const isActive = activeFieldId === field.id}
 										{@const val = fieldValues[String(field.id)] || ''}
 										<div
 											data-field-id={field.id}
-											class="absolute rounded-sm flex flex-col items-center justify-center text-xs transition-all duration-300 overflow-hidden"
-											style="
-												left: {field.x}%;
-												top: {field.y}%;
-												width: {field.width}%;
-												height: {field.height}%;
-												background: {val ? 'rgba(59, 130, 246, 0.15)' : isActive ? 'rgba(59, 130, 246, 0.25)' : 'rgba(59, 130, 246, 0.1)'};
-												border: 2px {isActive ? 'solid' : 'dashed'} {isActive || val ? 'rgb(59, 130, 246)' : 'rgba(59, 130, 246, 0.4)'};
-												color: rgb(59, 130, 246);
-												{isActive ? 'box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);' : ''}
-											"
+											class="absolute flex flex-col items-center justify-center overflow-hidden rounded-fc-xs border-2 text-fc-xs text-fc-info transition-all duration-300 motion-reduce:transition-none
+												{isActive ? 'border-solid border-fc-info bg-fc-info/20 ring-3 ring-fc-info/15' : ''}
+												{!isActive && val ? 'border-dashed border-fc-info bg-fc-info/10' : ''}
+												{!isActive && !val ? 'border-dashed border-fc-info/40 bg-fc-info/10' : ''}"
+											style="left: {field.x}%; top: {field.y}%; width: {field.width}%; height: {field.height}%;"
 										>
 											{#if val && field.field_type === 'signature'}
 												{#if val.startsWith('data:image/')}
 													<img src={val} alt="Signature" class="h-full w-full object-contain p-0.5" />
 												{:else}
-													<span class="truncate px-1 text-[11px] font-serif italic">{val}</span>
+													<span class="truncate px-1 font-serif italic">{val}</span>
 												{/if}
 											{:else if val && field.field_type === 'checkbox'}
-												<span class="text-sm font-bold">{val === 'true' ? '✓' : ''}</span>
+												<span class="text-fc-sm font-bold">{val === 'true' ? '✓' : ''}</span>
 											{:else if val}
-												<span class="truncate px-1 text-[10px] font-medium">{val}</span>
+												<span class="truncate px-1 font-medium">{val}</span>
 											{:else}
-												<span class="truncate px-1 text-[10px] font-medium opacity-70">
+												<span class="truncate px-1 font-medium opacity-70">
 													{field.label || fieldLabel(field)}
 												</span>
 											{/if}
 										</div>
 									{/each}
-									{#each completedFieldsForPage(pg.num) as cf}
+									{#each completedFieldsForPage(pg.num) as cf (cf.id)}
 										<div
-											class="absolute rounded-sm flex flex-col items-center justify-center transition-all duration-300"
-											style="
-												left: {cf.x}%;
-												top: {cf.y}%;
-												width: {cf.width}%;
-												height: {cf.height}%;
-												background: rgba(34, 197, 94, 0.12);
-												border: 1.5px solid rgba(34, 197, 94, 0.4);
-											"
+											class="absolute flex flex-col items-center justify-center overflow-hidden rounded-fc-xs border border-fc-success/40 bg-fc-success/10 text-fc-xs text-fc-success transition-all duration-300 motion-reduce:transition-none"
+											style="left: {cf.x}%; top: {cf.y}%; width: {cf.width}%; height: {cf.height}%;"
 										>
-											<span class="truncate px-1 text-[10px] font-medium text-green-600/70">
-												{cf.signer_name}
-											</span>
+											<span class="truncate px-1 font-medium opacity-80">{cf.signer_name}</span>
 											{#if cf.field_type === 'signature'}
 												{#if cf.value.startsWith('data:image/')}
-													<img src={cf.value} alt="Signature" class="h-full w-full object-contain p-0.5 opacity-60" />
+													<img
+														src={cf.value}
+														alt="Signature by {cf.signer_name}"
+														class="h-full w-full object-contain p-0.5 opacity-60"
+													/>
 												{:else}
-													<span class="truncate px-1 text-[11px] font-serif italic text-green-700/60">
-														{cf.value}
-													</span>
+													<span class="truncate px-1 font-serif italic opacity-70">{cf.value}</span>
 												{/if}
 											{:else if cf.value && cf.field_type !== 'checkbox'}
-												<span class="truncate px-1 text-[10px] text-green-700/50">
-													{cf.value}
-												</span>
+												<span class="truncate px-1 opacity-70">{cf.value}</span>
 											{:else if cf.field_type === 'checkbox' && cf.value === 'true'}
-												<span class="text-green-600/60 text-xs">✓</span>
+												<span class="opacity-70">✓</span>
 											{/if}
 										</div>
 									{/each}
@@ -354,168 +459,172 @@
 					{/if}
 				</div>
 
-				<div class="w-full lg:w-80 shrink-0 space-y-6">
-					<div class="text-center">
-						<h1 class="text-xl font-semibold mb-1">{payload.document.name}</h1>
-						<p class="text-sm text-muted-foreground">
-							Signing as <span class="font-medium text-foreground">{payload.signer.name}</span>
-						</p>
-						<a
-							href={api.signing.fileUrl((page.params as Record<string, string>).token)}
-							download
-							class="mt-3 inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
-						>
-							<Icon icon="solar:download-minimalistic-linear" class="h-4 w-4" />
-							Download document
-						</a>
-					</div>
-
-					<Separator />
-
-					{#if payload.fields.length > 0}
-						<div class="space-y-4">
-							{#each payload.fields as field}
-								<div class="space-y-2">
-									<Label for="field-{field.id}">
-										{field.label || fieldLabel(field)}
-										{#if field.required}
-											<span class="text-destructive">*</span>
-										{/if}
-									</Label>
-									{#if field.field_type === 'signature'}
-										<div onfocusin={() => scrollToField(field.id)}>
-											<SignaturePad bind:value={fieldValues[String(field.id)]} />
-										</div>
-									{:else if field.field_type === 'date'}
-										<div class="flex items-center gap-2">
-											<Input
-												id="field-{field.id}"
-												type="date"
-												bind:value={fieldValues[String(field.id)]}
-												onfocus={() => scrollToField(field.id)}
-												class="flex-1"
-											/>
-											<button
-												type="button"
-												onclick={() => { fieldValues[String(field.id)] = new Date().toISOString().split('T')[0]; scrollToField(field.id); }}
-												class="inline-flex items-center gap-1 shrink-0 rounded-md border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-											>
-												<Icon icon="solar:calendar-mark-linear" class="h-3.5 w-3.5" />
-												Today
-											</button>
-										</div>
-									{:else if field.field_type === 'checkbox'}
-										<label class="flex items-center gap-2 cursor-pointer">
-											<input
-												type="checkbox"
-												checked={fieldValues[String(field.id)] === 'true'}
-												onchange={(e) => {
-													fieldValues[String(field.id)] = (e.currentTarget as HTMLInputElement).checked ? 'true' : 'false';
-												}}
-												onfocus={() => scrollToField(field.id)}
-												class="h-4 w-4 rounded border-border"
-											/>
-											<span class="text-sm">I agree</span>
-										</label>
-									{:else}
-										<Input
-											id="field-{field.id}"
-											bind:value={fieldValues[String(field.id)]}
-											placeholder="Enter text"
-											onfocus={() => scrollToField(field.id)}
-										/>
-									{/if}
-								</div>
-							{/each}
+				<div class="flex w-full shrink-0 flex-col gap-4 lg:w-80">
+					<Card class="flex flex-col gap-4">
+						<div class="flex flex-col gap-1">
+							<h1 class="text-fc-lg font-semibold text-fc-fg">{payload.document.name}</h1>
+							<p class="text-fc-sm text-fc-fg-muted">
+								Signing as <span class="font-medium text-fc-fg">{payload.signer.name}</span>
+							</p>
 						</div>
 
-						<Separator />
-					{/if}
-
-					{#if error}
-						<p class="text-sm text-destructive">{error}</p>
-					{/if}
-
-					<div class="flex gap-3">
-						<Button onclick={signDocument} disabled={submitting} class="flex-1">
-							{#if submitting}
-								<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
-							{:else}
-								<Icon icon="solar:pen-new-square-linear" class="h-4 w-4" />
-							{/if}
-							Sign & complete
+						<Button
+							variant="outline"
+							size="lg"
+							href={fileUrl}
+							download
+							icon={icons.download}
+							class="w-full"
+						>
+							Download document
 						</Button>
-						<Button onclick={declineDocument} disabled={submitting} variant="outline">
-							Decline
-						</Button>
-					</div>
+
+						{#if payload.fields.length > 0}
+							<Divider class="my-0" />
+
+							<div class="flex flex-col gap-4">
+								{#each payload.fields as field (field.id)}
+									{@const isMissing = missingIds.includes(field.id)}
+									{#if field.field_type === 'signature'}
+										<div class="flex flex-col gap-1.5">
+											<p class="text-fc-sm text-fc-fg">{labelFor(field)}</p>
+											<div
+												role="group"
+												tabindex="-1"
+												data-field-control={field.id}
+												aria-label={labelFor(field)}
+												onfocusin={() => scrollToField(field.id)}
+											>
+												<SignaturePad bind:value={fieldValues[String(field.id)]} />
+											</div>
+											{#if isMissing}
+												<span class="text-fc-xs text-fc-danger">A signature is required.</span>
+											{/if}
+										</div>
+									{:else if field.field_type === 'date'}
+										<Field
+											label={labelFor(field)}
+											error={isMissing ? 'This field is required.' : undefined}
+											data-field-control={field.id}
+										>
+											<div class="flex items-center gap-2">
+												<Input
+													type="date"
+													bind:value={fieldValues[String(field.id)]}
+													onfocus={() => scrollToField(field.id)}
+													class="flex-1"
+												/>
+												<Button
+													variant="outline"
+													size="lg"
+													icon={icons.calendar}
+													aria-label="Use today's date"
+													onclick={() => {
+														fieldValues[String(field.id)] = new Date().toISOString().split('T')[0];
+														scrollToField(field.id);
+													}}
+												>
+													Today
+												</Button>
+											</div>
+										</Field>
+									{:else if field.field_type === 'checkbox'}
+										<div class="flex flex-col gap-1.5">
+											<Checkbox
+												label={labelFor(field)}
+												checked={fieldValues[String(field.id)] === 'true'}
+												onchange={(e) => {
+													fieldValues[String(field.id)] = (e.currentTarget as HTMLInputElement).checked
+														? 'true'
+														: 'false';
+												}}
+												onfocus={() => scrollToField(field.id)}
+												data-field-control={field.id}
+												aria-invalid={isMissing}
+												class="min-h-11"
+											/>
+											{#if isMissing}
+												<span class="text-fc-xs text-fc-danger">This box has to be ticked.</span>
+											{/if}
+										</div>
+									{:else}
+										<Field
+											label={labelFor(field)}
+											error={isMissing ? 'This field is required.' : undefined}
+											data-field-control={field.id}
+										>
+											<Input
+												bind:value={fieldValues[String(field.id)]}
+												placeholder="Enter text"
+												onfocus={() => scrollToField(field.id)}
+											/>
+										</Field>
+									{/if}
+								{/each}
+							</div>
+						{/if}
+
+						{#if missingFields.length > 0}
+							<Alert tone="danger" title="Fill the required fields first">
+								Still empty: {missingFields.map((f) => f.label || fieldLabel(f)).join(', ')}.
+							</Alert>
+						{/if}
+
+						{#if error}
+							<Alert tone="danger" title="Could not sign">{error}</Alert>
+						{/if}
+
+						<Divider class="my-0" />
+
+						<div class="flex flex-col gap-2 sm:flex-row">
+							<Button
+								size="lg"
+								icon={icons.edit}
+								onclick={signDocument}
+								disabled={submitting}
+								class="flex-1"
+							>
+								{#if submitting}
+									<Spinner size="sm" class="border-current/30 border-t-current" />
+								{/if}
+								Sign &amp; complete
+							</Button>
+							<Button
+								variant="outline"
+								size="lg"
+								onclick={() => (confirmDecline = true)}
+								disabled={submitting}
+							>
+								Decline
+							</Button>
+						</div>
+					</Card>
 				</div>
 			</div>
 		{/if}
-
-		{#snippet progressAndRoster()}
-			{#if signingStatus && signingStatus.signers.length > 0}
-				<div class="w-full space-y-4 rounded-xl border bg-card p-5 text-left">
-					{#if totalSigners > 0}
-						<div class="space-y-2">
-							<div class="flex items-center justify-between text-sm">
-								<span class="font-medium">Signing progress</span>
-								<span class="text-muted-foreground">{signedCount} of {totalSigners} signed</span>
-							</div>
-							<div class="h-2 w-full overflow-hidden rounded-full bg-muted">
-								<div
-									class="h-full rounded-full bg-green-500 transition-all duration-500"
-									style="width: {totalSigners ? (signedCount / totalSigners) * 100 : 0}%"
-								></div>
-							</div>
-						</div>
-						<Separator />
-					{/if}
-
-					<ul class="space-y-3">
-						{#each signingStatus.signers as entry (entry.name + '-' + entry.order_num)}
-							{@const meta = rosterMeta(entry)}
-							<li class="flex items-start gap-3">
-								<Icon icon={meta.icon} class="mt-0.5 h-5 w-5 shrink-0 {meta.color}" />
-								<div class="min-w-0 flex-1">
-									<div class="flex flex-wrap items-center gap-1.5">
-										<span class="truncate text-sm font-medium">{entry.name}</span>
-										{#if entry.is_you}
-											<span class="rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary">You</span>
-										{/if}
-										{#if entry.role !== 'signer'}
-											<span class="rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-medium capitalize text-muted-foreground">{entry.role}</span>
-										{/if}
-									</div>
-									<p class="text-xs text-muted-foreground">{meta.label}</p>
-								</div>
-							</li>
-						{/each}
-					</ul>
-
-					{#if isComplete}
-						<div class="flex items-center gap-1.5 rounded-lg bg-green-50 px-3 py-2 text-xs text-green-700">
-							<Icon icon="solar:check-read-linear" class="h-3.5 w-3.5 shrink-0" />
-							Everyone has signed. This document is finalized.
-						</div>
-					{:else if someoneDeclined}
-						<div class="flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
-							<Icon icon="solar:close-circle-linear" class="h-3.5 w-3.5 shrink-0" />
-							The signing process was stopped because a signer declined.
-						</div>
-					{:else if pendingNames.length > 0}
-						<div class="flex items-start gap-1.5 rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-							<Icon icon="solar:clock-circle-linear" class="mt-0.5 h-3.5 w-3.5 shrink-0" />
-							<span>Waiting on {pendingNames.join(', ')} to finalize the document.</span>
-						</div>
-					{/if}
-				</div>
-			{/if}
-		{/snippet}
 	</main>
 
-	<footer class="flex items-center justify-center border-t px-6 py-4 text-xs text-muted-foreground">
-		<Icon icon="solar:document-add-bold-duotone" class="mr-1.5 h-3.5 w-3.5" />
-		Powered by <a href="/" class="ml-0.5 font-medium text-foreground/70 hover:text-foreground transition-colors">Plume</a>
+	<footer
+		class="flex items-center justify-center gap-1.5 border-t border-fc-border px-4 py-4 text-fc-xs text-fc-fg-muted sm:px-6"
+	>
+		<iconify-icon icon="solar:pen-new-square-bold-duotone" width="16" height="16" class="block"
+		></iconify-icon>
+		Powered by
+		<a href="/" class="font-medium text-fc-fg hover:opacity-80">Plume</a>
 	</footer>
 </div>
+
+<ConfirmModal
+	bind:open={confirmDecline}
+	tone="danger"
+	title="Decline to sign?"
+	description="The sender is notified and the signing process stops here. This cannot be undone."
+	confirmLabel="Decline"
+	cancelLabel="Keep reviewing"
+	onConfirm={declineDocument}
+	onCancel={() => (declineError = '')}
+>
+	{#if declineError}
+		<Alert tone="danger">{declineError}</Alert>
+	{/if}
+</ConfirmModal>

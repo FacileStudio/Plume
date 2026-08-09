@@ -30,7 +30,7 @@ Live at [plume.facile.studio](https://plume.facile.studio).
 |---|---|
 | API | Go 1.25, Chi v5, GORM, PostgreSQL 16, [tronc](https://github.com/FacileStudio/tronc) v0.6.0 |
 | PDF | `go-pdf/fpdf` for generation, `pdfcpu` for overlaying and flattening |
-| Client | SvelteKit 2 (Svelte 5 runes), Tailwind CSS 4, shadcn-svelte, `pdfjs-dist` |
+| Client | SvelteKit 2 (Svelte 5 runes), Tailwind CSS 4, [muse](https://github.com/FacileStudio/muse), `pdfjs-dist` |
 | Auth | Bearer session tokens, argon2id passwords, optional OIDC via `go-oidc/v3` |
 | Deploy | Docker Compose, single distroless container behind Traefik |
 

@@ -1,11 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { api } from '$lib';
-	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
-	import { Label } from '$lib/components/ui/label';
-	import Icon from '@iconify/svelte';
-	import { toast } from 'svelte-sonner';
+	import { Alert, Button, Card, Field, Input, Textarea, icons, toast } from '@facile/muse';
 
 	let name = $state('');
 	let email = $state('');
@@ -15,7 +11,8 @@
 	let error = $state('');
 	let submitting = $state(false);
 
-	async function submit() {
+	async function submit(event: SubmitEvent) {
+		event.preventDefault();
 		error = '';
 		if (!name.trim()) {
 			error = 'Client name is required';
@@ -30,10 +27,11 @@
 				phone: phone.trim(),
 				notes: notes.trim()
 			});
+			toast.success('Client created');
 			goto(`/clients/${c.id}`);
-		} catch (e: any) {
-			error = e.message;
-			toast.error(e instanceof Error ? e.message : 'Failed to create client');
+		} catch (e) {
+			error = e instanceof Error ? e.message : 'Failed to create client';
+			toast.danger(error);
 			submitting = false;
 		}
 	}
@@ -41,59 +39,45 @@
 
 <svelte:head><title>New Client — Plume</title></svelte:head>
 
-<div class="max-w-lg">
-	<div class="mb-8">
-		<a href="/clients" class="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4">
-			<Icon icon="solar:arrow-left-linear" class="h-4 w-4" />
+<div class="flex max-w-xl flex-col gap-10">
+	<div class="flex flex-col gap-2">
+		<Button href="/clients" variant="ghost" size="sm" icon={icons.chevronLeft} class="w-fit -ml-3">
 			Back to clients
-		</a>
-		<h1 class="text-2xl font-bold">New client</h1>
+		</Button>
+		<h1 class="text-fc-2xl font-semibold text-fc-fg">New client</h1>
+		<p class="text-fc-sm text-fc-fg-muted">
+			Only the name is required — everything else can be filled in later.
+		</p>
 	</div>
 
-	<form onsubmit={submit} class="space-y-6">
-		<div class="space-y-2">
-			<Label for="client-name">Name</Label>
-			<Input id="client-name" bind:value={name} placeholder="Jane Doe" required />
-		</div>
-
-		<div class="space-y-2">
-			<Label for="client-email">Email</Label>
-			<Input id="client-email" bind:value={email} placeholder="jane@example.com" type="email" />
-		</div>
-
-		<div class="space-y-2">
-			<Label for="client-company">Company</Label>
-			<Input id="client-company" bind:value={company} placeholder="Acme Inc." />
-		</div>
-
-		<div class="space-y-2">
-			<Label for="client-phone">Phone</Label>
-			<Input id="client-phone" bind:value={phone} placeholder="+1 555 000 0000" type="tel" />
-		</div>
-
-		<div class="space-y-2">
-			<Label for="client-notes">Notes</Label>
-			<textarea
-				id="client-notes"
-				bind:value={notes}
-				placeholder="Anything worth remembering about this client..."
-				rows="4"
-				class="dark:bg-input/30 border-input focus-visible:border-ring focus-visible:ring-ring/50 min-h-16 w-full min-w-0 rounded-lg border bg-transparent px-2.5 py-1.5 text-base outline-none transition-colors placeholder:text-muted-foreground focus-visible:ring-3 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
-			></textarea>
-		</div>
+	<form onsubmit={submit} class="flex flex-col gap-4">
+		<Card class="flex flex-col gap-4">
+			<Field label="Name">
+				<Input bind:value={name} placeholder="Jane Doe" required />
+			</Field>
+			<Field label="Email">
+				<Input bind:value={email} type="email" placeholder="jane@example.com" />
+			</Field>
+			<Field label="Company">
+				<Input bind:value={company} placeholder="Acme Inc." />
+			</Field>
+			<Field label="Phone">
+				<Input bind:value={phone} type="tel" placeholder="+1 555 000 0000" />
+			</Field>
+			<Field label="Notes" helper="Optional — anything worth remembering about this client.">
+				<Textarea bind:value={notes} rows={4} placeholder="Prefers PDFs, invoices monthly…" />
+			</Field>
+		</Card>
 
 		{#if error}
-			<p class="text-sm text-destructive">{error}</p>
+			<Alert tone="danger">{error}</Alert>
 		{/if}
 
-		<Button type="submit" disabled={submitting} class="w-full">
-			{#if submitting}
-				<Icon icon="solar:spinner-linear" class="h-4 w-4 animate-spin" />
-				Creating...
-			{:else}
-				<Icon icon="mdi:plus" class="h-4 w-4" />
-				Create client
-			{/if}
-		</Button>
+		<div class="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+			<Button href="/clients" variant="ghost" class="w-full sm:w-auto">Cancel</Button>
+			<Button type="submit" icon={icons.plus} disabled={submitting} class="w-full sm:w-auto">
+				{submitting ? 'Creating…' : 'Create client'}
+			</Button>
+		</div>
 	</form>
 </div>

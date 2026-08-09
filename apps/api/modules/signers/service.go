@@ -4,6 +4,7 @@ import (
 	"context"
 	stderrors "errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/FacileStudio/Plume/apps/api/modules/documents"
@@ -273,6 +274,20 @@ func (s *Service) SubmitSignature(ctx context.Context, token string, req *Submit
 		return err
 	}
 
+	var ownFields []schemas.Field
+	if err := s.orm.WithContext(ctx).Where("document_id = ? AND signer_id = ?", doc.ID, signer.ID).Find(&ownFields).Error; err != nil {
+		return errors.Internal("failed to load fields", err)
+	}
+
+	submitted := make(map[int64]string, len(req.Fields))
+	for _, fv := range req.Fields {
+		submitted[fv.FieldID] = fv.Value
+	}
+
+	if missing := missingRequiredFields(ownFields, submitted); len(missing) > 0 {
+		return errors.Invalid("required fields are missing: " + strings.Join(missing, ", "))
+	}
+
 	for _, fv := range req.Fields {
 		if err := s.orm.WithContext(ctx).Model(&schemas.Field{}).Where("id = ? AND signer_id = ?", fv.FieldID, signer.ID).Update("value", fv.Value).Error; err != nil {
 			return errors.Internal("failed to save field value", err)
@@ -434,6 +449,45 @@ func (s *Service) GetSigningStatus(ctx context.Context, token string) (*SigningS
 		Signer:   me,
 		Signers:  roster,
 	}, nil
+}
+
+// isFieldFilled decides whether a submitted value satisfies a required field.
+// A checkbox is only satisfied when it is actually ticked, so the literal
+// "false" counts as empty; every other type (signature, text, date) is
+// satisfied by any non-blank value — a signature arrives as a data URL or a
+// typed name, and whitespace alone is not a signature.
+func isFieldFilled(fieldType string, value string) bool {
+	if fieldType == "checkbox" {
+		return value == "true"
+	}
+	return strings.TrimSpace(value) != ""
+}
+
+// missingRequiredFields returns the labels of the signer's own required fields
+// left empty once the submitted values are applied over what is already stored.
+// A field absent from the submission keeps its stored value rather than being
+// treated as cleared.
+func missingRequiredFields(fields []schemas.Field, submitted map[int64]string) []string {
+	missing := make([]string, 0)
+	for i := range fields {
+		field := fields[i]
+		if !field.Required {
+			continue
+		}
+		value := field.Value
+		if v, ok := submitted[field.ID]; ok {
+			value = v
+		}
+		if isFieldFilled(field.FieldType, value) {
+			continue
+		}
+		label := field.Label
+		if label == "" {
+			label = field.FieldType
+		}
+		missing = append(missing, label)
+	}
+	return missing
 }
 
 func isSignersTurn(sequential bool, current schemas.Signer, all []schemas.Signer) bool {

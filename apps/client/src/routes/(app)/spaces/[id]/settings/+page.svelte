@@ -4,10 +4,18 @@
 	import { goto } from '$app/navigation';
 	import { api } from '$lib';
 	import type { Space } from '$lib';
-	import { Button } from '$lib/components/ui/button';
-	import * as AlertDialog from '$lib/components/ui/alert-dialog/index.js';
-	import Icon from '@iconify/svelte';
-	import { toast } from 'svelte-sonner';
+	import {
+		Button,
+		ConfirmModal,
+		Field,
+		Input,
+		SettingsRow,
+		SettingsSection,
+		Spinner,
+		Textarea,
+		icons,
+		toast
+	} from '@facile/muse';
 	import { spaceStore } from '$lib/stores/space.svelte';
 
 	let space = $state<Space | null>(null);
@@ -17,39 +25,41 @@
 	let description = $state('');
 	let saving = $state(false);
 
-	let showDeleteConfirm = $state(false);
-	let deleting = $state(false);
+	let confirmDelete = $state(false);
 
 	const spaceId = $derived(Number(page.params.id));
 
-	async function save() {
+	async function save(event: SubmitEvent) {
+		event.preventDefault();
 		if (!name.trim()) return;
 		saving = true;
 		try {
-			const updated = await api.spaces.update(spaceId, { name: name.trim(), description: description.trim() });
+			const updated = await api.spaces.update(spaceId, {
+				name: name.trim(),
+				description: description.trim()
+			});
 			space = updated;
 			spaceStore.spaces = spaceStore.spaces.map((s) => (s.id === spaceId ? updated : s));
 			toast.success('Space updated');
 		} catch (e) {
-			toast.error(e instanceof Error ? e.message : 'Failed to update space');
+			toast.danger(e instanceof Error ? e.message : 'Failed to update space');
 		}
 		saving = false;
 	}
 
-	async function confirmDelete() {
-		deleting = true;
+	async function runDelete() {
 		try {
 			await api.spaces.delete(spaceId);
-			spaceStore.spaces = spaceStore.spaces.filter((s) => s.id !== spaceId);
-			if (spaceStore.activeId === spaceId) {
-				spaceStore.activeId = null;
-			}
-			toast.success('Space deleted');
-			goto('/spaces');
 		} catch (e) {
-			toast.error(e instanceof Error ? e.message : 'Failed to delete space');
+			toast.danger(e instanceof Error ? e.message : 'Failed to delete space');
+			throw e;
 		}
-		deleting = false;
+		spaceStore.spaces = spaceStore.spaces.filter((s) => s.id !== spaceId);
+		if (spaceStore.activeId === spaceId) {
+			spaceStore.activeId = null;
+		}
+		toast.success('Space deleted');
+		goto('/spaces');
 	}
 
 	onMount(async () => {
@@ -73,98 +83,64 @@
 
 {#if loading}
 	<div class="flex min-h-[40dvh] items-center justify-center">
-		<Icon icon="solar:spinner-bold-duotone" class="h-8 w-8 animate-spin text-muted-foreground" />
+		<Spinner size="lg" />
 	</div>
 {:else if space}
-	<div class="mb-6 border-b pb-5">
-		<div class="flex items-center gap-3 mb-3">
-			<a href="/spaces/{spaceId}" class="rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground hover:bg-muted">
-				<Icon icon="solar:arrow-left-linear" class="h-5 w-5" />
-			</a>
-			<span class="text-sm text-muted-foreground">{space.name}</span>
+	<div class="flex max-w-2xl flex-col gap-10">
+		<div class="flex flex-col gap-2">
+			<Button
+				href="/spaces/{spaceId}"
+				variant="ghost"
+				size="sm"
+				icon={icons.chevronLeft}
+				class="w-fit -ml-3"
+			>
+				{space.name}
+			</Button>
+			<h1 class="text-fc-2xl font-semibold text-fc-fg">Space settings</h1>
 		</div>
-		<h1 class="text-lg font-semibold">Settings</h1>
-	</div>
 
-	<div>
-		<form onsubmit={save} class="max-w-xl space-y-6">
-			<div>
-				<h2 class="text-sm font-semibold uppercase tracking-wider text-muted-foreground mb-4">General</h2>
-				<div class="space-y-4">
-					<div>
-						<label for="space-name" class="mb-1.5 block text-sm font-medium">Name</label>
-						<input
-							id="space-name"
-							type="text"
-							bind:value={name}
-							class="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-						/>
-					</div>
-					<div>
-						<label for="space-description" class="mb-1.5 block text-sm font-medium">Description</label>
-						<textarea
-							id="space-description"
-							bind:value={description}
-							rows="3"
-							class="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-						></textarea>
-					</div>
-				</div>
-				<div class="mt-4">
-					<Button type="submit" disabled={saving || !name.trim()} size="sm">
-						{#if saving}
-							<Icon icon="solar:spinner-bold-duotone" class="h-4 w-4 animate-spin" />
-							Saving...
-						{:else}
-							Save changes
-						{/if}
-					</Button>
-				</div>
+		<form onsubmit={save} class="flex flex-col gap-4">
+			<SettingsSection title="General" description="How this space is named and described.">
+				<Field label="Name">
+					<Input bind:value={name} placeholder="My team" />
+				</Field>
+				<Field label="Description" helper="Optional — what the space is for.">
+					<Textarea bind:value={description} rows={3} placeholder="Client contracts and NDAs." />
+				</Field>
+			</SettingsSection>
+			<div class="flex justify-end">
+				<Button type="submit" icon={icons.check} disabled={saving || !name.trim()}>
+					{saving ? 'Saving…' : 'Save changes'}
+				</Button>
 			</div>
+		</form>
 
-			{#if space.role === 'owner'}
-				<div class="border-t border-border pt-8">
-					<h2 class="text-sm font-semibold uppercase tracking-wider text-red-500 mb-3">Danger zone</h2>
-					<p class="text-sm text-muted-foreground mb-4">
-						Deleting a space is permanent. All members will lose access.
-					</p>
+		{#if space.role === 'owner'}
+			<SettingsSection title="Danger zone" description="Irreversible, and nobody can undo it for you.">
+				<SettingsRow
+					label="Delete this space"
+					description="Every member loses access. Documents in the space go with it."
+				>
 					<Button
-						variant="outline"
-						size="sm"
-						class="border-red-500/50 text-red-500 hover:bg-red-500 hover:text-white"
-						onclick={() => (showDeleteConfirm = true)}
+						variant="ghost-danger"
+						icon={icons.remove}
+						onclick={() => (confirmDelete = true)}
 					>
-						<Icon icon="solar:trash-bin-trash-bold-duotone" class="h-4 w-4" />
 						Delete space
 					</Button>
-				</div>
-			{/if}
-		</form>
+				</SettingsRow>
+			</SettingsSection>
+		{/if}
 	</div>
 
-	<AlertDialog.Root open={showDeleteConfirm} onOpenChange={(open) => { if (!open) showDeleteConfirm = false; }}>
-		<AlertDialog.Content>
-			<AlertDialog.Header>
-				<AlertDialog.Title>Delete space</AlertDialog.Title>
-				<AlertDialog.Description>
-					Are you sure you want to delete <strong>{space.name}</strong>? This action cannot be undone. All members will lose access.
-				</AlertDialog.Description>
-			</AlertDialog.Header>
-			<AlertDialog.Footer>
-				<AlertDialog.Cancel disabled={deleting}>Cancel</AlertDialog.Cancel>
-				<AlertDialog.Action
-					class="!bg-red-600 !text-white hover:!bg-red-700"
-					onclick={confirmDelete}
-					disabled={deleting}
-				>
-					{#if deleting}
-						<Icon icon="solar:spinner-bold-duotone" class="h-4 w-4 animate-spin" />
-						Deleting...
-					{:else}
-						Delete
-					{/if}
-				</AlertDialog.Action>
-			</AlertDialog.Footer>
-		</AlertDialog.Content>
-	</AlertDialog.Root>
+	<ConfirmModal
+		bind:open={confirmDelete}
+		tone="danger"
+		title="Delete {space.name}?"
+		description="This cannot be undone. All members lose access immediately."
+		confirmLabel="Delete space"
+		cancelLabel="Keep space"
+		onConfirm={runDelete}
+	/>
 {/if}
