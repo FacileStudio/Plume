@@ -209,7 +209,7 @@ func isEmailVerified(v any) bool {
 	case nil:
 		return true
 	default:
-		return true
+		return false
 	}
 }
 
