@@ -286,7 +286,15 @@ func apiReference() apiref.Config {
 
 func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slog.Logger, sessions *session.Manager, kit *oidc.Kit) chi.Router {
 	router := httpx.NewRouter(httpx.Config{
-		Logger: appLogger,
+		// Behind Traefik and Cloudflare, RemoteAddr is only the
+		// visitor if both are trusted: Traefik replaces the forwarded
+		// chain rather than extending it, so the visitor survives in
+		// Cf-Connecting-Ip alone. TRUSTED_PROXIES=private,cloudflare
+		// fills all three.
+		TrustedProxies: appEnv.TrustedProxies,
+		CDNProxies:     appEnv.CDNProxies,
+		CDNHeader:      appEnv.CDNHeader,
+		Logger:         appLogger,
 		CORS: troncmiddleware.CORSConfig{
 			AllowedOrigins: appEnv.CORSAllowedOrigins,
 		},
