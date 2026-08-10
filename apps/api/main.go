@@ -31,6 +31,10 @@ import (
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 
 	"github.com/FacileStudio/Journal/sdk/journal"
+	"github.com/FacileStudio/porte/local"
+	"github.com/FacileStudio/porte/oidc"
+	portepg "github.com/FacileStudio/porte/pg"
+	"github.com/FacileStudio/porte/session"
 	"github.com/FacileStudio/tronc/apiref"
 	"github.com/FacileStudio/tronc/health"
 	"github.com/FacileStudio/tronc/healthcheck"
@@ -39,6 +43,7 @@ import (
 	troncmiddleware "github.com/FacileStudio/tronc/middleware"
 	"github.com/FacileStudio/tronc/spa"
 	"github.com/go-chi/chi/v5"
+
 	"gorm.io/gorm"
 )
 
@@ -79,7 +84,7 @@ func run() error {
 		return err
 	}
 
-	if err := schemas.Migrate(db); err != nil {
+	if err := schemas.MigrateWithIssuer(db, appEnv.IssuerForMigration()); err != nil {
 		appLogger.Error("failed to run migrations", slog.Any("error", err))
 		return err
 	}
@@ -99,7 +104,13 @@ func run() error {
 		return err
 	}
 
-	svc := newServices(db, appEnv, appLogger)
+	sessions, passwords, kit, err := buildAuth(context.Background(), db, appEnv, appLogger)
+	if err != nil {
+		appLogger.Error("failed to build authentication", slog.Any("error", err))
+		return err
+	}
+
+	svc := newServices(db, appEnv, appLogger, sessions, passwords)
 
 	go func() {
 		count, err := svc.documents.BackfillHashes(context.Background())
@@ -112,7 +123,7 @@ func run() error {
 		}
 	}()
 
-	router := buildRouter(svc, sqlDB, appEnv, appLogger)
+	router := buildRouter(svc, sqlDB, appEnv, appLogger, sessions, kit)
 
 	addr := ":" + strconv.Itoa(appEnv.Port)
 	server := &http.Server{
@@ -169,12 +180,75 @@ type services struct {
 	reminders *reminders.Service
 }
 
-func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) *services {
+// buildAuth constructs porte: one session manager, shared by the OIDC kit and
+// the local login, over the identity tables.
+//
+// One manager and not two: they would each keep their own idea of the clock
+// and of whether the cookie is Secure, and porte refuses a kit whose config
+// disagrees with its manager's for exactly that reason. Discovery runs here,
+// so an unreachable or half-configured issuer fails at boot rather than on
+// somebody's first login — a change from what this app did, where a discovery
+// failure at route-registration time logged an error and left SSO 404ing until
+// the next restart.
+//
+// The CLI login codes move with it. This app kept them in a sync.Map with a
+// goroutine expiring them, which lost every pending login on restart and could
+// not work behind more than one replica; porte stores them in a table and
+// consumes them with a DELETE ... RETURNING, so a replay finds nothing.
+func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) (*session.Manager, *local.Kit, *oidc.Kit, error) {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	store := portepg.New(sqlDB)
+	users := auth.NewUserStore(db)
+	cfg := appEnv.Porte()
+
+	sessions, err := session.New(cfg, session.Deps{Sessions: store.Sessions(), Logger: appLogger})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	kit, err := oidc.New(ctx, cfg, oidc.Deps{
+		Users:      users,
+		Identities: store.Identities(),
+		Sessions:   sessions,
+		Codes:      store.LoginCodes(),
+		Logger:     appLogger,
+		ConfigExtra: func() map[string]any {
+			if appEnv.OIDC == nil {
+				return nil
+			}
+			return map[string]any{
+				"oidc_redirect_url": appEnv.OIDC.RedirectURL,
+				"oidc_issuer":       appEnv.OIDC.Issuer,
+			}
+		},
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	// Plume already required twelve characters, which is porte's default, so
+	// the floor is left unset rather than restated. This is the one app in
+	// the suite that does not have to be held down to eight.
+	passwords, err := local.New(local.Config{AllowRegistration: !appEnv.SSOOnly}, local.Deps{
+		Users:      users,
+		Identities: store.Identities(),
+		Sessions:   sessions,
+		Logger:     appLogger,
+		Count:      users.CountUsers,
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return sessions, passwords, kit, nil
+}
+
+func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, sessions *session.Manager, passwords *local.Kit) *services {
 	smtpService := smtp.NewService(db)
 	webhookService := webhooks.NewService(db)
 	docService := documents.NewService(db, smtpService, webhookService, appEnv.Domain, appEnv.UploadDir)
 	return &services{
-		auth:      auth.NewService(db, appLogger),
+		auth:      auth.NewService(db, sessions, passwords, appLogger),
 		smtp:      smtpService,
 		webhooks:  webhookService,
 		documents: docService,
@@ -210,7 +284,7 @@ func apiReference() apiref.Config {
 	}
 }
 
-func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slog.Logger) chi.Router {
+func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slog.Logger, sessions *session.Manager, kit *oidc.Kit) chi.Router {
 	router := httpx.NewRouter(httpx.Config{
 		Logger: appLogger,
 		CORS: troncmiddleware.CORSConfig{
@@ -229,6 +303,8 @@ func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slo
 			avatarFS.ServeHTTP(w, r)
 		})
 
+		sessions.Mount(api)
+		kit.Mount(api)
 		auth.RegisterRoutes(api, svc.auth, appEnv)
 		documents.RegisterRoutes(api, svc.documents, svc.auth,
 			signers.DocumentRoutes(svc.signers),

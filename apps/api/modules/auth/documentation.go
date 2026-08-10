@@ -14,6 +14,13 @@ var Documentation = documentation.Module{
 			Auth:        "",
 		},
 		{
+			Method:      "POST",
+			Path:        "/auth/logout",
+			Summary:     "End the session",
+			Description: "Revokes the session and clears the cookie. Idempotent: a caller whose session has already expired still gets 200, because that is exactly when somebody needs to log out. Served by porte.",
+			Auth:        "",
+		},
+		{
 			Method:       "POST",
 			Path:         "/auth/register",
 			Summary:      "Register a new user",

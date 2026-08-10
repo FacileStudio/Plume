@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -17,7 +18,8 @@ func newController(service *Service) *Controller {
 	return &Controller{service: service}
 }
 
-func (controller *Controller) register(context context.Context, req *RegisterRequest) (*AuthResponse, error) {
+func (controller *Controller) register(w http.ResponseWriter, r *http.Request, req *RegisterRequest) (*AuthResponse, error) {
+	context := r.Context()
 	email := strings.TrimSpace(strings.ToLower(req.Email))
 	if email == "" || !strings.Contains(email, "@") {
 		return nil, errors.Invalid("invalid email")
@@ -26,7 +28,7 @@ func (controller *Controller) register(context context.Context, req *RegisterReq
 		return nil, errors.Invalid("password must be at least 12 characters")
 	}
 
-	userID, token, err := controller.service.registerUser(context, email, req.Password)
+	userID, token, err := controller.service.Register(context, w, r, email, req.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +36,7 @@ func (controller *Controller) register(context context.Context, req *RegisterReq
 }
 
 func (controller *Controller) getMe(context context.Context, userID string) (*ProfileResponse, error) {
-	user, err := controller.service.getUser(context, userID)
+	user, err := controller.service.getUserByString(context, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +64,7 @@ func (controller *Controller) updateMe(context context.Context, userID string, r
 		}
 	}
 
-	user, err := controller.service.updateUser(context, userID, name, email, req.ReminderIntervalDays)
+	user, err := controller.service.updateProfileByString(context, userID, name, email, req.ReminderIntervalDays)
 	if err != nil {
 		return nil, err
 	}
@@ -84,16 +86,21 @@ func (controller *Controller) changePassword(context context.Context, userID str
 	if len(req.NewPassword) < 12 {
 		return errors.Invalid("new password must be at least 12 characters")
 	}
-	return controller.service.changePassword(context, userID, req.CurrentPassword, req.NewPassword)
+	id, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return errors.Internal("failed to parse user id", err)
+	}
+	return controller.service.ChangePassword(context, id, req.CurrentPassword, req.NewPassword)
 }
 
-func (controller *Controller) login(context context.Context, req *LoginRequest) (*AuthResponse, error) {
+func (controller *Controller) login(w http.ResponseWriter, r *http.Request, req *LoginRequest) (*AuthResponse, error) {
+	context := r.Context()
 	email := strings.TrimSpace(strings.ToLower(req.Email))
 	if email == "" || req.Password == "" {
 		return nil, errors.Invalid("email and password required")
 	}
 
-	userID, token, err := controller.service.loginUser(context, email, req.Password)
+	userID, token, err := controller.service.Login(context, w, r, email, req.Password)
 	if err != nil {
 		return nil, err
 	}

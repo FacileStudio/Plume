@@ -2,16 +2,30 @@ package schemas
 
 import "gorm.io/gorm"
 
+// Migrate brings the schema up to date and then hands authentication to
+// porte. AdoptPorte runs last because it repoints foreign keys at users(id)
+// and reads the columns AutoMigrate has just guaranteed exist.
 func Migrate(db *gorm.DB) error {
+	return MigrateWithIssuer(db, "")
+}
+
+// MigrateWithIssuer is Migrate with the OIDC issuer, which the identity
+// backfill needs: porte matches an account on (provider, subject) and the
+// provider is the issuer, so backfilling with a placeholder would leave every
+// existing SSO user unmatched and quietly fall through to the email path.
+func MigrateWithIssuer(db *gorm.DB, issuer string) error {
 	db.Exec("DROP INDEX IF EXISTS idx_signers_token")
 
-	if err := db.AutoMigrate(&User{}, &Session{}, &Space{}, &SpaceMember{}, &Document{}, &Signer{}, &Field{}, &Webhook{}, &SmtpConfig{}, &Client{}); err != nil {
+	if err := db.AutoMigrate(&User{}, &Space{}, &SpaceMember{}, &Document{}, &Signer{}, &Field{}, &Webhook{}, &SmtpConfig{}, &Client{}); err != nil {
 		return err
 	}
 
 	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_space_members_space_user ON space_members (space_id, user_id)")
 
-	return backfillAvatarColumns(db)
+	if err := backfillAvatarColumns(db); err != nil {
+		return err
+	}
+	return AdoptPorte(db, issuer)
 }
 
 // backfillAvatarColumns moves the avatar state onto the two columns that now own it.
