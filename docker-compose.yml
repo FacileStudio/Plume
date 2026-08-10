@@ -44,6 +44,7 @@ services:
       traefik.http.services.plume-svc.loadbalancer.server.port: "4000"
     environment:
       APP_ENV: ${APP_ENV:-production}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       PORT: "4000"
       LOG_LEVEL: ${LOG_LEVEL:-info}
       DATABASE_URL: postgres://postgres:postgres@plume-db:5432/plume?sslmode=disable
