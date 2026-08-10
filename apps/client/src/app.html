@@ -3,7 +3,6 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<link rel="icon" href="/favicon.ico" type="image/x-icon" />
 		<script>
 			// Resolve the theme before first paint so the app never flashes light-on-dark.
 			// Both classes are set: muse paints dark from a media query scoped to
@@ -20,7 +19,41 @@
 				} catch (e) {}
 			})();
 		</script>
+
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+		<link rel="alternate icon" href="/favicon.ico" sizes="any" />
+		<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+		<link rel="manifest" href="/site.webmanifest" />
+
+		<meta name="color-scheme" content="light dark" />
+		<meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+		<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0a0a0a" />
+
+		<meta property="og:type" content="website" />
+		<meta property="og:site_name" content="Plume" />
+		<meta property="og:url" content="https://plume.facile.studio/" />
+		<meta property="og:title" content="Plume — Document signing" />
+		<meta
+			property="og:description"
+			content="Self-hosted document signing for small teams. Upload a PDF, place the fields, send it to signers, and get a stamped PDF with an audit trail."
+		/>
+		<meta property="og:image" content="https://plume.facile.studio/og-image.png" />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content="Plume — Document signing" />
+		<meta
+			name="twitter:description"
+			content="Self-hosted document signing for small teams. Upload a PDF, place the fields, send it to signers, and get a stamped PDF with an audit trail."
+		/>
+		<meta name="twitter:image" content="https://plume.facile.studio/og-image.png" />
 		%sveltekit.head%
+
+		<title>Plume — Document signing</title>
+		<meta
+			name="description"
+			content="Self-hosted document signing for small teams. Upload a PDF, place the fields, send it to signers, and get a stamped PDF with an audit trail."
+		/>
 	</head>
 	<body data-sveltekit-preload-data="hover">
 		<div style="display: contents">%sveltekit.body%</div>
