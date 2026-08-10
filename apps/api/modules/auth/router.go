@@ -1,10 +1,7 @@
 package auth
 
 import (
-	"context"
-	"log/slog"
 	"net/http"
-	"time"
 
 	"github.com/FacileStudio/Plume/apps/api/internal/authcontext"
 	"github.com/FacileStudio/Plume/apps/api/internal/env"
@@ -15,21 +12,7 @@ import (
 )
 
 func RegisterRoutes(router chi.Router, service *Service, appEnv env.Config) {
-	oidcEnabled := appEnv.OIDC != nil
-
 	router.Route("/auth", func(router chi.Router) {
-		router.Get("/config", func(w http.ResponseWriter, r *http.Request) {
-			cfg := map[string]any{
-				"sso_only":     appEnv.SSOOnly,
-				"oidc_enabled": oidcEnabled,
-			}
-			if oidcEnabled {
-				cfg["oidc_redirect_url"] = appEnv.OIDC.RedirectURL
-				cfg["oidc_issuer"] = appEnv.OIDC.Issuer
-			}
-			httpjson.WriteJSON(w, http.StatusOK, cfg)
-		})
-
 		if !appEnv.SSOOnly {
 			authLimiter := middleware.NewRateLimiter(10, 5).Handler()
 
@@ -42,7 +25,7 @@ func RegisterRoutes(router chi.Router, service *Service, appEnv env.Config) {
 						httpjson.WriteError(w, err)
 						return
 					}
-					resp, err := service.controller.register(request.Context(), &req)
+					resp, err := service.controller.register(w, request, &req)
 					if err != nil {
 						httpjson.WriteError(w, err)
 						return
@@ -56,7 +39,7 @@ func RegisterRoutes(router chi.Router, service *Service, appEnv env.Config) {
 						httpjson.WriteError(w, err)
 						return
 					}
-					resp, err := service.controller.login(request.Context(), &req)
+					resp, err := service.controller.login(w, request, &req)
 					if err != nil {
 						httpjson.WriteError(w, err)
 						return
@@ -109,38 +92,5 @@ func RegisterRoutes(router chi.Router, service *Service, appEnv env.Config) {
 			})
 		})
 
-		if oidcEnabled {
-			oidc, err := newOIDCHandler(context.Background(), appEnv.OIDC, service)
-			if err != nil {
-				slog.Error("failed to initialize OIDC provider", slog.Any("error", err))
-			} else {
-				go func() {
-					ticker := time.NewTicker(5 * time.Minute)
-					defer ticker.Stop()
-					for range ticker.C {
-						now := time.Now()
-						oidc.codes.Range(func(key, value any) bool {
-							if pending, ok := value.(pendingCode); ok && now.After(pending.ExpiresAt) {
-								oidc.codes.Delete(key)
-							}
-							return true
-						})
-					}
-				}()
-
-				router.Get("/oidc", oidc.login)
-				router.Get("/oidc/callback", oidc.callback)
-				router.Post("/oidc/exchange", oidc.exchange)
-
-				router.Group(func(router chi.Router) {
-					router.Use(middleware.RequireAuth(service))
-					router.Post("/sync-profile", func(w http.ResponseWriter, r *http.Request) {
-						identity, _ := authcontext.IdentityFromContext(r.Context())
-						ctx := context.WithValue(r.Context(), syncProfileUserIDKey{}, identity.UserID)
-						oidc.syncProfile(w, r.WithContext(ctx))
-					})
-				})
-			}
-		}
 	})
 }

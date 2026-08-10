@@ -2,383 +2,227 @@ package auth
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	stderrors "errors"
+	"log/slog"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	"log/slog"
-
-	"github.com/FacileStudio/Plume/apps/api/internal/authcrypto"
-	"github.com/FacileStudio/Plume/apps/api/internal/oidcavatar"
 	"github.com/FacileStudio/Plume/apps/api/schemas"
+	"github.com/FacileStudio/porte"
+	"github.com/FacileStudio/porte/local"
+	"github.com/FacileStudio/porte/session"
 	"github.com/FacileStudio/tronc/errors"
 
-	gooidc "github.com/coreos/go-oidc/v3/oidc"
-	"golang.org/x/oauth2"
 	"gorm.io/gorm"
 )
 
+// Service is what is left of Plume's authentication after porte took the
+// credential: the profile lookup the rest of the app reads, and a thin wrapper
+// over porte/local so the register and login routes keep their response shape.
 type Service struct {
 	orm        *gorm.DB
+	sessions   *session.Manager
+	passwords  *local.Kit
 	logger     *slog.Logger
 	controller *Controller
 }
 
-func NewService(orm *gorm.DB, logger *slog.Logger) *Service {
-	service := &Service{orm: orm, logger: logger}
+func NewService(orm *gorm.DB, sessions *session.Manager, passwords *local.Kit, logger *slog.Logger) *Service {
+	service := &Service{orm: orm, sessions: sessions, passwords: passwords, logger: logger}
 	service.controller = newController(service)
 	return service
 }
 
-func (service *Service) registerUser(context context.Context, email string, password string) (userID string, token string, err error) {
-	hash, err := authcrypto.HashPassword(password)
-	if err != nil {
-		return "", "", errors.Invalid("invalid password")
-	}
-
-	record := &schemas.User{
-		Email:        email,
-		PasswordHash: hash,
-	}
-	if err := service.orm.WithContext(context).Create(record).Error; err != nil {
-		if stderrors.Is(err, gorm.ErrDuplicatedKey) {
-			return "", "", errors.Conflict("email already registered")
-		}
-		return "", "", errors.Internal("failed to create user", err)
-	}
-
-	token, err = authcrypto.NewToken()
-	if err != nil {
-		return "", "", errors.Internal("failed to create session", err)
-	}
-	if err := service.insertSession(context, token, record.ID); err != nil {
-		return "", "", err
-	}
-
-	return strconv.FormatInt(record.ID, 10), token, nil
+// RequireAuth is porte's session middleware, re-exported so the module routers
+// keep passing this one service to middleware.RequireAuth.
+func (service *Service) RequireAuth(next http.Handler) http.Handler {
+	return service.sessions.RequireAuth(next)
 }
 
-func (service *Service) loginUser(context context.Context, email string, password string) (userID string, token string, err error) {
-	var record schemas.User
-	err = service.orm.WithContext(context).Where("email = ?", email).First(&record).Error
-	if stderrors.Is(err, gorm.ErrRecordNotFound) {
-		return "", "", errors.Unauthorized("invalid credentials")
-	}
-	if err != nil {
-		return "", "", errors.Internal("failed to read user", err)
-	}
-	if !authcrypto.VerifyPassword(password, record.PasswordHash) {
-		return "", "", errors.Unauthorized("invalid credentials")
-	}
-
-	token, err = authcrypto.NewToken()
-	if err != nil {
-		return "", "", errors.Internal("failed to create session", err)
-	}
-	if err := service.insertSession(context, token, record.ID); err != nil {
-		return "", "", err
-	}
-
-	return strconv.FormatInt(record.ID, 10), token, nil
-}
-
-func (service *Service) insertSession(context context.Context, token string, userID int64) error {
-	record := &schemas.Session{
-		Token:     hashToken(token),
-		UserID:    userID,
-		ExpiresAt: time.Now().Add(30 * 24 * time.Hour),
-	}
-	if err := service.orm.WithContext(context).Create(record).Error; err != nil {
-		return errors.Internal("failed to persist session", err)
-	}
-	return nil
-}
-
-func normalizeBearer(authorization string) string {
-	value := strings.TrimSpace(authorization)
-	if len(value) >= 7 && strings.EqualFold(value[:7], "bearer ") {
-		return strings.TrimSpace(value[7:])
-	}
-	return value
-}
-
-func (service *Service) authenticateRequest(context context.Context, authorization string) (string, *Data, error) {
-	token := normalizeBearer(authorization)
-	if token == "" {
-		return "", nil, errors.Unauthorized("missing auth token")
-	}
-
+// IdentityForUser turns the user id porte authenticated into the identity the
+// rest of Plume reads. It is no longer where authentication happens.
+//
+// porte deliberately carries neither the email nor any role: what a role may
+// do is the app's business, and the profile lives in the app's table. So the
+// address is looked up here, which costs the one query the old join cost.
+func (service *Service) IdentityForUser(ctx context.Context, userID int64) (string, string, error) {
 	var out struct {
-		UserID    int64
-		Email     string
-		ExpiresAt time.Time
+		ID    int64
+		Email string
 	}
-	err := service.orm.WithContext(context).
-		Table("sessions s").
-		Select("u.id as user_id, u.email as email, s.expires_at as expires_at").
-		Joins("join users u on u.id = s.user_id").
-		Where("s.token = ?", hashToken(token)).
+	err := service.orm.WithContext(ctx).
+		Model(&schemas.User{}).
+		Select("id", "email").
+		Where("id = ?", userID).
 		Scan(&out).Error
 	if err != nil {
-		return "", nil, errors.Internal("failed to validate auth token", err)
+		return "", "", errors.Internal("failed to load the account", err)
 	}
-	if out.UserID == 0 {
-		return "", nil, errors.Unauthorized("invalid auth token")
+	if out.ID == 0 {
+		// The session outlived the user. porte's foreign key cascades a
+		// delete, so this is a race, and it is still not authenticated.
+		return "", "", errors.Unauthorized("invalid auth token")
 	}
-	if time.Now().After(out.ExpiresAt) {
-		return "", nil, errors.Unauthorized("expired auth token")
-	}
-
-	return strconv.FormatInt(out.UserID, 10), &Data{Email: out.Email}, nil
+	return strconv.FormatInt(out.ID, 10), out.Email, nil
 }
 
-func (service *Service) Authenticate(context context.Context, authorization string) (string, any, error) {
-	return service.authenticateRequest(context, authorization)
-}
-
-func (service *Service) upsertOIDCUser(context context.Context, subject string, email string, emailTrusted bool, profile oidcavatar.Profile, oauth2Token *oauth2.Token) (userID string, token string, err error) {
-	var record schemas.User
-	found := false
-	if subject != "" {
-		lookupErr := service.orm.WithContext(context).Where("oidc_subject = ?", subject).First(&record).Error
-		if lookupErr == nil {
-			found = true
-		} else if !stderrors.Is(lookupErr, gorm.ErrRecordNotFound) {
-			return "", "", errors.Internal("failed to look up user", lookupErr)
-		}
-	}
-	if !found && emailTrusted {
-		lookupErr := service.orm.WithContext(context).Where("email = ?", email).First(&record).Error
-		if lookupErr == nil {
-			found = true
-		} else if !stderrors.Is(lookupErr, gorm.ErrRecordNotFound) {
-			return "", "", errors.Internal("failed to look up user", lookupErr)
-		}
-	}
-
-	if !found && !emailTrusted {
-		var taken schemas.User
-		lookupErr := service.orm.WithContext(context).Where("email = ?", email).First(&taken).Error
-		if lookupErr == nil {
-			service.logger.Warn("refused to link an OIDC subject to an existing account on an unverified email",
-				slog.String("email", email), slog.String("subject", subject))
-			return "", "", errors.Invalid(email + " already belongs to another account, and your identity provider did not verify the address")
-		}
-		if !stderrors.Is(lookupErr, gorm.ErrRecordNotFound) {
-			return "", "", errors.Internal("failed to look up user", lookupErr)
-		}
-	}
-
-	isNew := !found
-	if isNew {
-		record = schemas.User{Email: email}
-		if displayName := profile.DisplayName(); displayName != "" {
-			record.Name = displayName
-		}
-		if err := service.orm.WithContext(context).Create(&record).Error; err != nil {
-			return "", "", errors.Internal("failed to create user", err)
-		}
-	}
-
-	dirty := false
-
-	if !isNew {
-		if displayName := profile.DisplayName(); displayName != "" {
-			record.Name = displayName
-			dirty = true
-		}
-	}
-
-	if photo := oidcavatar.PhotoURL(profile.Picture); photo != record.OIDCPictureURL {
-		record.OIDCPictureURL = photo
-		dirty = true
-	}
-
-	if oauth2Token != nil {
-		record.OIDCAccessToken = oauth2Token.AccessToken
-		record.OIDCRefreshToken = oauth2Token.RefreshToken
-		record.OIDCTokenExpiry = oauth2Token.Expiry
-		dirty = true
-	}
-
-	if dirty {
-		if saveErr := service.orm.WithContext(context).Save(&record).Error; saveErr != nil {
-			service.logger.Warn("failed to save OIDC profile updates", slog.Any("error", saveErr), slog.Int64("user_id", record.ID))
-		}
-	}
-
-	if subject != "" && (record.OIDCSubject == nil || *record.OIDCSubject != subject) {
-		record.OIDCSubject = &subject
-		service.orm.WithContext(context).Select("oidc_subject").Save(&record)
-	}
-	if email != "" && record.Email != email {
-		record.Email = email
-		service.orm.WithContext(context).Select("email").Save(&record)
-	}
-
-	token, err = authcrypto.NewToken()
+// Register creates an account through porte/local and signs it in. The cookie
+// is set on the way out and the token comes back in the body, so one call
+// serves the browser and anything holding the old {user_id, token} shape.
+func (service *Service) Register(ctx context.Context, w http.ResponseWriter, r *http.Request, email, password string) (string, string, error) {
+	userID, token, err := service.passwords.Register(ctx, w, r, email, "", password)
 	if err != nil {
-		return "", "", errors.Internal("failed to create session", err)
-	}
-	if err := service.insertSession(context, token, record.ID); err != nil {
 		return "", "", err
 	}
-	return strconv.FormatInt(record.ID, 10), token, nil
+	return strconv.FormatInt(userID, 10), token, nil
 }
 
-func (service *Service) SyncOIDCProfile(ctx context.Context, userID string, provider *gooidc.Provider, oauth2Cfg oauth2.Config) error {
-	var record schemas.User
-	if err := service.orm.WithContext(ctx).Where("id = ?", userID).First(&record).Error; err != nil {
-		return errors.NotFound("user not found")
-	}
-
-	if record.OIDCAccessToken == "" {
-		return errors.Invalid("no OIDC tokens stored for this user")
-	}
-
-	if !record.ProfileSyncedAt.IsZero() && time.Since(record.ProfileSyncedAt) < 5*time.Minute {
-		return errors.New("resource_exhausted", "profile was synced recently, try again later", nil)
-	}
-
-	token := &oauth2.Token{
-		AccessToken:  record.OIDCAccessToken,
-		RefreshToken: record.OIDCRefreshToken,
-		Expiry:       record.OIDCTokenExpiry,
-	}
-
-	tokenSource := oauth2Cfg.TokenSource(ctx, token)
-	freshToken, err := tokenSource.Token()
+func (service *Service) Login(ctx context.Context, w http.ResponseWriter, r *http.Request, email, password string) (string, string, error) {
+	userID, token, err := service.passwords.Login(ctx, w, r, email, password)
 	if err != nil {
-		// Profile sync is best-effort and runs on every app load. A refresh
-		// failure (expired/rotated/revoked refresh token, IdP unreachable) is an
-		// expected condition, not a server fault — log and skip instead of 500ing.
-		service.logger.Warn("OIDC token refresh failed; skipping profile sync", slog.Any("error", err), slog.Int64("user_id", record.ID))
-		return nil
+		return "", "", err
 	}
-
-	// Persist the refreshed (and possibly rotated) tokens immediately so a later
-	// failure can't discard a one-time-use rotated refresh token, which would make
-	// every subsequent refresh fail permanently.
-	record.OIDCAccessToken = freshToken.AccessToken
-	if freshToken.RefreshToken != "" {
-		record.OIDCRefreshToken = freshToken.RefreshToken
-	}
-	record.OIDCTokenExpiry = freshToken.Expiry
-	record.ProfileSyncedAt = time.Now()
-	if saveErr := service.orm.WithContext(ctx).Save(&record).Error; saveErr != nil {
-		service.logger.Warn("failed to persist refreshed OIDC tokens", slog.Any("error", saveErr), slog.Int64("user_id", record.ID))
-	}
-
-	userInfo, err := provider.UserInfo(ctx, oauth2.StaticTokenSource(freshToken))
-	if err != nil {
-		service.logger.Warn("failed to fetch OIDC UserInfo; skipping profile sync", slog.Any("error", err), slog.Int64("user_id", record.ID))
-		return nil
-	}
-
-	var claims struct {
-		Name              string `json:"name"`
-		PreferredUsername string `json:"preferred_username"`
-		GivenName         string `json:"given_name"`
-		FamilyName        string `json:"family_name"`
-		Picture           string `json:"picture"`
-	}
-	if err := userInfo.Claims(&claims); err != nil {
-		service.logger.Warn("failed to parse OIDC UserInfo claims; skipping profile sync", slog.Any("error", err), slog.Int64("user_id", record.ID))
-		return nil
-	}
-
-	profile := oidcavatar.Profile{
-		Name:              claims.Name,
-		PreferredUsername: claims.PreferredUsername,
-		GivenName:         claims.GivenName,
-		FamilyName:        claims.FamilyName,
-		Picture:           claims.Picture,
-	}
-
-	dirty := false
-
-	if displayName := profile.DisplayName(); displayName != "" {
-		record.Name = displayName
-		dirty = true
-	}
-
-	if photo := oidcavatar.PhotoURL(profile.Picture); photo != record.OIDCPictureURL {
-		record.OIDCPictureURL = photo
-		dirty = true
-	}
-
-	if dirty {
-		if saveErr := service.orm.WithContext(ctx).Save(&record).Error; saveErr != nil {
-			service.logger.Warn("failed to save synced OIDC profile", slog.Any("error", saveErr), slog.Int64("user_id", record.ID))
-		}
-	}
-
-	return nil
+	return strconv.FormatInt(userID, 10), token, nil
 }
 
-func (service *Service) getUser(context context.Context, userID string) (*schemas.User, error) {
-	var record schemas.User
-	err := service.orm.WithContext(context).Where("id = ?", userID).First(&record).Error
+// SetPassword is what PATCH /users/me calls when the body carries one.
+func (service *Service) SetPassword(ctx context.Context, userID int64, email, password string) error {
+	return service.passwords.SetPassword(ctx, userID, email, password)
+}
+
+// Issue mints a named API token: a porte session with a label and no expiry,
+// which is what the separate api_tokens table used to be.
+func (service *Service) Issue(ctx context.Context, userID int64, label string) (string, porte.Session, error) {
+	return service.sessions.Issue(ctx, userID, label)
+}
+
+// AuthenticateRequest resolves the caller of a route that is not mounted
+// behind RequireAuth — the inline-image endpoint, which a browser reaches with
+// an <img src> and therefore with a cookie and no header.
+func (service *Service) AuthenticateRequest(w http.ResponseWriter, r *http.Request) (int64, error) {
+	identity, err := service.sessions.Authenticate(w, r)
 	if err != nil {
+		return 0, err
+	}
+	return identity.UserID, nil
+}
+
+// Sessions exposes the manager for the modules that list or revoke tokens.
+func (service *Service) Sessions() *session.Manager { return service.sessions }
+
+// VerifyPassword checks a password without issuing anything. PUT /auth/password
+// confirms the current one before setting the next.
+func (service *Service) VerifyPassword(ctx context.Context, email, password string) (int64, error) {
+	return service.passwords.Verify(ctx, email, password)
+}
+
+// ChangePassword is PUT /auth/password: confirm the current password, then set
+// the new one on the address the account actually has.
+//
+// The confirmation is porte's Verify rather than a hash comparison here,
+// because the hash lives in porte_identities now and re-deriving argon2 in the
+// app is how the parameters drift apart.
+func (service *Service) ChangePassword(ctx context.Context, userID int64, current, next string) error {
+	email, err := service.emailFor(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if _, err := service.passwords.Verify(ctx, email, current); err != nil {
+		return errors.Unauthorized("current password is incorrect")
+	}
+	return service.passwords.SetPassword(ctx, userID, email, next)
+}
+
+// UpdateProfile changes the name and address, re-keying the local identity
+// when the address moves.
+//
+// porte keys a password identity on the address, so changing users.email
+// without moving that key leaves the login answering "invalid email or
+// password" to the right password — the same silent failure the password
+// migration exists to prevent, reached from the other side.
+func (service *Service) UpdateProfile(ctx context.Context, userID int64, name, email string, reminderIntervalDays *int) (*schemas.User, error) {
+	var record schemas.User
+	if err := service.orm.WithContext(ctx).First(&record, userID).Error; err != nil {
 		return nil, errors.NotFound("user not found")
 	}
-	return &record, nil
-}
-
-func (service *Service) updateUser(context context.Context, userID string, name string, email string, reminderIntervalDays *int) (*schemas.User, error) {
-	var record schemas.User
-	if err := service.orm.WithContext(context).Where("id = ?", userID).First(&record).Error; err != nil {
-		return nil, errors.NotFound("user not found")
-	}
-
+	previous := record.Email
 	record.Name = name
 	record.Email = email
 	if reminderIntervalDays != nil {
 		record.ReminderIntervalDays = *reminderIntervalDays
 	}
-	if err := service.orm.WithContext(context).Save(&record).Error; err != nil {
+	if err := service.orm.WithContext(ctx).Save(&record).Error; err != nil {
 		if stderrors.Is(err, gorm.ErrDuplicatedKey) {
 			return nil, errors.Conflict("email already in use")
 		}
 		return nil, errors.Internal("failed to update user", err)
 	}
+	if !strings.EqualFold(previous, email) {
+		if err := service.orm.WithContext(ctx).Exec(
+			`UPDATE porte_identities SET subject = ? WHERE provider = 'local' AND subject = ?`,
+			strings.ToLower(strings.TrimSpace(email)), strings.ToLower(strings.TrimSpace(previous)),
+		).Error; err != nil {
+			return nil, errors.Internal("failed to move the password to the new address", err)
+		}
+	}
 	return &record, nil
 }
 
-func (service *Service) changePassword(context context.Context, userID string, currentPassword string, newPassword string) error {
+// GetUser is the profile the /auth/me routes render.
+func (service *Service) GetUser(ctx context.Context, userID int64) (*schemas.User, error) {
 	var record schemas.User
-	if err := service.orm.WithContext(context).Where("id = ?", userID).First(&record).Error; err != nil {
-		return errors.NotFound("user not found")
+	if err := service.orm.WithContext(ctx).First(&record, userID).Error; err != nil {
+		return nil, errors.NotFound("user not found")
 	}
+	return &record, nil
+}
 
-	if !authcrypto.VerifyPassword(currentPassword, record.PasswordHash) {
-		return errors.Unauthorized("current password is incorrect")
+// emailFor reads the address porte keys a local identity on.
+func (service *Service) emailFor(ctx context.Context, userID int64) (string, error) {
+	var record schemas.User
+	if err := service.orm.WithContext(ctx).Select("email").First(&record, userID).Error; err != nil {
+		return "", errors.NotFound("user not found")
 	}
+	return record.Email, nil
+}
 
-	hash, err := authcrypto.HashPassword(newPassword)
+// getUserByString and updateProfileByString adapt the decimal-string user id
+// the controllers still carry to the int64 porte resolved. Keeping the string
+// at the controller boundary leaves the response shapes untouched.
+func (service *Service) getUserByString(ctx context.Context, userID string) (*schemas.User, error) {
+	id, err := strconv.ParseInt(userID, 10, 64)
 	if err != nil {
-		return errors.Invalid("invalid password")
+		return nil, errors.Internal("failed to parse user id", err)
 	}
-
-	record.PasswordHash = hash
-	if err := service.orm.WithContext(context).Save(&record).Error; err != nil {
-		return errors.Internal("failed to update password", err)
-	}
-
-	if err := service.orm.WithContext(context).Where("user_id = ?", userID).Delete(&schemas.Session{}).Error; err != nil {
-		return errors.Internal("failed to revoke sessions", err)
-	}
-
-	return nil
+	return service.GetUser(ctx, id)
 }
 
-func (service *Service) CleanupExpiredSessions(ctx context.Context) {
-	service.orm.WithContext(ctx).Where("expires_at < ?", time.Now()).Delete(&schemas.Session{})
+func (service *Service) updateProfileByString(ctx context.Context, userID, name, email string, reminderIntervalDays *int) (*schemas.User, error) {
+	id, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return nil, errors.Internal("failed to parse user id", err)
+	}
+	return service.UpdateProfile(ctx, id, name, email, reminderIntervalDays)
 }
 
+// SweepExpiredSessions is the hourly cleanup this app has always run, now over
+// porte's table. It is the manager's Sweep rather than a DELETE here, so the
+// rule about which rows are spared — named API tokens, which carry no expiry —
+// stays in one place instead of being restated by every caller.
+func (service *Service) SweepExpiredSessions(ctx context.Context) {
+	deleted, err := service.sessions.Sweep(ctx)
+	if err != nil {
+		service.logger.Warn("failed to sweep expired sessions", slog.Any("error", err))
+		return
+	}
+	if deleted > 0 {
+		service.logger.Info("swept expired sessions", slog.Int64("count", deleted))
+	}
+}
+
+// StartSessionCleanup runs the sweep hourly until the context is cancelled.
 func StartSessionCleanup(ctx context.Context, service *Service) {
 	go func() {
 		ticker := time.NewTicker(time.Hour)
@@ -388,13 +232,8 @@ func StartSessionCleanup(ctx context.Context, service *Service) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				service.CleanupExpiredSessions(ctx)
+				service.SweepExpiredSessions(ctx)
 			}
 		}
 	}()
-}
-
-func hashToken(token string) string {
-	sum := sha256.Sum256([]byte(token))
-	return hex.EncodeToString(sum[:])
 }

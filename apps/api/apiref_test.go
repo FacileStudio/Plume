@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -8,6 +9,11 @@ import (
 	"testing"
 
 	"github.com/FacileStudio/Plume/apps/api/internal/env"
+	"github.com/FacileStudio/Plume/apps/api/modules/auth"
+	"github.com/FacileStudio/porte/local"
+	"github.com/FacileStudio/porte/oidc"
+	portepg "github.com/FacileStudio/porte/pg"
+	"github.com/FacileStudio/porte/session"
 	"github.com/FacileStudio/tronc/apiref"
 	"github.com/go-chi/chi/v5"
 )
@@ -15,20 +21,45 @@ import (
 // testRouter builds the real router against nil dependencies. Route
 // registration never touches the database, so the shape of the router is
 // faithful even though no handler could serve a request.
-func testRouter() chi.Router {
+func testRouter(t *testing.T) chi.Router {
+	t.Helper()
 	appEnv := env.Config{}
-	return buildRouter(newServices(nil, appEnv, slog.Default()), nil, appEnv, slog.Default())
+	logger := slog.Default()
+
+	// porte owns /auth/config, /auth/logout and the OIDC flow now, so the
+	// router has to carry it or this guard passes over the routes most
+	// likely to move. It is built over a nil database like everything else
+	// here: registration never reads one.
+	store := portepg.New(nil)
+	sessions, err := session.New(appEnv.Porte(), session.Deps{Sessions: store.Sessions(), Logger: logger})
+	if err != nil {
+		t.Fatalf("session.New: %v", err)
+	}
+	kit, err := oidc.New(context.Background(), appEnv.Porte(), oidc.Deps{Sessions: sessions, Logger: logger})
+	if err != nil {
+		t.Fatalf("oidc.New: %v", err)
+	}
+	passwords, err := local.New(local.Config{}, local.Deps{
+		Users:      auth.NewUserStore(nil),
+		Identities: store.Identities(),
+		Sessions:   sessions,
+		Count:      func(context.Context) (int64, error) { return 0, nil },
+	})
+	if err != nil {
+		t.Fatalf("local.New: %v", err)
+	}
+	return buildRouter(newServices(nil, appEnv, logger, sessions, passwords), nil, appEnv, logger, sessions, kit)
 }
 
 func TestEveryRouteIsDocumented(t *testing.T) {
-	if missing := apiref.Undocumented(testRouter(), apiReference()); len(missing) > 0 {
+	if missing := apiref.Undocumented(testRouter(t), apiReference()); len(missing) > 0 {
 		t.Errorf("routes missing from the API registry: %v", missing)
 	}
 }
 
 func TestReferenceIsServedAtRoot(t *testing.T) {
 	page := httptest.NewRecorder()
-	testRouter().ServeHTTP(page, httptest.NewRequest(http.MethodGet, "/docs", nil))
+	testRouter(t).ServeHTTP(page, httptest.NewRequest(http.MethodGet, "/docs", nil))
 	if page.Code != http.StatusOK {
 		t.Fatalf("GET /docs = %d, want 200", page.Code)
 	}
@@ -37,7 +68,7 @@ func TestReferenceIsServedAtRoot(t *testing.T) {
 	}
 
 	spec := httptest.NewRecorder()
-	testRouter().ServeHTTP(spec, httptest.NewRequest(http.MethodGet, "/docs/openapi.json", nil))
+	testRouter(t).ServeHTTP(spec, httptest.NewRequest(http.MethodGet, "/docs/openapi.json", nil))
 	if spec.Code != http.StatusOK {
 		t.Fatalf("GET /docs/openapi.json = %d, want 200", spec.Code)
 	}
