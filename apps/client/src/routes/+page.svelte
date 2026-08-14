@@ -64,7 +64,7 @@
 				<div class="flex items-center gap-2">
 					<a href="/login" class={ghostLinkClass}>Log in</a>
 					<a href={ssoOnly ? '/login' : '/login?tab=register'} class={primaryLinkClass}>
-						{ssoOnly ? 'Continue with SSO' : 'Get started'}
+						{ssoOnly ? 'Sign in with Facile' : 'Get started'}
 					</a>
 				</div>
 			</div>
@@ -81,7 +81,7 @@
 				</p>
 				<div class="mt-10 flex justify-center gap-3">
 					<a href={ssoOnly ? '/login' : '/login?tab=register'} class={primaryCtaClass}>
-						{ssoOnly ? 'Continue with SSO' : 'Get started'}
+						{ssoOnly ? 'Sign in with Facile' : 'Get started'}
 						<iconify-icon
 							icon="solar:arrow-right-linear"
 							width="16"
@@ -153,11 +153,11 @@
 				</h2>
 				<p class="mt-4 text-muted-foreground">
 					{ssoOnly
-						? 'Use your organization SSO to access Plume.'
+						? 'Use your Facile SSO to access Plume.'
 						: 'Free to use. Self-hosted. No credit card required.'}
 				</p>
 				<a href={ssoOnly ? '/login' : '/login?tab=register'} class="mt-8 {primaryCtaClass}">
-					{ssoOnly ? 'Continue with SSO' : 'Create an account'}
+					{ssoOnly ? 'Sign in with Facile' : 'Create an account'}
 				</a>
 			</section>
 		</main>
