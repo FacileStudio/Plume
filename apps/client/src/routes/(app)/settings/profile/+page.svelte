@@ -11,7 +11,7 @@
 		icons,
 		toast
 	} from '@facile/muse';
-	import { api, clearToken } from '$lib';
+	import { api, logout as logoutSession } from '$lib';
 	import type { UserProfile } from '$lib';
 	import { userStore } from '$lib/stores/user.svelte';
 
@@ -88,8 +88,8 @@
 		passwordLoading = false;
 	}
 
-	function logout() {
-		clearToken();
+	async function logout() {
+		await logoutSession();
 		userStore.value = null;
 		goto('/login');
 	}

@@ -1,8 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { page } from '$app/state';
-	import { isAuthenticated, setToken } from '$lib';
+	import { currentUser } from '$lib';
 
 	const ghostLinkClass =
 		'inline-flex h-9 items-center justify-center rounded-md px-4 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground';
@@ -20,25 +19,14 @@
 	let ssoOnly = $state(false);
 
 	onMount(async () => {
-		const code = page.url.searchParams.get('code');
-		if (code) {
-			try {
-				const res = await fetch('/api/auth/oidc/exchange', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ code })
-				});
-				if (!res.ok) throw new Error('exchange failed');
-				const data = await res.json();
-				setToken(data.token);
-				goto('/dashboard');
-				return;
-			} catch {
-				goto('/login');
-				return;
-			}
-		}
-		if (isAuthenticated()) {
+		/* This page is where OIDC_SUCCESS_URL lands, so it is the first thing an
+		   SSO user sees after the identity provider sends them back. It used to
+		   wait for a ?code= that only the CLI exchange flow ever produced — porte
+		   v0.2.4+ issues a session cookie on the browser callback and redirects
+		   with an empty URL — and to trust localStorage, which an SSO login never
+		   writes. Asking the API is the only way to notice the person standing
+		   here is signed in. */
+		if (await currentUser().catch(() => null)) {
 			goto('/dashboard');
 			return;
 		}

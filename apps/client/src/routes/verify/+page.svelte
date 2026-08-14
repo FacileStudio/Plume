@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { api, isAuthenticated } from '$lib';
+	import { onMount } from 'svelte';
+	import { api, currentUser } from '$lib';
 	import type { VerifyResponse } from '$lib';
 	import { Alert, Badge, Button, Card, Divider, Dropzone, Spinner, icons } from '@facile/muse';
 
@@ -9,6 +10,11 @@
 	let loading = $state(false);
 	let error = $state('');
 	let result = $state<VerifyResponse | null>(null);
+	let signedIn = $state(false);
+
+	onMount(async () => {
+		signedIn = !!(await currentUser().catch(() => null));
+	});
 
 	const file = $derived(files[0] ?? null);
 
@@ -90,7 +96,7 @@
 				></iconify-icon>
 				<span class="text-fc-lg font-semibold tracking-tight">Plume</span>
 			</a>
-			{#if isAuthenticated()}
+			{#if signedIn}
 				<Button variant="ghost" href="/dashboard">Dashboard</Button>
 			{:else}
 				<Button variant="ghost" href="/login">Log in</Button>

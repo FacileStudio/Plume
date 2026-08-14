@@ -321,7 +321,8 @@
 		try {
 			const token = getToken();
 			const response = await fetch(`/api/documents/${documentId}/file`, {
-				headers: { Authorization: `Bearer ${token}` }
+				headers: token ? { Authorization: `Bearer ${token}` } : {},
+				credentials: 'same-origin'
 			});
 			if (!response.ok) throw new Error('Failed to load PDF');
 
