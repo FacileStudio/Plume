@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { api, isAuthenticated } from '$lib';
+	import { api, currentUser } from '$lib';
 	import { MobileNav, PageTransition, SideBar, SpaceSwitcher, Topbar, icons } from '@facile/muse';
 	import { userStore } from '$lib/stores/user.svelte';
 	import { spaceStore } from '$lib/stores/space.svelte';
@@ -13,13 +13,21 @@
 	let scroller: HTMLElement | null = $state(null);
 
 	onMount(async () => {
-		if (!isAuthenticated()) {
+		/* The API is the only thing that knows whether this browser has a session:
+		   a local login leaves a bearer token, an SSO login leaves a cookie the
+		   client cannot read. A thrown error is a bad round-trip, not a logout —
+		   bouncing to /login on one would sign people out on a hiccup. */
+		let me;
+		try {
+			me = await currentUser();
+		} catch {
+			return;
+		}
+		if (!me) {
 			goto('/login');
 			return;
 		}
-		try {
-			userStore.value = await api.auth.me();
-		} catch {}
+		userStore.value = me;
 		try {
 			spaceStore.spaces = await api.spaces.list();
 		} catch {}

@@ -238,8 +238,13 @@
 		if (!doc) return;
 		setLoading(true);
 		try {
+			/* An SSO session has no bearer token to send, only a cookie — hence
+			   the conditional header and credentials rather than an
+			   unconditional `Bearer null`. */
+			const token = getToken();
 			const res = await fetch(urlPath, {
-				headers: { Authorization: `Bearer ${getToken()}` }
+				headers: token ? { Authorization: `Bearer ${token}` } : {},
+				credentials: 'same-origin'
 			});
 			if (!res.ok) throw new Error('Download failed');
 			const blob = await res.blob();

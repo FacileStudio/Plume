@@ -21,8 +21,65 @@ export function clearToken() {
 	localStorage.removeItem(LEGACY_TOKEN_KEY);
 }
 
-export function isAuthenticated(): boolean {
-	return getToken() !== null;
+/**
+ * CSRF_HEADER is porte's second lock on the cookie transport. porte reads the
+ * session cookie before the Authorization header and refuses a *mutating*
+ * cookie-authenticated request that arrives without this header — reads keep
+ * working, writes 403, which reads as "the app loads but saving is broken".
+ * porte only checks that the header is present, so the value is a constant.
+ */
+const CSRF_HEADER = 'X-Facile-CSRF';
+
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+/**
+ * ApiError carries the HTTP status alongside the message, so a caller can tell
+ * "you are not signed in" apart from "the request failed". The session gates
+ * depend on that difference: a 401 means show the login page, anything else
+ * means the server had a bad moment and signing the user out would be wrong.
+ */
+export class ApiError extends Error {
+	readonly status: number;
+
+	constructor(status: number, message: string) {
+		super(message);
+		this.name = 'ApiError';
+		this.status = status;
+	}
+}
+
+/**
+ * currentUser asks the API who the caller is, and is the only honest answer to
+ * "am I signed in".
+ *
+ * A local password login leaves a bearer token in localStorage, but an SSO
+ * login does not: since porte v0.2.4 the OIDC callback issues an HttpOnly
+ * session cookie and redirects, with nothing in the URL for the client to
+ * store. Gating on localStorage therefore bounced every SSO user straight back
+ * to the login page while they held a perfectly valid session.
+ *
+ * Returns null when the server says the caller is not authenticated, and
+ * rethrows anything else so a transient failure is not mistaken for a logout.
+ */
+export async function currentUser(): Promise<UserProfile | null> {
+	try {
+		return await api.auth.me();
+	} catch (err) {
+		if (err instanceof ApiError && (err.status === 401 || err.status === 403)) return null;
+		throw err;
+	}
+}
+
+/**
+ * logout ends the session on both transports: the bearer token this browser
+ * may hold, and the cookie only the server can revoke. Clearing localStorage
+ * alone left an SSO user signed straight back in on the next page load.
+ */
+export async function logout() {
+	try {
+		await request<void>('POST', '/auth/logout');
+	} catch {}
+	clearToken();
 }
 
 async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -34,18 +91,22 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 	if (token) {
 		headers['Authorization'] = `Bearer ${token}`;
 	}
+	if (!SAFE_METHODS.has(method.toUpperCase())) {
+		headers[CSRF_HEADER] = '1';
+	}
 
 	const res = await fetch(`/api${path}`, {
 		method,
 		headers,
+		credentials: 'same-origin',
 		body: body ? JSON.stringify(body) : undefined
 	});
 
 	if (res.status === 204) return undefined as T;
 
-	const data = await res.json();
+	const data = await res.json().catch(() => null);
 	if (!res.ok) {
-		throw new Error(data?.error?.message ?? 'Request failed');
+		throw new ApiError(res.status, data?.error?.message ?? 'Request failed');
 	}
 	return data as T;
 }
@@ -59,10 +120,14 @@ async function upload<T>(method: string, path: string, formData: FormData, opts?
 			headers['Authorization'] = `Bearer ${token}`;
 		}
 	}
+	if (!SAFE_METHODS.has(method.toUpperCase())) {
+		headers[CSRF_HEADER] = '1';
+	}
 
 	const res = await fetch(`/api${path}`, {
 		method,
 		headers,
+		credentials: 'same-origin',
 		body: formData
 	});
 
@@ -78,7 +143,7 @@ async function upload<T>(method: string, path: string, formData: FormData, opts?
 		throw new Error('Upload failed — please try again');
 	}
 	if (!res.ok) {
-		throw new Error(data?.error?.message ?? 'Request failed');
+		throw new ApiError(res.status, data?.error?.message ?? 'Request failed');
 	}
 	return data as T;
 }
