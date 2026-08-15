@@ -9,6 +9,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// SignerRoutes returns the router that mounts the send-reminder action
+// (POST /{id}/remind) for a signer.
 func SignerRoutes(service *Service) func(chi.Router) {
 	return func(router chi.Router) {
 		router.Post("/{id}/remind", func(w http.ResponseWriter, request *http.Request) {

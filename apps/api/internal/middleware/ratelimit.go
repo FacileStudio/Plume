@@ -13,6 +13,8 @@ type bucket struct {
 	lastRefill time.Time
 }
 
+// RateLimiter is a per-key token-bucket rate limiter with idle-bucket
+// eviction.
 type RateLimiter struct {
 	mu         sync.Mutex
 	buckets    map[string]*bucket
@@ -21,6 +23,9 @@ type RateLimiter struct {
 	ttl        time.Duration
 }
 
+// NewRateLimiter creates a RateLimiter allowing requestsPerMinute steady
+// throughput with a burst capacity of burst, and starts its background
+// sweep of idle buckets.
 func NewRateLimiter(requestsPerMinute int, burst int) *RateLimiter {
 	if requestsPerMinute < 1 {
 		requestsPerMinute = 1
@@ -104,6 +109,8 @@ func clientKey(request *http.Request) string {
 	return ip
 }
 
+// NoStore returns middleware that sets response headers preventing caching
+// and disabling referrer leakage and content-type sniffing.
 func NoStore(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		w.Header().Set("Cache-Control", "no-store, max-age=0")

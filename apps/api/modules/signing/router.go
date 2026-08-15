@@ -9,6 +9,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// DocumentRoutes returns the router that mounts the certificate and
+// audit-trail download endpoints under a document-scoped subrouter.
 func DocumentRoutes(service *Service) func(chi.Router) {
 	return func(router chi.Router) {
 		router.Get("/{docId}/certificate", func(w http.ResponseWriter, request *http.Request) {

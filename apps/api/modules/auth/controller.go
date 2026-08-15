@@ -10,6 +10,7 @@ import (
 	"github.com/FacileStudio/tronc/errors"
 )
 
+// Controller adapts HTTP requests to Service calls for the auth module.
 type Controller struct {
 	service *Service
 }

@@ -20,6 +20,8 @@ const (
 	argon2KeyLength   uint32 = 32
 )
 
+// HashPassword derives an argon2id hash for password and returns it encoded
+// with its salt and parameters. Returns an error if password is empty.
 func HashPassword(password string) (string, error) {
 	if password == "" {
 		return "", errors.New("password required")
@@ -34,6 +36,8 @@ func HashPassword(password string) (string, error) {
 	return encodeArgon2ID(saltBytes, hash), nil
 }
 
+// VerifyPassword checks password against encodedHash using a constant-time
+// comparison, returning false on any decode or verification failure.
 func VerifyPassword(password, encodedHash string) bool {
 	params, saltBytes, wantHash, err := decodeArgon2ID(encodedHash)
 	if err != nil || password == "" {

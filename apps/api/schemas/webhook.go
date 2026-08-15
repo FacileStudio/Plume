@@ -2,6 +2,8 @@ package schemas
 
 import "time"
 
+// Webhook is an outbound delivery target for document and signer lifecycle
+// events, authenticated with an HMAC secret.
 type Webhook struct {
 	ID         int64      `gorm:"column:id;primaryKey"`
 	OwnerID    int64      `gorm:"column:owner_id;index"`

@@ -2,6 +2,8 @@ package schemas
 
 import "time"
 
+// Signer is a participant asked to act on a document, holding its role, status
+// and the token that grants access to the signing page.
 type Signer struct {
 	ID             int64      `gorm:"column:id;primaryKey"`
 	DocumentID     int64      `gorm:"column:document_id;index"`

@@ -22,6 +22,9 @@ var validRoles = map[string]bool{
 	"approver": true,
 }
 
+// Service implements the signer lifecycle: adding and removing signers,
+// collecting signatures and reading the signing state for the token-scoped
+// endpoints.
 type Service struct {
 	orm        *gorm.DB
 	docService *documents.Service
@@ -30,6 +33,8 @@ type Service struct {
 	domain     string
 }
 
+// NewService wires the signers service to its database and the document,
+// webhooks and smtp services it depends on.
 func NewService(orm *gorm.DB, docService *documents.Service, webhookSvc *webhooks.Service, smtpSvc *smtp.Service, domain string) *Service {
 	return &Service{orm: orm, docService: docService, webhookSvc: webhookSvc, smtpSvc: smtpSvc, domain: domain}
 }

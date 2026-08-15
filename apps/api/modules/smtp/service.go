@@ -20,10 +20,13 @@ import (
 
 const smtpDialTimeout = 10 * time.Second
 
+// Service stores the SMTP settings and sends the signing and notification
+// emails on behalf of owners.
 type Service struct {
 	orm *gorm.DB
 }
 
+// NewService wires the smtp service to its database.
 func NewService(orm *gorm.DB) *Service {
 	return &Service{orm: orm}
 }

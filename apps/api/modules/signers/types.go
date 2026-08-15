@@ -2,6 +2,7 @@ package signers
 
 import "time"
 
+// AddSignerRequest is the payload for inviting a signer onto a document.
 type AddSignerRequest struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
@@ -9,15 +10,19 @@ type AddSignerRequest struct {
 	Order int    `json:"order"`
 }
 
+// SubmitSignatureRequest carries the field values a signer submits when
+// signing.
 type SubmitSignatureRequest struct {
 	Fields []FieldValue `json:"fields"`
 }
 
+// FieldValue links a submitted value to the field it fills.
 type FieldValue struct {
 	FieldID int64  `json:"field_id"`
 	Value   string `json:"value"`
 }
 
+// SignerResponse is the API representation of a signer on a document.
 type SignerResponse struct {
 	ID             int64      `json:"id"`
 	DocumentID     int64      `json:"document_id"`
@@ -36,6 +41,8 @@ type SignerResponse struct {
 	CreatedAt      time.Time  `json:"created_at"`
 }
 
+// FieldResponse is a document field as returned to the client, including any
+// stored value.
 type FieldResponse struct {
 	ID         int64   `json:"id"`
 	DocumentID int64   `json:"document_id"`
@@ -51,6 +58,8 @@ type FieldResponse struct {
 	Value      string  `json:"value"`
 }
 
+// SigningView is everything a signer needs to render the signing page: the
+// document, their own fields and the fields others have already filled in.
 type SigningView struct {
 	Document        DocumentInfo             `json:"document"`
 	Signer          SignerResponse           `json:"signer"`
@@ -58,6 +67,8 @@ type SigningView struct {
 	CompletedFields []CompletedFieldResponse `json:"completed_fields"`
 }
 
+// CompletedFieldResponse is a field filled in by another signer, shown
+// read-only.
 type CompletedFieldResponse struct {
 	ID         int64   `json:"id"`
 	SignerName string  `json:"signer_name"`
@@ -71,6 +82,7 @@ type CompletedFieldResponse struct {
 	Value      string  `json:"value"`
 }
 
+// DocumentInfo is the document summary embedded in the signing views.
 type DocumentInfo struct {
 	ID       int64  `json:"id"`
 	Name     string `json:"name"`

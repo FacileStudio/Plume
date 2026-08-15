@@ -18,12 +18,14 @@ import (
 
 var sigImgCounter int
 
+// init disables pdfcpu's on-disk config lookup so it runs with built-in
+// defaults; the distroless container has no home/config dir to read or write.
 func init() {
-	// Run with built-in defaults; never touch disk for config (distroless has no
-	// home/config dir to read or write).
 	model.ConfigPath = "disable"
 }
 
+// FieldOverlay describes a single field value to stamp onto a page, in
+// percentage-of-page coordinates.
 type FieldOverlay struct {
 	Page      int
 	X         float64
@@ -39,6 +41,10 @@ type FieldOverlay struct {
 // per source page, matching dimensions) and stamps it onto the source with
 // pdfcpu, which reads arbitrary PDFs robustly — unlike fpdf's page importer,
 // which panics on unsupported content-stream filters (e.g. /ASCII85Decode).
+// Without any fields the signed document is identical to the original.
+// Stamping uses pdfcpu's multi-stamp mode (PdfPageNrSrc == 0), which maps
+// overlay page N onto source page N, placed bottom-left at 1:1 scale so
+// fpdf's coordinates line up exactly.
 func FlattenFields(inputPath, outputPath string, fields []FieldOverlay) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -64,7 +70,6 @@ func FlattenFields(inputPath, outputPath string, fields []FieldOverlay) (err err
 		fieldsByPage[f.Page] = append(fieldsByPage[f.Page], f)
 	}
 
-	// Without any fields the signed document is identical to the original.
 	if len(fieldsByPage) == 0 {
 		return copyFile(inputPath, outputPath)
 	}
@@ -103,8 +108,6 @@ func FlattenFields(inputPath, outputPath string, fields []FieldOverlay) (err err
 		return fmt.Errorf("pdfutil: write overlay: %w", err)
 	}
 
-	// Multi-stamp mode (PdfPageNrSrc == 0) maps overlay page N onto source page N,
-	// placed bottom-left at 1:1 scale so fpdf's coordinates line up exactly.
 	wm, err := pdfcpu.ParsePDFWatermarkDetails(overlayPath, "scalefactor:1 abs, position:bl, offset:0 0, rotation:0, opacity:1", true, types.POINTS)
 	if err != nil {
 		return fmt.Errorf("pdfutil: build stamp: %w", err)

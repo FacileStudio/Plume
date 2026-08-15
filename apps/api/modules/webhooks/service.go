@@ -32,10 +32,13 @@ var retryBackoffs = []time.Duration{
 	20 * time.Second,
 }
 
+// Service persists webhook delivery targets and dispatches signed, retrying
+// deliveries to them.
 type Service struct {
 	orm *gorm.DB
 }
 
+// NewService wires the webhooks service to its database.
 func NewService(orm *gorm.DB) *Service {
 	return &Service{orm: orm}
 }

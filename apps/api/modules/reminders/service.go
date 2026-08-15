@@ -21,6 +21,9 @@ const (
 	tickInterval         = time.Hour
 )
 
+// Service coordinates the manual and periodic reminder flow for pending
+// signers, dispatching emails and webhook events through the smtp and webhooks
+// services.
 type Service struct {
 	orm        *gorm.DB
 	smtpSvc    *smtp.Service
@@ -29,6 +32,8 @@ type Service struct {
 	now        func() time.Time
 }
 
+// NewService wires the reminder service to its database, the smtp and webhooks
+// services it dispatches through, and the public domain used to build links.
 func NewService(orm *gorm.DB, smtpSvc *smtp.Service, webhookSvc *webhooks.Service, domain string) *Service {
 	return &Service{
 		orm:        orm,
@@ -242,6 +247,8 @@ func shouldRemind(createdAt time.Time, lastRemindedAt *time.Time, intervalDays i
 	return now.Sub(*lastRemindedAt) >= interval
 }
 
+// Start launches the background reminder ticker in its own goroutine, running
+// until ctx is cancelled.
 func Start(ctx context.Context, service *Service, logger *slog.Logger) {
 	go service.loop(ctx, logger)
 }

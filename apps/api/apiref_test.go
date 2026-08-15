@@ -21,15 +21,16 @@ import (
 // testRouter builds the real router against nil dependencies. Route
 // registration never touches the database, so the shape of the router is
 // faithful even though no handler could serve a request.
+//
+// porte owns /auth/config, /auth/logout and the OIDC flow now, so the
+// router has to carry it or this guard passes over the routes most
+// likely to move. It is built over a nil database like everything else
+// here: registration never reads one.
 func testRouter(t *testing.T) chi.Router {
 	t.Helper()
 	appEnv := env.Config{}
 	logger := slog.Default()
 
-	// porte owns /auth/config, /auth/logout and the OIDC flow now, so the
-	// router has to carry it or this guard passes over the routes most
-	// likely to move. It is built over a nil database like everything else
-	// here: registration never reads one.
 	store := portepg.New(nil)
 	sessions, err := session.New(appEnv.Porte(), session.Deps{Sessions: store.Sessions(), Logger: logger})
 	if err != nil {

@@ -1,5 +1,6 @@
 package clients
 
+// CreateClientRequest is the body of POST /clients.
 type CreateClientRequest struct {
 	Name    string `json:"name"`
 	Email   string `json:"email"`
@@ -8,6 +9,7 @@ type CreateClientRequest struct {
 	Notes   string `json:"notes"`
 }
 
+// UpdateClientRequest is the body of PUT /clients/{clientId}.
 type UpdateClientRequest struct {
 	Name    string `json:"name"`
 	Email   string `json:"email"`
@@ -16,6 +18,7 @@ type UpdateClientRequest struct {
 	Notes   string `json:"notes"`
 }
 
+// ClientResponse describes a client as returned by the API.
 type ClientResponse struct {
 	ID        int64  `json:"id"`
 	Name      string `json:"name"`

@@ -2,6 +2,8 @@ package schemas
 
 import "time"
 
+// Document is a signature-bearing PDF and its workflow state, from draft
+// through pending to completed or declined.
 type Document struct {
 	ID           int64     `gorm:"column:id;primaryKey"`
 	Name         string    `gorm:"column:name"`

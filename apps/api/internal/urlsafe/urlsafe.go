@@ -48,6 +48,9 @@ func isPrivateIP(ip net.IP) bool {
 	return false
 }
 
+// Validate checks that rawURL is an http or https URL whose hostname
+// resolves only to public IP addresses, rejecting anything that resolves to
+// a private, loopback, or otherwise reserved range (SSRF guard).
 func Validate(ctx context.Context, rawURL string) error {
 	u, err := url.Parse(rawURL)
 	if err != nil {
@@ -78,6 +81,9 @@ func Validate(ctx context.Context, rawURL string) error {
 	return nil
 }
 
+// SafeTransport returns an http.Transport whose dialer resolves the target
+// host and refuses to connect to any address in a private or reserved IP
+// range, guarding outbound requests against SSRF.
 func SafeTransport() *http.Transport {
 	return &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {

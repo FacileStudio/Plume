@@ -12,6 +12,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// RegisterRoutes mounts the /clients CRUD routes on router, all requiring
+// auth and scoped to the authenticated owner.
 func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator) {
 	router.Route("/clients", func(router chi.Router) {
 		router.Use(middleware.RequireAuth(authService))

@@ -19,16 +19,25 @@ type Authenticator interface {
 	IdentityForUser(ctx context.Context, userID int64) (id string, email string, err error)
 }
 
+// APIKeyAuthenticator authenticates requests carrying a long-lived API key
+// instead of a session.
 type APIKeyAuthenticator interface {
 	AuthenticateKey(ctx context.Context, rawKey string) (userID string, email string, err error)
 }
 
 var apiKeyAuth APIKeyAuthenticator
 
+// SetAPIKeyAuthenticator installs the APIKeyAuthenticator that RequireAuth
+// consults before falling back to session auth.
 func SetAPIKeyAuthenticator(auth APIKeyAuthenticator) {
 	apiKeyAuth = auth
 }
 
+// RequireAuth returns middleware that authenticates a request either via an
+// API key (checked first) or, failing that, via porte's session middleware.
+// For a session, porte verifies the credential and hands back a user id;
+// since porte carries no email by design, the profile the rest of Plume
+// reads is looked up here.
 func RequireAuth(authService Authenticator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
@@ -49,10 +58,6 @@ func RequireAuth(authService Authenticator) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Not an API key, so it is a session: porte verifies the
-			// credential and hands on a user id, and the profile the
-			// rest of Plume reads is looked up here. porte carries no
-			// email by design.
 			session := authService.RequireAuth(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 				authenticated, ok := porte.From(request.Context())
 				if !ok {

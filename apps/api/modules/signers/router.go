@@ -19,6 +19,8 @@ var trackingPixelGIF = []byte{
 	0x44, 0x01, 0x00, 0x3B,
 }
 
+// DocumentRoutes returns the router that mounts the signer-management
+// endpoints (list, add) under a document-scoped subrouter.
 func DocumentRoutes(service *Service) func(chi.Router) {
 	return func(router chi.Router) {
 		router.Get("/{docId}/signers", func(w http.ResponseWriter, request *http.Request) {
@@ -48,6 +50,8 @@ func DocumentRoutes(service *Service) func(chi.Router) {
 	}
 }
 
+// RegisterRoutes mounts the signer CRUD and the public, token-scoped signing
+// endpoints, applying auth to everything except the token sign routes.
 func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator, nested ...func(chi.Router)) {
 	router.Route("/signers", func(router chi.Router) {
 		router.Use(middleware.RequireAuth(authService))

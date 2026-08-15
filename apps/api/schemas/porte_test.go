@@ -43,7 +43,10 @@ func seedPrePorte(t *testing.T, db *gorm.DB) {
 
 // Nobody may be signed out by this deploy. Both tables store the SHA-256 hex of
 // a token and nothing else, which is exactly what porte stores, so the rows
-// move and the cookie already in somebody's browser keeps authenticating.
+// move and the cookie already in somebody's browser keeps authenticating. The
+// carried session is stamped with last_used_at rather than copied: carrying the
+// created_at over would put it 40 days into the seven-day idle window and sign
+// the user out on the deploy meant to keep them.
 func TestAdoptPorteKeepsEverybodySignedIn(t *testing.T) {
 	db := requireDB(t)
 	seedPrePorte(t, db)
@@ -63,9 +66,6 @@ func TestAdoptPorteKeepsEverybodySignedIn(t *testing.T) {
 	if carried.UserID != 1 || carried.Label != "" {
 		t.Fatalf("the browser session did not survive as an unlabelled session: %+v", carried)
 	}
-	// Carrying created_at over would put this session 40 days into the
-	// seven-day idle window and sign the user out on the deploy meant to
-	// keep them.
 	if time.Since(carried.LastUsedAt) > time.Hour {
 		t.Fatalf("last_used_at was copied instead of stamped: %v", carried.LastUsedAt)
 	}
@@ -93,7 +93,10 @@ func TestAdoptPorteKeepsEverybodySignedIn(t *testing.T) {
 
 // The password hash moves into the identity row porte/local reads. Without it
 // the login form answers "invalid credentials" to a correct password, with the
-// hash still sitting in the users table and no error anywhere.
+// hash still sitting in the users table and no error anywhere. The local
+// identity is keyed on the lowercased address on purpose: porte/local
+// normalises before it looks one up, so an identity keyed on the mixed-case
+// address this user registered with would never be found.
 func TestAdoptPorteMovesThePasswords(t *testing.T) {
 	db := requireDB(t)
 	seedPrePorte(t, db)
@@ -106,9 +109,6 @@ func TestAdoptPorteMovesThePasswords(t *testing.T) {
 		UserID       int64
 		PasswordHash string
 	}
-	// The subject is the lowercased address on purpose: porte/local
-	// normalises before it looks one up, so an identity keyed on the
-	// mixed-case address this user registered with would never be found.
 	err := db.Raw(
 		`SELECT user_id, password_hash FROM porte_identities WHERE provider = 'local' AND subject = 'noah@facile.studio'`,
 	).Scan(&identity).Error
@@ -131,7 +131,11 @@ func TestAdoptPorteMovesThePasswords(t *testing.T) {
 // The federated identity moves off the user row. Without it porte finds no
 // identity, falls back to matching the verified email and relinks on the next
 // login — which works, but leans the whole existing user base on the weaker of
-// the two matching paths, on the one deploy where nobody would notice.
+// the two matching paths, on the one deploy where nobody would notice. The
+// provider tokens are deliberately not carried across: Plume encrypts them
+// with ENCRYPTION_KEY and porte stores them as it will send them, so handing
+// porte a refresh token that is not one makes the first profile sync fail and
+// look like the provider revoked it.
 func TestAdoptPorteMovesTheOIDCSubject(t *testing.T) {
 	db := requireDB(t)
 	seedPrePorte(t, db)
@@ -155,10 +159,6 @@ func TestAdoptPorteMovesTheOIDCSubject(t *testing.T) {
 	if identity.UserID != 1 {
 		t.Fatal("the oidc subject was not adopted")
 	}
-	// Plume encrypts the provider tokens with ENCRYPTION_KEY and porte
-	// stores them as it will send them, so the ciphertext deliberately
-	// stays behind: handing porte a refresh token that is not one makes the
-	// first profile sync fail and look like the provider revoked it.
 	if identity.AccessToken != "" || identity.RefreshToken != "" {
 		t.Fatalf("encrypted provider tokens were carried across: %+v", identity)
 	}

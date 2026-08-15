@@ -15,6 +15,8 @@ import (
 
 const maxVerifyUploadSize = 50 << 20
 
+// RegisterRoutes mounts the public document-verification endpoints: multipart
+// upload hashed on the fly and hash lookup.
 func RegisterRoutes(router chi.Router, service *Service, limiter func(http.Handler) http.Handler) {
 	if limiter == nil {
 		limiter = func(next http.Handler) http.Handler { return next }

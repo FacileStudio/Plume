@@ -2,6 +2,8 @@ package verify
 
 import "time"
 
+// Response is the result of a verification lookup: whether the hash matched
+// and, if so, the document and signer details.
 type Response struct {
 	Match    bool         `json:"match"`
 	Hash     string       `json:"hash"`
@@ -10,6 +12,8 @@ type Response struct {
 	Signers  []SignerDTO  `json:"signers,omitempty"`
 }
 
+// DocumentDTO is the verified document's metadata, with the completion time
+// when it is completed.
 type DocumentDTO struct {
 	Name        string     `json:"name"`
 	FileName    string     `json:"file_name"`
@@ -18,6 +22,7 @@ type DocumentDTO struct {
 	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }
 
+// SignerDTO is a verifiable signer summary with the email masked.
 type SignerDTO struct {
 	Name     string     `json:"name"`
 	Email    string     `json:"email"`

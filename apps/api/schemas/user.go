@@ -2,6 +2,8 @@ package schemas
 
 import "time"
 
+// User is an authenticated account, holding local password credentials and the
+// OIDC, avatar and reminder state porte and the UI read.
 type User struct {
 	ID                   int64     `gorm:"column:id;primaryKey"`
 	Email                string    `gorm:"column:email;uniqueIndex"`

@@ -12,11 +12,14 @@ import (
 	"gorm.io/gorm"
 )
 
+// Service resolves a document hash to its signature metadata for public
+// verification, masking signer emails unless they exist.
 type Service struct {
 	orm        *gorm.DB
 	docService *documents.Service
 }
 
+// NewService wires the verify service to its database and the document service.
 func NewService(orm *gorm.DB, docService *documents.Service) *Service {
 	return &Service{orm: orm, docService: docService}
 }
