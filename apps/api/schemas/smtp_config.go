@@ -2,6 +2,8 @@ package schemas
 
 import "time"
 
+// SmtpConfig is the per-owner SMTP server settings used to send signing and
+// notification email.
 type SmtpConfig struct {
 	ID        int64     `gorm:"column:id;primaryKey"`
 	OwnerID   int64     `gorm:"column:owner_id;uniqueIndex"`

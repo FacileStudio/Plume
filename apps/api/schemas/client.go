@@ -2,6 +2,8 @@ package schemas
 
 import "time"
 
+// Client is a contact record used to associate documents with an external
+// party.
 type Client struct {
 	ID        int64     `gorm:"column:id;primaryKey"`
 	Name      string    `gorm:"column:name"`

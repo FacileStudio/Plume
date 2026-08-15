@@ -13,6 +13,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// RegisterRoutes mounts the SMTP configuration, test and delete endpoints
+// behind auth.
 func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator) {
 	router.Route("/smtp", func(router chi.Router) {
 		router.Use(middleware.RequireAuth(authService))

@@ -19,11 +19,15 @@ var validFieldTypes = map[string]bool{
 	"checkbox":  true,
 }
 
+// Service implements field CRUD for a document, restricted to draft
+// documents.
 type Service struct {
 	orm        *gorm.DB
 	docService *documents.Service
 }
 
+// NewService creates a fields Service backed by the database and the
+// documents Service used to check ownership and draft status.
 func NewService(orm *gorm.DB, docService *documents.Service) *Service {
 	return &Service{orm: orm, docService: docService}
 }

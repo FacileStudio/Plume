@@ -49,6 +49,10 @@ func MigrateWithIssuer(db *gorm.DB, issuer string) error {
 // take once this has proven itself. avatar_url and avatar_source likewise stay in the
 // table, unread, until the next release drops them — expanding first means a rollback is
 // redeploying the old binary, not restoring a backup.
+//
+// The final statement clears any remaining NULL upload paths: the column is a plain
+// string and a NULL here would fail to scan, so any row still NULL is simply set to an
+// empty string.
 func backfillAvatarColumns(db *gorm.DB) error {
 	if !db.Migrator().HasColumn(&User{}, "avatar_url") {
 		return nil
@@ -66,6 +70,5 @@ func backfillAvatarColumns(db *gorm.DB) error {
 		   AND oidc_picture_url NOT LIKE 'https://%'`).Error; err != nil {
 		return err
 	}
-	// A NULL here would fail to scan into the plain string the model declares.
 	return db.Exec(`UPDATE users SET avatar_upload_path = '' WHERE avatar_upload_path IS NULL`).Error
 }

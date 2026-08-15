@@ -20,6 +20,9 @@ import (
 
 const maxUploadSize = 50 << 20
 
+// RegisterRoutes mounts the /documents routes on router: upload, list,
+// stats, get, file download, update, delete, and send. All require auth.
+// Additional nested routers can be mounted under /documents via nested.
 func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator, nested ...func(chi.Router)) {
 	router.Route("/documents", func(router chi.Router) {
 		router.Use(middleware.RequireAuth(authService))

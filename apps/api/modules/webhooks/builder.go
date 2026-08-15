@@ -7,6 +7,8 @@ import (
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 )
 
+// BuildDocumentEvent builds a webhook payload for a document-scoped event
+// (created, sent, completed, declined, deleted).
 func BuildDocumentEvent(eventType string, doc *schemas.Document, domain string) EventPayload {
 	return EventPayload{
 		EventID:    newEventID(),
@@ -16,6 +18,8 @@ func BuildDocumentEvent(eventType string, doc *schemas.Document, domain string) 
 	}
 }
 
+// BuildSignerEvent builds a webhook payload for a signer-scoped event, starting
+// from the document payload and attaching the signer to it.
 func BuildSignerEvent(eventType string, doc *schemas.Document, signer *schemas.Signer, domain string) EventPayload {
 	payload := BuildDocumentEvent(eventType, doc, domain)
 	dto := buildSignerDTO(signer, domain)

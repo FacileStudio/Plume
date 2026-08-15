@@ -195,6 +195,10 @@ type services struct {
 // goroutine expiring them, which lost every pending login on restart and could
 // not work behind more than one replica; porte stores them in a table and
 // consumes them with a DELETE ... RETURNING, so a replay finds nothing.
+//
+// Plume already required twelve characters, which is porte's default, so the
+// floor is left unset rather than restated. This is the one app in the suite
+// that does not have to be held down to eight.
 func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) (*session.Manager, *local.Kit, *oidc.Kit, error) {
 	sqlDB, err := db.DB()
 	if err != nil {
@@ -227,9 +231,6 @@ func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *s
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	// Plume already required twelve characters, which is porte's default, so
-	// the floor is left unset rather than restated. This is the one app in
-	// the suite that does not have to be held down to eight.
 	passwords, err := local.New(local.Config{AllowRegistration: !appEnv.SSOOnly}, local.Deps{
 		Users:      users,
 		Identities: store.Identities(),
@@ -284,13 +285,15 @@ func apiReference() apiref.Config {
 	}
 }
 
+// buildRouter assembles the chi.Router serving the API, wiring middleware,
+// auth, and every module's routes.
+//
+// Behind Traefik and Cloudflare, RemoteAddr is only the visitor if both are
+// trusted: Traefik replaces the forwarded chain rather than extending it, so
+// the visitor survives in Cf-Connecting-Ip alone. TRUSTED_PROXIES=private,cloudflare
+// fills all three.
 func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slog.Logger, sessions *session.Manager, kit *oidc.Kit) chi.Router {
 	router := httpx.NewRouter(httpx.Config{
-		// Behind Traefik and Cloudflare, RemoteAddr is only the
-		// visitor if both are trusted: Traefik replaces the forwarded
-		// chain rather than extending it, so the visitor survives in
-		// Cf-Connecting-Ip alone. TRUSTED_PROXIES=private,cloudflare
-		// fills all three.
 		TrustedProxies: appEnv.TrustedProxies,
 		CDNProxies:     appEnv.CDNProxies,
 		CDNHeader:      appEnv.CDNHeader,

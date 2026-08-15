@@ -11,6 +11,10 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// RegisterRoutes mounts /auth registration, login, profile, and password
+// endpoints on router. Registration and login are skipped when SSO-only mode
+// is enabled and rate-limited otherwise; profile and password routes require
+// auth.
 func RegisterRoutes(router chi.Router, service *Service, appEnv env.Config) {
 	router.Route("/auth", func(router chi.Router) {
 		if !appEnv.SSOOnly {

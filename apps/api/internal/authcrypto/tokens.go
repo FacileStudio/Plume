@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 )
 
+// NewToken generates a random 32-byte token encoded as URL-safe base64.
 func NewToken() (string, error) {
 	bytes := make([]byte, 32)
 	if _, err := rand.Read(bytes); err != nil {

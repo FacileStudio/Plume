@@ -21,12 +21,16 @@ import (
 
 const fontFamily = pdfutil.UnicodeFontFamily
 
+// Service generates the signature certificate and audit-trail PDFs for a
+// completed document, caching them on disk until the document changes.
 type Service struct {
 	orm        *gorm.DB
 	uploadDir  string
 	docService *documents.Service
 }
 
+// NewService wires the signing service to its database, upload directory and
+// the document service.
 func NewService(orm *gorm.DB, uploadDir string, docService *documents.Service) *Service {
 	return &Service{orm: orm, uploadDir: uploadDir, docService: docService}
 }

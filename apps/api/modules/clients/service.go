@@ -12,10 +12,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// Service implements CRUD for clients, scoped to an owner.
 type Service struct {
 	orm *gorm.DB
 }
 
+// NewService creates a clients Service backed by the given database.
 func NewService(orm *gorm.DB) *Service {
 	return &Service{orm: orm}
 }

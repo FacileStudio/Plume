@@ -10,6 +10,8 @@ package oidcavatar
 
 import "strings"
 
+// Profile holds the identity claims read from an OIDC provider's userinfo
+// or ID token.
 type Profile struct {
 	Name              string
 	PreferredUsername string

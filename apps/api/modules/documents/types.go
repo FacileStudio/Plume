@@ -2,6 +2,7 @@ package documents
 
 import "time"
 
+// UpdateRequest is the body of PUT /documents/{id}.
 type UpdateRequest struct {
 	Name       string `json:"name"`
 	FileName   string `json:"file_name"`
@@ -9,12 +10,15 @@ type UpdateRequest struct {
 	ClientID   *int64 `json:"client_id"`
 }
 
+// StatsResponse counts documents by status, as returned by GET
+// /documents/stats.
 type StatsResponse struct {
 	Total     int64 `json:"total"`
 	Pending   int64 `json:"pending"`
 	Completed int64 `json:"completed"`
 }
 
+// DocumentResponse describes a document as returned by the API.
 type DocumentResponse struct {
 	ID           int64     `json:"id"`
 	Name         string    `json:"name"`

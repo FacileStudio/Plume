@@ -29,6 +29,8 @@ type Service struct {
 	controller *Controller
 }
 
+// NewService creates a Service wired to the given database, session
+// manager, password kit, and logger.
 func NewService(orm *gorm.DB, sessions *session.Manager, passwords *local.Kit, logger *slog.Logger) *Service {
 	service := &Service{orm: orm, sessions: sessions, passwords: passwords, logger: logger}
 	service.controller = newController(service)
@@ -47,6 +49,10 @@ func (service *Service) RequireAuth(next http.Handler) http.Handler {
 // porte deliberately carries neither the email nor any role: what a role may
 // do is the app's business, and the profile lives in the app's table. So the
 // address is looked up here, which costs the one query the old join cost.
+//
+// If the user is not found, the session outlived the user: porte's foreign
+// key cascades a delete, so this is a race, and it is still not
+// authenticated.
 func (service *Service) IdentityForUser(ctx context.Context, userID int64) (string, string, error) {
 	var out struct {
 		ID    int64
@@ -61,8 +67,6 @@ func (service *Service) IdentityForUser(ctx context.Context, userID int64) (stri
 		return "", "", errors.Internal("failed to load the account", err)
 	}
 	if out.ID == 0 {
-		// The session outlived the user. porte's foreign key cascades a
-		// delete, so this is a race, and it is still not authenticated.
 		return "", "", errors.Unauthorized("invalid auth token")
 	}
 	return strconv.FormatInt(out.ID, 10), out.Email, nil
@@ -79,6 +83,8 @@ func (service *Service) Register(ctx context.Context, w http.ResponseWriter, r *
 	return strconv.FormatInt(userID, 10), token, nil
 }
 
+// Login authenticates email and password through porte/local, setting a
+// session cookie and returning the user id and token.
 func (service *Service) Login(ctx context.Context, w http.ResponseWriter, r *http.Request, email, password string) (string, string, error) {
 	userID, token, err := service.passwords.Login(ctx, w, r, email, password)
 	if err != nil {

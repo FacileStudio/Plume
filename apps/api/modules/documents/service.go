@@ -22,6 +22,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// Service implements the document lifecycle: creation, upload storage,
+// listing, updates, sending for signature, stats, and signed-file
+// generation.
 type Service struct {
 	orm        *gorm.DB
 	smtp       *smtp.Service
@@ -30,6 +33,8 @@ type Service struct {
 	uploadDir  string
 }
 
+// NewService creates a documents Service wired to the database, SMTP and
+// webhook services, the app's public domain, and the upload directory.
 func NewService(orm *gorm.DB, smtpService *smtp.Service, webhookSvc *webhooks.Service, domain string, uploadDir string) *Service {
 	return &Service{orm: orm, smtp: smtpService, webhookSvc: webhookSvc, domain: domain, uploadDir: uploadDir}
 }
@@ -86,28 +91,31 @@ func (s *Service) GetFilePathByDocID(ctx context.Context, docID int64) (string, 
 	return s.resolveFilePath(ctx, record)
 }
 
+// resolveFilePath returns the path to serve for record's file. A draft has
+// no signatures yet, so serves the untouched upload. For every other state
+// (pending / completed / declined) it stamps whatever field values already
+// exist so a partially-signed document downloads with the signatures
+// collected so far, not a blank form.
 func (s *Service) resolveFilePath(ctx context.Context, record *schemas.Document) (string, error) {
 	if record.StoragePath == "" {
 		return "", errors.NotFound("no file uploaded for this document")
 	}
 	originalPath := filepath.Join(s.uploadDir, record.StoragePath)
-	// A draft has no signatures yet, so serve the untouched upload. For every
-	// other state (pending / completed / declined) we stamp whatever field
-	// values already exist so a partially-signed document downloads with the
-	// signatures collected so far, not a blank form.
 	if record.Status != "draft" {
 		return s.getOrCreateSignedFile(ctx, record, originalPath)
 	}
 	return originalPath, nil
 }
 
+// getOrCreateSignedFile returns a path to a signed rendering of doc,
+// regenerating it if stale or absent. signed_hash is the fingerprint of the
+// final, fully-signed document used by verification, so it is only persisted
+// once the document is completed: a pending document may still be stamped
+// for download, but its intermediate hash must not be recorded as the
+// authoritative one.
 func (s *Service) getOrCreateSignedFile(ctx context.Context, doc *schemas.Document, originalPath string) (string, error) {
 	signedPath := signedFilePath(originalPath)
 
-	// signed_hash is the fingerprint of the final, fully-signed document used by
-	// verification, so only persist it once the document is completed. A pending
-	// document may still be stamped for download, but its intermediate hash must
-	// not be recorded as the authoritative one.
 	finalized := doc.Status == "completed"
 
 	if signedInfo, err := os.Stat(signedPath); err == nil {

@@ -9,6 +9,7 @@ import (
 	troncenv "github.com/FacileStudio/tronc/env"
 )
 
+// OIDCConfig holds the OIDC provider settings loaded from the environment.
 type OIDCConfig struct {
 	Issuer       string
 	ClientID     string
@@ -17,6 +18,7 @@ type OIDCConfig struct {
 	SuccessURL   string
 }
 
+// Config holds the application's environment-derived configuration.
 type Config struct {
 	troncenv.Core
 	Domain    string
@@ -25,6 +27,8 @@ type Config struct {
 	SSOOnly   bool
 }
 
+// Load reads and validates the application configuration from the
+// environment, including optional OIDC settings.
 func Load() (Config, error) {
 	core, err := troncenv.LoadCore()
 	if err != nil {

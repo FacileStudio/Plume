@@ -74,7 +74,10 @@ func TestAvatarSelectExprMatchesAvatar(t *testing.T) {
 // column was added after the upload feature. A backfill keyed on avatar_source = 'upload'
 // drops its picture without a word. Row 5 is the other half — a data: URI parked in
 // oidc_picture_url by the old code, which under the new rule would claim an SSO photo the
-// user does not have and suppress the fallback forever.
+// user does not have and suppress the fallback forever. The two remaining rows
+// pin the endpoint behaviour: the row carrying both sources keeps its file yet
+// still renders the Porte photo, and the user Authentik only ever drew
+// initials for falls all the way back to no picture at all.
 func TestBackfillAvatarColumns(t *testing.T) {
 	orm := requireDB(t)
 
@@ -119,7 +122,6 @@ func TestBackfillAvatarColumns(t *testing.T) {
 		}
 	}
 
-	// The row that carries both keeps its file, and still renders the Porte photo.
 	var both User
 	if err := orm.Where("email = ?", "upload-and-sso@example.com").First(&both).Error; err != nil {
 		t.Fatalf("read both: %v", err)
@@ -128,7 +130,6 @@ func TestBackfillAvatarColumns(t *testing.T) {
 		t.Errorf("SSO photo should win, got %q", both.Avatar())
 	}
 
-	// And the user Authentik only ever drew initials for falls all the way back.
 	var placeholder User
 	if err := orm.Where("email = ?", "placeholder-claim@example.com").First(&placeholder).Error; err != nil {
 		t.Fatalf("read placeholder: %v", err)

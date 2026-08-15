@@ -9,6 +9,8 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// DocumentRoutes returns a router mount function adding field CRUD routes
+// under a document's /{docId}/fields path.
 func DocumentRoutes(service *Service) func(chi.Router) {
 	return func(router chi.Router) {
 		router.Get("/{docId}/fields", func(w http.ResponseWriter, request *http.Request) {

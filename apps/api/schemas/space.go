@@ -2,6 +2,8 @@ package schemas
 
 import "time"
 
+// Space is a workspace grouping documents under one owner, shared through
+// member records.
 type Space struct {
 	ID          int64     `gorm:"column:id;primaryKey"`
 	Name        string    `gorm:"column:name"`
@@ -13,6 +15,7 @@ type Space struct {
 
 func (Space) TableName() string { return "spaces" }
 
+// SpaceMember is the join record linking a user to a space with a role.
 type SpaceMember struct {
 	ID       int64     `gorm:"column:id;primaryKey"`
 	SpaceID  int64     `gorm:"column:space_id;index"`

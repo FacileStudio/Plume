@@ -2,17 +2,22 @@ package webhooks
 
 import "time"
 
+// CreateWebhookRequest is the payload for registering a delivery target.
 type CreateWebhookRequest struct {
 	URL    string `json:"url"`
 	Secret string `json:"secret"`
 }
 
+// UpdateWebhookRequest is the payload for editing a delivery target's URL,
+// secret or enabled state.
 type UpdateWebhookRequest struct {
 	URL     string `json:"url"`
 	Secret  string `json:"secret"`
 	Enabled bool   `json:"enabled"`
 }
 
+// WebhookResponse is the delivery target as returned to the client, without
+// the secret.
 type WebhookResponse struct {
 	ID         int64   `json:"id"`
 	URL        string  `json:"url"`
@@ -22,6 +27,8 @@ type WebhookResponse struct {
 	UpdatedAt  string  `json:"updated_at"`
 }
 
+// EventPayload is a signed webhook delivery: the event metadata plus the
+// document and optional signer it concerns.
 type EventPayload struct {
 	EventID    string        `json:"event_id"`
 	EventType  string        `json:"event_type"`
@@ -31,12 +38,14 @@ type EventPayload struct {
 	Signer     *EventSigner  `json:"signer,omitempty"`
 }
 
+// EventOwner identifies the account that owns the event.
 type EventOwner struct {
 	ID    int64  `json:"id"`
 	Name  string `json:"name"`
 	Email string `json:"email"`
 }
 
+// EventDocument is the document state attached to an event.
 type EventDocument struct {
 	ID         int64     `json:"id"`
 	Name       string    `json:"name"`
@@ -48,6 +57,7 @@ type EventDocument struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
+// EventSigner is the signer state attached to a signer-scoped event.
 type EventSigner struct {
 	ID            int64      `json:"id"`
 	Name          string     `json:"name"`
