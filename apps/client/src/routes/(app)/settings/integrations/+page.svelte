@@ -397,7 +397,7 @@
 >
 	<div class="flex flex-col gap-4">
 		<Field label="URL">
-			<Input bind:value={webhookUrl} placeholder="https://nook.example.com/webhook/plume" />
+			<Input bind:value={webhookUrl} placeholder="https://antenne.example.com/webhook/plume" />
 		</Field>
 
 		<SecretField

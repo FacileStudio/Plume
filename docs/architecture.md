@@ -162,7 +162,7 @@ into `UPLOAD_DIR/avatars` and served from `GET /api/files/*`.
 - **Journal.** When both `JOURNAL_URL` and `JOURNAL_TOKEN` are set, the tronc logger is
   wrapped in `journal.NewHandler` and every structured log line ships to Journal. Setting
   only one of the two ships nothing.
-- **Webhooks.** Plume does not speak the Nook `pool`/`enveloppe` protocol. It dispatches its
+- **Webhooks.** Plume does not speak the Antenne `pool`/`enveloppe` protocol. It dispatches its
   own JSON webhooks to per-owner URLs, signed with HMAC-SHA256 over the body and sent as
   `x-plume-signature-256: sha256=<hex>` with `User-Agent: Plume-Webhook/1.0`. Eleven event
   types fire:
