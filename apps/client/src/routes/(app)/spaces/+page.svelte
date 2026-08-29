@@ -115,17 +115,15 @@
 							<td><Badge tone={roleTone[space.role]}>{space.role}</Badge></td>
 							<td class="whitespace-nowrap text-fc-fg-muted">{formatDate(space.created_at)}</td>
 							<td class="text-right">
-								{#if space.role !== 'owner'}
-									<Button
-										variant="ghost-danger"
-										size="sm"
-										icon={icons.logout}
-										aria-label="Leave {space.name}"
-										onclick={() => askLeave(space)}
-									>
-										Leave
-									</Button>
-								{/if}
+								<Button
+									variant="ghost-danger"
+									size="sm"
+									icon={icons.logout}
+									aria-label="Leave {space.name}"
+									onclick={() => askLeave(space)}
+								>
+									Leave
+								</Button>
 							</td>
 						</tr>
 					{/each}
@@ -146,19 +144,17 @@
 						</a>
 						<Badge tone={roleTone[space.role]}>{space.role}</Badge>
 					</div>
-					{#if space.role !== 'owner'}
-						<div class="flex items-center justify-end">
-							<Button
-								variant="ghost-danger"
-								size="lg"
-								icon={icons.logout}
-								aria-label="Leave {space.name}"
-								onclick={() => askLeave(space)}
-							>
-								Leave
-							</Button>
-						</div>
-					{/if}
+					<div class="flex items-center justify-end">
+						<Button
+							variant="ghost-danger"
+							size="lg"
+							icon={icons.logout}
+							aria-label="Leave {space.name}"
+							onclick={() => askLeave(space)}
+						>
+							Leave
+						</Button>
+					</div>
 				</Card>
 			{/each}
 		</div>
