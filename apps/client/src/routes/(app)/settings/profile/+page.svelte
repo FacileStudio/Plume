@@ -168,7 +168,7 @@
 						type="password"
 						autocomplete="new-password"
 						aria-label="New password"
-						minlength={8}
+						minlength={12}
 						required
 					/>
 				</Field>
@@ -181,7 +181,7 @@
 						type="password"
 						autocomplete="new-password"
 						aria-label="Confirm new password"
-						minlength={8}
+						minlength={12}
 						required
 					/>
 				</Field>
