@@ -25,10 +25,20 @@ type UpdateProfileRequest struct {
 	ReminderIntervalDays *int   `json:"reminder_interval_days,omitempty"`
 }
 
-// ChangePasswordRequest is the body of PUT /auth/password.
+// ChangePasswordRequest is the body of PUT /auth/password. current_password is
+// omitted only by an account adding its first password; sending it is what
+// distinguishes a replacement from an addition.
 type ChangePasswordRequest struct {
 	CurrentPassword string `json:"current_password"`
 	NewPassword     string `json:"new_password"`
+}
+
+// ChangePasswordResponse carries the rotated session token, because changing a
+// password ends the caller's old session and this client holds a bearer.
+// Adding a first password rotates nothing and the field is absent.
+type ChangePasswordResponse struct {
+	Status string `json:"status"`
+	Token  string `json:"token,omitempty"`
 }
 
 // ProfileResponse describes a user's profile as returned by /auth/me.

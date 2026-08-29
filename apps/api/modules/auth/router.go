@@ -88,11 +88,12 @@ func RegisterRoutes(router chi.Router, service *Service, appEnv env.Config) {
 					httpjson.WriteError(w, err)
 					return
 				}
-				if err := service.controller.changePassword(request.Context(), identity.UserID, &req); err != nil {
+				resp, err := service.controller.changePassword(w, request, identity.UserID, &req)
+				if err != nil {
 					httpjson.WriteError(w, err)
 					return
 				}
-				httpjson.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+				httpjson.WriteJSON(w, http.StatusOK, resp)
 			})
 		})
 

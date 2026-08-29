@@ -94,9 +94,9 @@ func TestAdoptPorteKeepsEverybodySignedIn(t *testing.T) {
 // The password hash moves into the identity row porte/local reads. Without it
 // the login form answers "invalid credentials" to a correct password, with the
 // hash still sitting in the users table and no error anywhere. The local
-// identity is keyed on the lowercased address on purpose: porte/local
-// normalises before it looks one up, so an identity keyed on the mixed-case
-// address this user registered with would never be found.
+// identity is keyed on the account id, which is what porte/local has looked one
+// up by since v0.3.0; keying on the address is the mutable key that version
+// removed.
 func TestAdoptPorteMovesThePasswords(t *testing.T) {
 	db := requireDB(t)
 	seedPrePorte(t, db)
@@ -110,7 +110,7 @@ func TestAdoptPorteMovesThePasswords(t *testing.T) {
 		PasswordHash string
 	}
 	err := db.Raw(
-		`SELECT user_id, password_hash FROM porte_identities WHERE provider = 'local' AND subject = 'noah@facile.studio'`,
+		`SELECT user_id, password_hash FROM porte_identities WHERE provider = 'local' AND subject = '2'`,
 	).Scan(&identity).Error
 	if err != nil {
 		t.Fatalf("read the local identity: %v", err)
@@ -125,6 +125,53 @@ func TestAdoptPorteMovesThePasswords(t *testing.T) {
 	}
 	if withoutPassword != 0 {
 		t.Fatal("an account with no password gained a local identity, which is a login that cannot be used and an account that cannot be registered")
+	}
+}
+
+// An account that registered through porte v0.2 has an address-keyed identity
+// and an empty users.password_hash, because CreateFromPassword never writes
+// that column — porte holds the credential. It is therefore outside
+// adoptExistingPasswords' filter, and the re-key UPDATE is the only statement
+// that can reach it. Without that statement the deploy compiles, boots, and
+// answers 401 to every correct password with nothing in the logs.
+func TestAdoptPorteRekeysAnAddressKeyedIdentity(t *testing.T) {
+	db := requireDB(t)
+	seedPrePorte(t, db)
+
+	if err := AdoptPorte(db, testIssuer); err != nil {
+		t.Fatalf("adopt: %v", err)
+	}
+	statements := []string{
+		`UPDATE porte_identities SET subject = 'noah@facile.studio' WHERE provider = 'local' AND user_id = 2`,
+		`INSERT INTO users (id, email, name, password_hash, created_at)
+		 VALUES (3, 'iris@facile.studio', 'Iris', '', now())`,
+		`INSERT INTO porte_identities (user_id, provider, subject, password_hash)
+		 VALUES (3, 'local', 'iris@facile.studio', '$argon2id$since')`,
+	}
+	for _, statement := range statements {
+		if err := db.Exec(statement).Error; err != nil {
+			t.Fatalf("rewind to the address key: %v\n%s", err, statement)
+		}
+	}
+
+	if err := AdoptPorte(db, testIssuer); err != nil {
+		t.Fatalf("re-adopt: %v", err)
+	}
+
+	var subjects []string
+	if err := db.Raw(`SELECT subject FROM porte_identities WHERE provider = 'local' ORDER BY subject`).Scan(&subjects).Error; err != nil {
+		t.Fatalf("read the local identities: %v", err)
+	}
+	if len(subjects) != 2 || subjects[0] != "2" || subjects[1] != "3" {
+		t.Fatalf("the local identities were not re-keyed onto the account id: %v", subjects)
+	}
+
+	var hash string
+	if err := db.Raw(`SELECT password_hash FROM porte_identities WHERE provider = 'local' AND subject = '3'`).Scan(&hash).Error; err != nil {
+		t.Fatalf("read the re-keyed hash: %v", err)
+	}
+	if hash != "$argon2id$since" {
+		t.Fatalf("the re-key lost the credential: %q", hash)
 	}
 }
 

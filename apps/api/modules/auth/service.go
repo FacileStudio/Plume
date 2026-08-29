@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/FacileStudio/Plume/apps/api/schemas"
@@ -93,9 +92,11 @@ func (service *Service) Login(ctx context.Context, w http.ResponseWriter, r *htt
 	return strconv.FormatInt(userID, 10), token, nil
 }
 
-// SetPassword is what PATCH /users/me calls when the body carries one.
-func (service *Service) SetPassword(ctx context.Context, userID int64, email, password string) error {
-	return service.passwords.SetPassword(ctx, userID, email, password)
+// SetPassword gives a first password to an account that has none. porte
+// refuses with porte.ErrPasswordSet when one is already there; replacing it is
+// ChangePassword.
+func (service *Service) SetPassword(ctx context.Context, userID int64, password string) error {
+	return service.passwords.SetPassword(ctx, userID, password)
 }
 
 // Issue mints a named API token: a porte session with a label and no expiry,
@@ -118,42 +119,27 @@ func (service *Service) AuthenticateRequest(w http.ResponseWriter, r *http.Reque
 // Sessions exposes the manager for the modules that list or revoke tokens.
 func (service *Service) Sessions() *session.Manager { return service.sessions }
 
-// VerifyPassword checks a password without issuing anything. PUT /auth/password
-// confirms the current one before setting the next.
-func (service *Service) VerifyPassword(ctx context.Context, email, password string) (int64, error) {
-	return service.passwords.Verify(ctx, email, password)
+// ChangePassword is PUT /auth/password: confirm the current password, replace
+// it, end the account's other logins and rotate the caller's own session. It
+// returns the new session token and how many other logins ended.
+//
+// It takes the request rather than a context because porte writes the rotated
+// cookie itself and reads the caller's session id off r.Context(), so this
+// cannot be reached from a method holding a bare context.
+func (service *Service) ChangePassword(w http.ResponseWriter, r *http.Request, userID int64, current, next string) (string, int64, error) {
+	return service.passwords.ChangePassword(r.Context(), w, r, userID, current, next)
 }
 
-// ChangePassword is PUT /auth/password: confirm the current password, then set
-// the new one on the address the account actually has.
+// UpdateProfile changes the name and address.
 //
-// The confirmation is porte's Verify rather than a hash comparison here,
-// because the hash lives in porte_identities now and re-deriving argon2 in the
-// app is how the parameters drift apart.
-func (service *Service) ChangePassword(ctx context.Context, userID int64, current, next string) error {
-	email, err := service.emailFor(ctx, userID)
-	if err != nil {
-		return err
-	}
-	if _, err := service.passwords.Verify(ctx, email, current); err != nil {
-		return errors.Unauthorized("current password is incorrect")
-	}
-	return service.passwords.SetPassword(ctx, userID, email, next)
-}
-
-// UpdateProfile changes the name and address, re-keying the local identity
-// when the address moves.
-//
-// porte keys a password identity on the address, so changing users.email
-// without moving that key leaves the login answering "invalid email or
-// password" to the right password — the same silent failure the password
-// migration exists to prevent, reached from the other side.
+// Since porte v0.3.0 a password identity is keyed on the account id, so an
+// address change is this one row and nothing else. The hand-written
+// re-key that used to live here is gone with the key it maintained.
 func (service *Service) UpdateProfile(ctx context.Context, userID int64, name, email string, reminderIntervalDays *int) (*schemas.User, error) {
 	var record schemas.User
 	if err := service.orm.WithContext(ctx).First(&record, userID).Error; err != nil {
 		return nil, errors.NotFound("user not found")
 	}
-	previous := record.Email
 	record.Name = name
 	record.Email = email
 	if reminderIntervalDays != nil {
@@ -165,14 +151,6 @@ func (service *Service) UpdateProfile(ctx context.Context, userID int64, name, e
 		}
 		return nil, errors.Internal("failed to update user", err)
 	}
-	if !strings.EqualFold(previous, email) {
-		if err := service.orm.WithContext(ctx).Exec(
-			`UPDATE porte_identities SET subject = ? WHERE provider = 'local' AND subject = ?`,
-			strings.ToLower(strings.TrimSpace(email)), strings.ToLower(strings.TrimSpace(previous)),
-		).Error; err != nil {
-			return nil, errors.Internal("failed to move the password to the new address", err)
-		}
-	}
 	return &record, nil
 }
 
@@ -183,15 +161,6 @@ func (service *Service) GetUser(ctx context.Context, userID int64) (*schemas.Use
 		return nil, errors.NotFound("user not found")
 	}
 	return &record, nil
-}
-
-// emailFor reads the address porte keys a local identity on.
-func (service *Service) emailFor(ctx context.Context, userID int64) (string, error) {
-	var record schemas.User
-	if err := service.orm.WithContext(ctx).Select("email").First(&record, userID).Error; err != nil {
-		return "", errors.NotFound("user not found")
-	}
-	return record.Email, nil
 }
 
 // getUserByString and updateProfileByString adapt the decimal-string user id

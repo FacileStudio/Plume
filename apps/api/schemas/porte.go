@@ -57,6 +57,9 @@ CREATE INDEX IF NOT EXISTS porte_identities_user_idx ON porte_identities (user_i
 ALTER TABLE porte_identities ADD COLUMN IF NOT EXISTS created_at timestamptz;
 ALTER TABLE porte_identities ALTER COLUMN created_at SET DEFAULT now();
 
+UPDATE porte_identities SET subject = user_id::text
+ WHERE provider = 'local' AND subject <> user_id::text;
+
 CREATE TABLE IF NOT EXISTS porte_sessions (
 	id           bigserial PRIMARY KEY,
 	token_hash   text NOT NULL UNIQUE,
@@ -119,16 +122,17 @@ $$;
 // uses the parameters this app already used — so the move is a copy and nobody
 // resets anything.
 //
-// The subject is the lowercased address because that is what porte/local
-// normalises to before looking one up; a row keyed on a mixed-case address
-// would simply never be found.
+// The subject is the account id, which is what porte/local keys a password
+// identity on since v0.3.0. Inserting the address here would write a fresh
+// address-keyed row after the re-key UPDATE in porteSchema had already run past
+// it, so the account would be left with a credential nothing looks up.
 //
 // users.password_hash is deliberately left in place. Blanking it in the same
 // deploy makes the change unrollbackable for the sake of tidiness, and a
 // column nothing reads can be dropped on any later day.
 const adoptExistingPasswords = `
 INSERT INTO porte_identities (user_id, provider, subject, password_hash)
-SELECT id, 'local', lower(btrim(email)), password_hash
+SELECT id, 'local', id::text, password_hash
   FROM users
  WHERE coalesce(password_hash, '') <> ''
 ON CONFLICT (provider, subject) DO NOTHING;
