@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	stderrors "errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -77,7 +78,7 @@ func (service *Service) IdentityForUser(ctx context.Context, userID int64) (stri
 func (service *Service) Register(ctx context.Context, w http.ResponseWriter, r *http.Request, email, password string) (string, string, error) {
 	userID, token, err := service.passwords.Register(ctx, w, r, email, "", password)
 	if err != nil {
-		return "", "", err
+		return "", "", credentialError(err)
 	}
 	return strconv.FormatInt(userID, 10), token, nil
 }
@@ -87,7 +88,7 @@ func (service *Service) Register(ctx context.Context, w http.ResponseWriter, r *
 func (service *Service) Login(ctx context.Context, w http.ResponseWriter, r *http.Request, email, password string) (string, string, error) {
 	userID, token, err := service.passwords.Login(ctx, w, r, email, password)
 	if err != nil {
-		return "", "", err
+		return "", "", credentialError(err)
 	}
 	return strconv.FormatInt(userID, 10), token, nil
 }
@@ -96,7 +97,53 @@ func (service *Service) Login(ctx context.Context, w http.ResponseWriter, r *htt
 // refuses with porte.ErrPasswordSet when one is already there; replacing it is
 // ChangePassword.
 func (service *Service) SetPassword(ctx context.Context, userID int64, password string) error {
-	return service.passwords.SetPassword(ctx, userID, password)
+	return passwordError(service.passwords.SetPassword(ctx, userID, password))
+}
+
+// weakPassword is the one sentence both password paths give for a password
+// under porte's floor, which is also the floor the controller checks.
+func weakPassword() error {
+	return errors.Invalid(fmt.Sprintf("password must be at least %d characters", local.DefaultMinPasswordLength))
+}
+
+// passwordError replaces porte's sentinel text on the change-password paths
+// with wording this app owns. A sentinel is a package contract, not a user
+// interface: "porte: invalid email or password" names a field this form does
+// not have, and names a dependency to whoever reads it. Each status porte
+// chose is kept, and ErrPasswordSet is passed through because the controller
+// reads it to tell a missing field from a conflict.
+func passwordError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case stderrors.Is(err, porte.ErrWrongPassword):
+		return errors.Unauthorized("current password is incorrect")
+	case stderrors.Is(err, porte.ErrNoPassword):
+		return errors.Invalid("this account has no password to change")
+	case stderrors.Is(err, porte.ErrWeakPassword):
+		return weakPassword()
+	}
+	return err
+}
+
+// credentialError is the same substitution for register and login, where the
+// email is a field the person filled in and the wording says so.
+func credentialError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case stderrors.Is(err, porte.ErrWrongPassword):
+		return errors.Unauthorized("invalid email or password")
+	case stderrors.Is(err, porte.ErrEmailTaken):
+		return errors.Conflict("an account with this email already exists")
+	case stderrors.Is(err, porte.ErrInvalidEmail):
+		return errors.Invalid("a valid email is required")
+	case stderrors.Is(err, porte.ErrRegistrationClosed):
+		return errors.Forbidden("registration is closed on this instance")
+	case stderrors.Is(err, porte.ErrWeakPassword):
+		return weakPassword()
+	}
+	return err
 }
 
 // Issue mints a named API token: a porte session with a label and no expiry,
@@ -127,7 +174,11 @@ func (service *Service) Sessions() *session.Manager { return service.sessions }
 // cookie itself and reads the caller's session id off r.Context(), so this
 // cannot be reached from a method holding a bare context.
 func (service *Service) ChangePassword(w http.ResponseWriter, r *http.Request, userID int64, current, next string) (string, int64, error) {
-	return service.passwords.ChangePassword(r.Context(), w, r, userID, current, next)
+	token, revoked, err := service.passwords.ChangePassword(r.Context(), w, r, userID, current, next)
+	if err != nil {
+		return "", 0, passwordError(err)
+	}
+	return token, revoked, nil
 }
 
 // UpdateProfile changes the name and address.

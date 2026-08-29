@@ -135,6 +135,17 @@ func errorCode(body map[string]any) string {
 	return code
 }
 
+// errorMessage is the half of tronc's error envelope a person reads, which is
+// where a library's sentinel text leaks if nothing maps it.
+func errorMessage(body map[string]any) string {
+	envelope, ok := body["error"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	message, _ := envelope["message"].(string)
+	return message
+}
+
 // register creates an account through the real route and returns its bearer.
 func (a *api) register(t *testing.T, email, password string) (int64, string) {
 	t.Helper()

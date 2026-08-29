@@ -73,7 +73,10 @@ func TestChangingAPasswordRotatesTheCallerAndEndsTheOtherLogins(t *testing.T) {
 	}
 }
 
-// The wrong current password is 401 and changes nothing.
+// The wrong current password is 401 and changes nothing. The message is this
+// app's, not porte's: the form has no email field, so porte's "invalid email
+// or password" describes a field the person is not looking at, and the package
+// name is nobody's business but ours.
 func TestChangingAPasswordRefusesTheWrongCurrentOne(t *testing.T) {
 	api := newAPI(t)
 	_, caller := api.register(t, "noah@facile.studio", firstPassword)
@@ -84,8 +87,47 @@ func TestChangingAPasswordRefusesTheWrongCurrentOne(t *testing.T) {
 	if code := errorCode(body); code != "unauthenticated" {
 		t.Fatalf("error code %q, want unauthenticated: %v", code, body)
 	}
+	if message := errorMessage(body); message != "current password is incorrect" {
+		t.Fatalf("message %q, want the app's own wording", message)
+	}
 	if code := api.do(t, http.MethodGet, "/auth/me", caller, nil).Code; code != http.StatusOK {
 		t.Fatalf("a refused change ended the caller's session: %d", code)
+	}
+}
+
+// Eleven characters is refused and twelve is accepted. The client's minlength
+// mirrors this number, and it mirrored 8 for a while, so the floor is pinned
+// here rather than left to the caption on the form.
+func TestThePasswordFloorIsTwelveCharacters(t *testing.T) {
+	api := newAPI(t)
+	_, caller := api.register(t, "noah@facile.studio", firstPassword)
+
+	short := api.do(t, http.MethodPut, "/auth/password", caller, map[string]string{
+		"current_password": firstPassword, "new_password": "elevenchars",
+	})
+	if short.Code != http.StatusBadRequest {
+		t.Fatalf("an 11-character password got %d, want 400", short.Code)
+	}
+	long := api.do(t, http.MethodPut, "/auth/password", caller, map[string]string{
+		"current_password": firstPassword, "new_password": "twelvechars!",
+	})
+	if long.Code != http.StatusOK {
+		t.Fatalf("a 12-character password got %d, want 200: %s", long.Code, long.Body.String())
+	}
+}
+
+// A federated account that sends a current password has none to confirm. That
+// is 400, and the sentence has to explain the account rather than name the
+// library that noticed.
+func TestChangingAPasswordOnAnAccountThatHasNone(t *testing.T) {
+	api := newAPI(t)
+	_, caller := api.federated(t, "iris@facile.studio")
+
+	body := decode(t, api.do(t, http.MethodPut, "/auth/password", caller, map[string]string{
+		"current_password": firstPassword, "new_password": nextPassword,
+	}), http.StatusBadRequest)
+	if message := errorMessage(body); message != "this account has no password to change" {
+		t.Fatalf("message %q, want the app's own wording", message)
 	}
 }
 
