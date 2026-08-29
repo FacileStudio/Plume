@@ -149,7 +149,14 @@ func (s *Service) AddMember(ctx context.Context, userID int64, spaceID int64, re
 	if req.Email == "" {
 		return nil, errors.Invalid("email is required")
 	}
-	role := normalizeRole(req.Role)
+	role := RoleMember
+	if req.Role != "" {
+		requested, err := normalizeRole(req.Role)
+		if err != nil {
+			return nil, err
+		}
+		role = requested
+	}
 	if role == RoleOwner {
 		return nil, errors.Invalid("cannot add a member as owner")
 	}
@@ -187,7 +194,10 @@ func (s *Service) UpdateMemberRole(ctx context.Context, userID int64, spaceID in
 		return nil, err
 	}
 
-	role := normalizeRole(req.Role)
+	role, err := normalizeRole(req.Role)
+	if err != nil {
+		return nil, err
+	}
 	if role == RoleOwner {
 		return nil, errors.Invalid("cannot assign owner role")
 	}
@@ -246,60 +256,20 @@ func (s *Service) Leave(ctx context.Context, userID int64, spaceID int64) error 
 	}
 
 	if member.Role == RoleOwner {
-		return errors.Forbidden("the owner cannot leave the space — transfer ownership or delete the space")
+		var owners int64
+		if err := s.orm.WithContext(ctx).Model(&schemas.SpaceMember{}).
+			Where("space_id = ? AND role = ?", spaceID, RoleOwner).Count(&owners).Error; err != nil {
+			return errors.Internal("failed to count the space owners", err)
+		}
+		if owners <= 1 {
+			return errors.Conflict("the last owner cannot leave the space — transfer ownership or delete the space")
+		}
 	}
 
 	if err := s.orm.WithContext(ctx).Delete(&member).Error; err != nil {
 		return errors.Internal("failed to leave space", err)
 	}
 	return nil
-}
-
-func (s *Service) getMemberRole(ctx context.Context, spaceID int64, userID int64) (string, error) {
-	var member schemas.SpaceMember
-	err := s.orm.WithContext(ctx).Where("space_id = ? AND user_id = ?", spaceID, userID).First(&member).Error
-	if stderrors.Is(err, gorm.ErrRecordNotFound) {
-		return "", errors.Forbidden("you are not a member of this space")
-	}
-	if err != nil {
-		return "", errors.Internal("failed to check membership", err)
-	}
-	return member.Role, nil
-}
-
-func (s *Service) requireMinRole(ctx context.Context, spaceID int64, userID int64, minRole string) (string, error) {
-	role, err := s.getMemberRole(ctx, spaceID, userID)
-	if err != nil {
-		return "", err
-	}
-	if roleLevel(role) < roleLevel(minRole) {
-		return "", errors.Forbidden("insufficient permissions")
-	}
-	return role, nil
-}
-
-func roleLevel(role string) int {
-	switch role {
-	case RoleOwner:
-		return 3
-	case RoleAdmin:
-		return 2
-	case RoleMember:
-		return 1
-	default:
-		return 0
-	}
-}
-
-func normalizeRole(role string) string {
-	switch role {
-	case RoleAdmin:
-		return RoleAdmin
-	case RoleOwner:
-		return RoleOwner
-	default:
-		return RoleMember
-	}
 }
 
 func toSpaceResponse(s *schemas.Space, role string) *SpaceResponse {
