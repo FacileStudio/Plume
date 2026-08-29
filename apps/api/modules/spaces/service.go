@@ -246,32 +246,6 @@ func (s *Service) RemoveMember(ctx context.Context, userID int64, spaceID int64,
 	return nil
 }
 
-func (s *Service) Leave(ctx context.Context, userID int64, spaceID int64) error {
-	var member schemas.SpaceMember
-	if err := s.orm.WithContext(ctx).Where("space_id = ? AND user_id = ?", spaceID, userID).First(&member).Error; err != nil {
-		if stderrors.Is(err, gorm.ErrRecordNotFound) {
-			return errors.NotFound("you are not a member of this space")
-		}
-		return errors.Internal("failed to check membership", err)
-	}
-
-	if member.Role == RoleOwner {
-		var owners int64
-		if err := s.orm.WithContext(ctx).Model(&schemas.SpaceMember{}).
-			Where("space_id = ? AND role = ?", spaceID, RoleOwner).Count(&owners).Error; err != nil {
-			return errors.Internal("failed to count the space owners", err)
-		}
-		if owners <= 1 {
-			return errors.Conflict("the last owner cannot leave the space — transfer ownership or delete the space")
-		}
-	}
-
-	if err := s.orm.WithContext(ctx).Delete(&member).Error; err != nil {
-		return errors.Internal("failed to leave space", err)
-	}
-	return nil
-}
-
 func toSpaceResponse(s *schemas.Space, role string) *SpaceResponse {
 	return &SpaceResponse{
 		ID:          s.ID,

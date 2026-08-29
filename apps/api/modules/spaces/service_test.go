@@ -5,12 +5,14 @@ import (
 	stderrors "errors"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 	"github.com/FacileStudio/tronc/errors"
 	"github.com/FacileStudio/tronc/testdb"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var testDB *gorm.DB
@@ -91,6 +93,112 @@ func TestOnlyTheLastOwnerCannotLeave(t *testing.T) {
 	}
 	if code := codeOf(err); code != "already_exists" {
 		t.Fatalf("error code %q, want already_exists: %v", code, err)
+	}
+}
+
+// Two owners leaving at the same instant must not both pass. The count and the
+// delete are separate statements, so without a lock over the space's
+// membership both transactions read two owners and the space ends with none —
+// a state no route repairs, because Delete demands an owner, UpdateMemberRole
+// refuses to assign one and AddMember refuses to add one.
+//
+// The interleave is forced rather than raced, since the window is
+// sub-millisecond and two goroutines simply serialize. A held transaction takes
+// the same rows the service takes and removes the other owner while holding
+// them, so Leave either waits and re-reads one owner, or never looked.
+func TestTwoOwnersCannotBothLeaveConcurrently(t *testing.T) {
+	service := newService(t)
+	ctx := context.Background()
+	first := createUser(t, "noah@facile.studio")
+	second := createUser(t, "iris@facile.studio")
+	space := coOwnedSpace(t, service, first, second)
+
+	tx := holdMembership(t, space.ID)
+	defer func() { _ = tx.Rollback() }()
+
+	started := make(chan struct{})
+	left := make(chan error, 1)
+	go func() {
+		close(started)
+		left <- service.Leave(ctx, second, space.ID)
+	}()
+	<-started
+	waitForALockWait(t)
+
+	if err := tx.Where("space_id = ? AND user_id = ?", space.ID, first).
+		Delete(&schemas.SpaceMember{}).Error; err != nil {
+		t.Fatalf("remove the first owner: %v", err)
+	}
+	if err := tx.Commit().Error; err != nil {
+		t.Fatalf("commit the first owner's exit: %v", err)
+	}
+
+	leaveErr := <-left
+	var owners int64
+	if err := testDB.Model(&schemas.SpaceMember{}).
+		Where("space_id = ? AND role = ?", space.ID, RoleOwner).Count(&owners).Error; err != nil {
+		t.Fatalf("count the remaining owners: %v", err)
+	}
+	if owners == 0 {
+		t.Fatalf("both owners left and the space is ownerless; the second leave returned %v", leaveErr)
+	}
+	if code := codeOf(leaveErr); code != "already_exists" {
+		t.Fatalf("the second leave returned %q, want already_exists: %v", code, leaveErr)
+	}
+}
+
+// coOwnedSpace is a space two accounts own equally, which is the only shape in
+// which more than one member may leave.
+func coOwnedSpace(t *testing.T, service *Service, first, second int64) *SpaceResponse {
+	t.Helper()
+	space, err := service.Create(context.Background(), first, &CreateSpaceRequest{Name: "Contracts"})
+	if err != nil {
+		t.Fatalf("create the space: %v", err)
+	}
+	coOwner := schemas.SpaceMember{SpaceID: space.ID, UserID: second, Role: RoleOwner}
+	if err := testDB.Create(&coOwner).Error; err != nil {
+		t.Fatalf("add the second owner: %v", err)
+	}
+	return space
+}
+
+// holdMembership opens a transaction standing in for the other leaver and takes
+// the rows Leave has to take, so the caller decides when the two interleave.
+func holdMembership(t *testing.T, spaceID int64) *gorm.DB {
+	t.Helper()
+	tx := testDB.Begin()
+	if tx.Error != nil {
+		t.Fatalf("open the competing transaction: %v", tx.Error)
+	}
+	var held []int64
+	if err := tx.Model(&schemas.SpaceMember{}).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("space_id = ?", spaceID).Pluck("id", &held).Error; err != nil {
+		t.Fatalf("hold the membership rows: %v", err)
+	}
+	return tx
+}
+
+// waitForALockWait gives the goroutine time to reach Postgres and then returns
+// as soon as a backend is waiting on a lock. The floor is what makes the
+// unlocked version fail rather than pass by accident: a Leave that takes no
+// lock finishes in under a millisecond, so it is guaranteed to be done before
+// the competing transaction commits.
+func waitForALockWait(t *testing.T) {
+	t.Helper()
+	time.Sleep(100 * time.Millisecond)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		var waiting int64
+		if err := testDB.Raw(`SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND wait_event_type = 'Lock'`).
+			Scan(&waiting).Error; err != nil {
+			t.Fatalf("read the lock waits: %v", err)
+		}
+		if waiting > 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
