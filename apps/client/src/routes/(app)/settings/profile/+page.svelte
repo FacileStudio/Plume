@@ -161,7 +161,7 @@
 				</Field>
 			</SettingsRow>
 
-			<SettingsRow stacked label="New password" description="At least eight characters.">
+			<SettingsRow stacked label="New password" description="At least twelve characters.">
 				<Field>
 					<Input
 						bind:value={newPassword}

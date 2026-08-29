@@ -157,11 +157,14 @@ export const api = {
 		me: () => request<UserProfile>('GET', '/auth/me'),
 		updateProfile: (data: { name: string; email: string; reminder_interval_days?: number }) =>
 			request<UserProfile>('PUT', '/auth/me', data),
-		changePassword: (currentPassword: string, newPassword: string) =>
-			request<{ status: string }>('PUT', '/auth/password', {
+		changePassword: async (currentPassword: string, newPassword: string) => {
+			const result = await request<{ status: string; token?: string }>('PUT', '/auth/password', {
 				current_password: currentPassword,
 				new_password: newPassword
-			}),
+			});
+			if (result.token) setToken(result.token);
+			return result;
+		},
 		syncProfile: () => request<{ status: string }>('POST', '/auth/sync-profile')
 	},
 	documents: {
