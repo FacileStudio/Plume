@@ -58,6 +58,34 @@ func TestEveryRouteIsDocumented(t *testing.T) {
 	}
 }
 
+func TestRegistryIsComplete(t *testing.T) {
+	if issues := apiref.Incomplete(apiReference(),
+		"/auth/logout",
+		"/documents",
+		"/documents/{id}",
+		"/documents/{id}/file",
+		"/documents/{id}/send",
+		"/documents/{docId}/fields/{fieldId}",
+		"/documents/{docId}/certificate",
+		"/documents/{docId}/audit-trail",
+		"/signers/{id}",
+		"/sign/{token}/opened.gif",
+		"/sign/{token}/file",
+		"/sign/{token}",
+		"/spaces/{spaceId}",
+		"/spaces/{spaceId}/leave",
+		"/spaces/{spaceId}/members/{memberId}",
+		"/clients/{clientId}",
+		"/smtp",
+		"/smtp/test",
+		"/verify",
+		"/webhooks/{id}",
+		"/webhooks/{id}/test",
+	); len(issues) > 0 {
+		t.Errorf("incomplete documentation entries:\n%s", strings.Join(issues, "\n"))
+	}
+}
+
 func TestReferenceIsServedAtRoot(t *testing.T) {
 	page := httptest.NewRecorder()
 	testRouter(t).ServeHTTP(page, httptest.NewRequest(http.MethodGet, "/docs", nil))

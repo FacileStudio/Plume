@@ -1,24 +1,29 @@
 package auth
 
-import documentation "github.com/FacileStudio/Plume/apps/api/internal/documentation"
+import (
+	documentation "github.com/FacileStudio/Plume/apps/api/internal/documentation"
+	"github.com/FacileStudio/porte"
+)
 
 var Documentation = documentation.Module{
 	Name:        "auth",
 	Description: "Authentication routes.",
 	Routes: []documentation.Route{
 		{
-			Method:      "GET",
-			Path:        "/auth/config",
-			Summary:     "Get the auth configuration",
-			Description: "Public endpoint. Returns sso_only, oidc_enabled and, when OIDC is configured, oidc_issuer and oidc_redirect_url, so the login page can render the right options.",
-			Auth:        "",
+			Method:       "GET",
+			Path:         "/auth/config",
+			Summary:      "Get the auth configuration",
+			Description:  "Public endpoint. Returns sso_only, oidc_enabled and, when OIDC is configured, oidc_issuer and oidc_redirect_url, so the login page can render the right options.",
+			Auth:         "",
+			ResponseBody: porte.ConfigResponse{},
 		},
 		{
-			Method:      "POST",
-			Path:        "/auth/logout",
-			Summary:     "End the session",
-			Description: "Revokes the session and clears the cookie. Idempotent: a caller whose session has already expired still gets 200, because that is exactly when somebody needs to log out. Served by porte.",
-			Auth:        "",
+			Method:       "POST",
+			Path:         "/auth/logout",
+			Summary:      "End the session",
+			Description:  "Revokes the session and clears the cookie. Idempotent: a caller whose session has already expired still gets 200, because that is exactly when somebody needs to log out. Served by porte.",
+			Auth:         "",
+			ResponseBody: porte.LogoutResponse{},
 		},
 		{
 			Method:       "POST",
@@ -26,8 +31,8 @@ var Documentation = documentation.Module{
 			Summary:      "Register a new user",
 			Description:  "Creates a user account and returns an auth token.",
 			Auth:         "",
-			RequestBody:  "RegisterRequest",
-			ResponseBody: "AuthResponse",
+			RequestBody:  RegisterRequest{},
+			ResponseBody: AuthResponse{},
 		},
 		{
 			Method:       "POST",
@@ -35,8 +40,8 @@ var Documentation = documentation.Module{
 			Summary:      "Authenticate a user",
 			Description:  "Authenticates credentials and returns an auth token.",
 			Auth:         "",
-			RequestBody:  "LoginRequest",
-			ResponseBody: "AuthResponse",
+			RequestBody:  LoginRequest{},
+			ResponseBody: AuthResponse{},
 		},
 		{
 			Method:       "GET",
@@ -44,7 +49,7 @@ var Documentation = documentation.Module{
 			Summary:      "Get current user profile",
 			Description:  "Returns the authenticated user's profile.",
 			Auth:         "bearer",
-			ResponseBody: "ProfileResponse",
+			ResponseBody: ProfileResponse{},
 		},
 		{
 			Method:       "PUT",
@@ -52,8 +57,8 @@ var Documentation = documentation.Module{
 			Summary:      "Update current user profile",
 			Description:  "Updates the authenticated user's name and email.",
 			Auth:         "bearer",
-			RequestBody:  "UpdateProfileRequest",
-			ResponseBody: "ProfileResponse",
+			RequestBody:  UpdateProfileRequest{},
+			ResponseBody: ProfileResponse{},
 		},
 		{
 			Method:       "PUT",
@@ -61,8 +66,8 @@ var Documentation = documentation.Module{
 			Summary:      "Change password",
 			Description:  "Replaces the authenticated user's password after verifying the current one, ends the account's other logins and returns the rotated session token. Omitting current_password adds a first password to an account that has none, and is refused with 400 for an account that already has one.",
 			Auth:         "bearer",
-			RequestBody:  "ChangePasswordRequest",
-			ResponseBody: "ChangePasswordResponse",
+			RequestBody:  ChangePasswordRequest{},
+			ResponseBody: ChangePasswordResponse{},
 		},
 	},
 }

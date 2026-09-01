@@ -4,24 +4,31 @@ import documentation "github.com/FacileStudio/Plume/apps/api/internal/documentat
 
 var Documentation = documentation.Module{
 	Name:        "verify",
-	Description: "Public signature verification by document hash. Rate limited.",
+	Description: "Public verification routes for signed PDF documents.",
 	Routes: []documentation.Route{
-		{
-			Method:       "POST",
-			Path:         "/verify",
-			Summary:      "Verify an uploaded PDF",
-			Description:  "Public endpoint. Takes a multipart upload with a `file` part, hashes it, and reports the matching signed document if there is one.",
-			Auth:         "",
-			ResponseBody: "Response",
-		},
 		{
 			Method:       "GET",
 			Path:         "/verify/{hash}",
-			Summary:      "Verify by hash",
-			Description:  "Public endpoint. Looks up a signed document by its SHA-256 hash.",
+			Summary:      "Verify document status by hash",
+			Description:  "Returns public verification metadata for a document: name, hash, signature status, and signer details (with sensitive info omitted).",
 			Auth:         "",
-			ResponseBody: "Response",
-			PathParams:   []documentation.Field{{Name: "hash", Type: "string", Description: "64-character hex SHA-256 of the document"}},
+			PathParams:   []documentation.Field{{Name: "hash", Type: "string", Description: "Document SHA-256 hash"}},
+			ResponseBody: Response{},
+			Errors: []documentation.Error{
+				{Status: 404, Code: "not_found", Description: "Document not found or not yet signed."},
+			},
+		},
+		{
+			Method:       "POST",
+			Path:         "/verify",
+			Summary:      "Verify an uploaded PDF file",
+			Description:  "Accepts a multipart PDF upload, computes its SHA-256 hash, and verifies it against completed documents in the system.",
+			Auth:         "",
+			ResponseBody: Response{},
+			Errors: []documentation.Error{
+				{Status: 400, Code: "invalid_argument", Description: "Missing file or file is not a valid PDF."},
+				{Status: 404, Code: "not_found", Description: "No matching signed document found for this file hash."},
+			},
 		},
 	},
 }
