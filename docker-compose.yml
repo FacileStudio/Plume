@@ -7,45 +7,59 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-plume}
     volumes:
-      - db_data:/var/lib/postgresql/data
+    - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
-      interval: 5s
+      test:
+      - CMD
+      - nc
+      - -z
+      - localhost
+      - '3000'
+      interval: 30s
       timeout: 5s
-      retries: 10
-
+      retries: 3
+    deploy:
+      update_config:
+        order: start-first
+        parallelism: 1
+      restart_policy:
+        condition: any
   plume-api:
     build:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
     expose:
-      - "4000"
+    - '4000'
     healthcheck:
-      test: ["CMD", "/api", "healthcheck"]
-      interval: 10s
+      test:
+      - CMD
+      - nc
+      - -z
+      - localhost
+      - '4000'
+      interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
     networks:
-      - default
-      - dokploy-network
+    - default
+    - dokploy-network
     labels:
-      traefik.enable: "true"
+      traefik.enable: 'true'
       traefik.docker.network: dokploy-network
-      traefik.http.routers.plume-web.rule: "Host(`plume.facile.studio`)"
+      traefik.http.routers.plume-web.rule: Host(`plume.facile.studio`)
       traefik.http.routers.plume-web.entrypoints: web
       traefik.http.routers.plume-web.middlewares: redirect-to-https@file
       traefik.http.routers.plume-web.service: plume-svc
-      traefik.http.routers.plume-secure.rule: "Host(`plume.facile.studio`)"
+      traefik.http.routers.plume-secure.rule: Host(`plume.facile.studio`)
       traefik.http.routers.plume-secure.entrypoints: websecure
       traefik.http.routers.plume-secure.tls.certresolver: letsencrypt
       traefik.http.routers.plume-secure.service: plume-svc
-      traefik.http.services.plume-svc.loadbalancer.server.port: "4000"
+      traefik.http.services.plume-svc.loadbalancer.server.port: '4000'
     environment:
       APP_ENV: ${APP_ENV:-production}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
-      PORT: "4000"
+      PORT: '4000'
       LOG_LEVEL: ${LOG_LEVEL:-info}
       DATABASE_URL: postgres://postgres:postgres@plume-db:5432/plume?sslmode=disable
       UPLOAD_DIR: ${UPLOAD_DIR:-/data/uploads}
@@ -60,25 +74,25 @@ services:
       JOURNAL_URL: ${JOURNAL_URL:-}
       JOURNAL_TOKEN: ${JOURNAL_TOKEN:-}
     volumes:
-      - uploads_data:/data/uploads
+    - uploads_data:/data/uploads
     depends_on:
       plume-db:
         condition: service_healthy
-
+    deploy:
+      update_config:
+        order: start-first
+        parallelism: 1
+      restart_policy:
+        condition: any
 volumes:
   db_data:
     name: plume_db_data
   uploads_data:
     name: plume_uploads
-
-# Sous-réseau épinglé : les pools d'adresses par défaut de Docker
-# (172.17-172.31/16 et 192.168.0.0/16 en /20) sont saturés sur l'hôte.
-# 172.16.0.0/24 est en dehors de ces pools, donc Docker n'a pas à piocher
-# dans un pool plein pour créer le réseau du projet.
 networks:
   dokploy-network:
     external: true
   default:
     ipam:
       config:
-        - subnet: 172.16.0.0/24
+      - subnet: 172.16.0.0/24
