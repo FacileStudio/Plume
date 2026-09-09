@@ -53,6 +53,9 @@ func (s *Service) Create(ctx context.Context, ownerID string, name string, fileN
 	}
 	if spaceID != "" {
 		sid, _ := strconv.ParseInt(spaceID, 10, 64)
+		if err := s.requireSpaceMember(ctx, sid, uid); err != nil {
+			return nil, err
+		}
 		record.SpaceID = &sid
 	}
 	if err := s.orm.WithContext(ctx).Create(record).Error; err != nil {
@@ -76,7 +79,7 @@ func (s *Service) UpdateStorage(ctx context.Context, docID int64, path string, o
 }
 
 func (s *Service) GetFilePath(ctx context.Context, ownerID string, docID string) (string, error) {
-	record, err := s.findOwned(ctx, ownerID, docID)
+	record, err := s.findAccessible(ctx, ownerID, docID)
 	if err != nil {
 		return "", err
 	}
@@ -193,15 +196,18 @@ func (s *Service) InvalidateGeneratedFiles(ctx context.Context, docID int64) {
 
 func (s *Service) List(ctx context.Context, ownerID string, status string, spaceID string, clientID string) ([]DocumentResponse, error) {
 	uid, _ := strconv.ParseInt(ownerID, 10, 64)
-	query := s.orm.WithContext(ctx).Where("owner_id = ?", uid)
-	if status != "" {
-		query = query.Where("status = ?", status)
-	}
+	query := s.orm.WithContext(ctx)
 	if spaceID != "" {
 		sid, _ := strconv.ParseInt(spaceID, 10, 64)
+		if err := s.requireSpaceMember(ctx, sid, uid); err != nil {
+			return nil, err
+		}
 		query = query.Where("space_id = ?", sid)
 	} else {
-		query = query.Where("space_id IS NULL")
+		query = query.Where("owner_id = ? AND space_id IS NULL", uid)
+	}
+	if status != "" {
+		query = query.Where("status = ?", status)
 	}
 	if clientID != "" {
 		cid, _ := strconv.ParseInt(clientID, 10, 64)
@@ -221,7 +227,7 @@ func (s *Service) List(ctx context.Context, ownerID string, status string, space
 }
 
 func (s *Service) Get(ctx context.Context, ownerID string, docID string) (*DocumentResponse, error) {
-	record, err := s.findOwned(ctx, ownerID, docID)
+	record, err := s.findAccessible(ctx, ownerID, docID)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +235,7 @@ func (s *Service) Get(ctx context.Context, ownerID string, docID string) (*Docum
 }
 
 func (s *Service) Update(ctx context.Context, ownerID string, docID string, req *UpdateRequest) (*DocumentResponse, error) {
-	record, err := s.findOwned(ctx, ownerID, docID)
+	record, err := s.findAccessible(ctx, ownerID, docID)
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +265,7 @@ func (s *Service) Update(ctx context.Context, ownerID string, docID string, req 
 }
 
 func (s *Service) Delete(ctx context.Context, ownerID string, docID string) error {
-	record, err := s.findOwned(ctx, ownerID, docID)
+	record, err := s.findAccessible(ctx, ownerID, docID)
 	if err != nil {
 		return err
 	}
@@ -279,7 +285,7 @@ func (s *Service) Delete(ctx context.Context, ownerID string, docID string) erro
 }
 
 func (s *Service) Send(ctx context.Context, ownerID string, docID string) (*DocumentResponse, error) {
-	record, err := s.findOwned(ctx, ownerID, docID)
+	record, err := s.findAccessible(ctx, ownerID, docID)
 	if err != nil {
 		return nil, err
 	}
@@ -354,13 +360,19 @@ func (s *Service) Send(ctx context.Context, ownerID string, docID string) (*Docu
 
 func (s *Service) Stats(ctx context.Context, ownerID string, spaceID string) (*StatsResponse, error) {
 	uid, _ := strconv.ParseInt(ownerID, 10, 64)
+	var sid int64
+	if spaceID != "" {
+		sid, _ = strconv.ParseInt(spaceID, 10, 64)
+		if err := s.requireSpaceMember(ctx, sid, uid); err != nil {
+			return nil, err
+		}
+	}
 	scope := func() *gorm.DB {
-		q := s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("owner_id = ?", uid)
+		q := s.orm.WithContext(ctx).Model(&schemas.Document{})
 		if spaceID != "" {
-			sid, _ := strconv.ParseInt(spaceID, 10, 64)
 			q = q.Where("space_id = ?", sid)
 		} else {
-			q = q.Where("space_id IS NULL")
+			q = q.Where("owner_id = ? AND space_id IS NULL", uid)
 		}
 		return q
 	}
@@ -383,17 +395,46 @@ func (s *Service) FindByID(ctx context.Context, docID int64) (*schemas.Document,
 	return &record, nil
 }
 
-func (s *Service) findOwned(ctx context.Context, ownerID string, docID string) (*schemas.Document, error) {
+// requireSpaceMember refuses a user who is not a member of the space. A space
+// is a shared boundary: membership, not ownership, is what grants access to
+// the documents it holds.
+func (s *Service) requireSpaceMember(ctx context.Context, spaceID, userID int64) error {
+	var count int64
+	err := s.orm.WithContext(ctx).Model(&schemas.SpaceMember{}).
+		Where("space_id = ? AND user_id = ?", spaceID, userID).Count(&count).Error
+	if err != nil {
+		return errors.Internal("failed to check space membership", err)
+	}
+	if count == 0 {
+		return errors.Forbidden("you are not a member of this space")
+	}
+	return nil
+}
+
+// findAccessible returns the document a user may reach. A personal document
+// belongs to its owner alone; a space document is reachable by any member of
+// the space that holds it. Reference to a document outside either scope is
+// reported as not found so a query does not confirm a document exists.
+func (s *Service) findAccessible(ctx context.Context, ownerID string, docID string) (*schemas.Document, error) {
 	uid, _ := strconv.ParseInt(ownerID, 10, 64)
 	did, _ := strconv.ParseInt(docID, 10, 64)
 
 	var record schemas.Document
-	err := s.orm.WithContext(ctx).Where("id = ? AND owner_id = ?", did, uid).First(&record).Error
+	err := s.orm.WithContext(ctx).Where("id = ?", did).First(&record).Error
 	if stderrors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errors.NotFound("document not found")
 	}
 	if err != nil {
 		return nil, errors.Internal("failed to read document", err)
+	}
+	if record.SpaceID == nil {
+		if record.OwnerID != uid {
+			return nil, errors.NotFound("document not found")
+		}
+		return &record, nil
+	}
+	if err := s.requireSpaceMember(ctx, *record.SpaceID, uid); err != nil {
+		return nil, err
 	}
 	return &record, nil
 }
