@@ -2,22 +2,25 @@ package signers
 
 import documentation "github.com/FacileStudio/Plume/apps/api/internal/documentation"
 
+// RemindResponse is the payload returned when signers are reminded.
 type RemindResponse struct {
 	Message string `json:"message"`
 }
 
+// DeclineResponse is the payload returned when a signer declines a document.
 type DeclineResponse struct {
 	Declined bool `json:"declined"`
 }
 
+// DeleteSignerResponse is the payload returned when a signer is removed.
 type DeleteSignerResponse struct {
 	Deleted bool `json:"deleted"`
 }
 
-var Documentation = documentation.Module{
-	Name:        "signers",
-	Description: "Signer management and signing workflow routes.",
-	Routes: []documentation.Route{
+// signerManagementRoutes documents the authenticated collection endpoints on a
+// document: listing its signers and adding a new one.
+func signerManagementRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "GET",
 			Path:         "/documents/{docId}/signers",
@@ -41,6 +44,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Document not found."},
 			},
 		},
+	}
+}
+
+// signerRemovalRoutes documents removing a signer from a draft document.
+func signerRemovalRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:      "DELETE",
 			Path:        "/signers/{id}",
@@ -53,6 +62,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Signer not found."},
 			},
 		},
+	}
+}
+
+// signerReminderRoutes documents re-sending a signer's invitation email.
+func signerReminderRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "POST",
 			Path:         "/signers/{id}/remind",
@@ -66,6 +81,13 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Signer not found."},
 			},
 		},
+	}
+}
+
+// signingStateRoutes documents the token-scoped endpoints that read signing
+// state: the signing view and the overall progress roster.
+func signingStateRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "GET",
 			Path:         "/sign/{token}",
@@ -90,6 +112,13 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Token not found or document is still in draft."},
 			},
 		},
+	}
+}
+
+// signingDeliveryRoutes documents the token-scoped endpoints that serve the
+// raw resources of the workflow: the open-tracking pixel and the PDF download.
+func signingDeliveryRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:      "GET",
 			Path:        "/sign/{token}/opened.gif",
@@ -106,6 +135,12 @@ var Documentation = documentation.Module{
 			Auth:        "",
 			PathParams:  []documentation.Field{{Name: "token", Type: "string", Description: "Signing token"}},
 		},
+	}
+}
+
+// signatureSubmitRoutes documents submitting a signer's field values.
+func signatureSubmitRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:      "POST",
 			Path:        "/sign/{token}",
@@ -119,6 +154,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Token not found."},
 			},
 		},
+	}
+}
+
+// signatureDeclineRoutes documents a signer declining to sign.
+func signatureDeclineRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "POST",
 			Path:         "/sign/{token}/decline",
@@ -131,5 +172,21 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Token not found."},
 			},
 		},
-	},
+	}
+}
+
+// Documentation returns the signers module's route table for the API reference.
+func Documentation() documentation.Module {
+	routes := signerManagementRoutes()
+	routes = append(routes, signerRemovalRoutes()...)
+	routes = append(routes, signerReminderRoutes()...)
+	routes = append(routes, signingStateRoutes()...)
+	routes = append(routes, signingDeliveryRoutes()...)
+	routes = append(routes, signatureSubmitRoutes()...)
+	routes = append(routes, signatureDeclineRoutes()...)
+	return documentation.Module{
+		Name:        "signers",
+		Description: "Signer management and signing workflow routes.",
+		Routes:      routes,
+	}
 }

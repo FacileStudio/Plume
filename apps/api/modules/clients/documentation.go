@@ -2,14 +2,23 @@ package clients
 
 import documentation "github.com/FacileStudio/Plume/apps/api/internal/documentation"
 
+// DeleteClientResponse is the payload returned when a client contact is deleted.
 type DeleteClientResponse struct {
 	Deleted bool `json:"deleted"`
 }
 
-var Documentation = documentation.Module{
-	Name:        "clients",
-	Description: "Client contact management routes.",
-	Routes: []documentation.Route{
+// Documentation returns the clients module's route table for the API reference.
+func Documentation() documentation.Module {
+	return documentation.Module{
+		Name:        "clients",
+		Description: "Client contact management routes.",
+		Routes:      append(collectionRoutes(), itemRoutes()...),
+	}
+}
+
+// collectionRoutes returns the /clients collection route entries.
+func collectionRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "POST",
 			Path:         "/clients",
@@ -30,6 +39,17 @@ var Documentation = documentation.Module{
 			Auth:         "bearer",
 			ResponseBody: []ClientResponse{},
 		},
+	}
+}
+
+// itemRoutes returns the /clients/{clientId} item route entries.
+func itemRoutes() []documentation.Route {
+	return append(getClientRoute(), append(updateClientRoute(), deleteClientRoute()...)...)
+}
+
+// getClientRoute returns the GET /clients/{clientId} route entry.
+func getClientRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "GET",
 			Path:         "/clients/{clientId}",
@@ -42,6 +62,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Client not found."},
 			},
 		},
+	}
+}
+
+// updateClientRoute returns the PUT /clients/{clientId} route entry.
+func updateClientRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "PUT",
 			Path:         "/clients/{clientId}",
@@ -56,6 +82,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Client not found."},
 			},
 		},
+	}
+}
+
+// deleteClientRoute returns the DELETE /clients/{clientId} route entry.
+func deleteClientRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:      "DELETE",
 			Path:        "/clients/{clientId}",
@@ -68,5 +100,5 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Client not found."},
 			},
 		},
-	},
+	}
 }

@@ -5,10 +5,10 @@ import (
 	"github.com/FacileStudio/porte"
 )
 
-var Documentation = documentation.Module{
-	Name:        "auth",
-	Description: "Authentication routes.",
-	Routes: []documentation.Route{
+// configRoutes documents the public routes that porte itself serves: reading
+// the auth configuration and ending the session.
+func configRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "GET",
 			Path:         "/auth/config",
@@ -25,6 +25,13 @@ var Documentation = documentation.Module{
 			Auth:         "",
 			ResponseBody: porte.LogoutResponse{},
 		},
+	}
+}
+
+// credentialRoutes documents the local registration and login routes, which
+// are only mounted when SSO-only mode is disabled.
+func credentialRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "POST",
 			Path:         "/auth/register",
@@ -43,6 +50,13 @@ var Documentation = documentation.Module{
 			RequestBody:  LoginRequest{},
 			ResponseBody: AuthResponse{},
 		},
+	}
+}
+
+// profileRoutes documents the authenticated self-service routes for the
+// current user's profile and password.
+func profileRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "GET",
 			Path:         "/auth/me",
@@ -69,5 +83,14 @@ var Documentation = documentation.Module{
 			RequestBody:  ChangePasswordRequest{},
 			ResponseBody: ChangePasswordResponse{},
 		},
-	},
+	}
+}
+
+// Documentation returns the auth module's route table for the API reference.
+func Documentation() documentation.Module {
+	return documentation.Module{
+		Name:        "auth",
+		Description: "Authentication routes.",
+		Routes:      append(configRoutes(), append(credentialRoutes(), profileRoutes()...)...),
+	}
 }

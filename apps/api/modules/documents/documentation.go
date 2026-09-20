@@ -2,19 +2,36 @@ package documents
 
 import documentation "github.com/FacileStudio/Plume/apps/api/internal/documentation"
 
+// CreateRequest is the payload for creating a new document.
 type CreateRequest struct {
 	Name     string `json:"name"`
 	FileName string `json:"file_name,omitempty"`
 }
 
+// DeleteDocumentResponse is the payload returned when a document is deleted.
 type DeleteDocumentResponse struct {
 	Deleted bool `json:"deleted"`
 }
 
-var Documentation = documentation.Module{
-	Name:        "documents",
-	Description: "Document lifecycle routes: upload, edit, send, download, stats and deletion.",
-	Routes: []documentation.Route{
+// Documentation returns the documents module's route table for the API reference.
+func Documentation() documentation.Module {
+	routes := uploadRoutes()
+	routes = append(routes, listRoutes()...)
+	routes = append(routes, getDocumentRoute()...)
+	routes = append(routes, downloadDocumentRoute()...)
+	routes = append(routes, updateDocumentRoute()...)
+	routes = append(routes, deleteDocumentRoute()...)
+	routes = append(routes, sendRoutes()...)
+	return documentation.Module{
+		Name:        "documents",
+		Description: "Document lifecycle routes: upload, edit, send, download, stats and deletion.",
+		Routes:      routes,
+	}
+}
+
+// uploadRoutes returns the document upload route entry.
+func uploadRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "POST",
 			Path:         "/documents",
@@ -27,6 +44,12 @@ var Documentation = documentation.Module{
 				{Status: 400, Code: "invalid_argument", Description: "Missing file, file is not a PDF, or missing name."},
 			},
 		},
+	}
+}
+
+// listRoutes returns the document collection read route entries.
+func listRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "GET",
 			Path:         "/documents",
@@ -43,6 +66,12 @@ var Documentation = documentation.Module{
 			Auth:         "bearer",
 			ResponseBody: StatsResponse{},
 		},
+	}
+}
+
+// getDocumentRoute returns the GET /documents/{id} route entry.
+func getDocumentRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "GET",
 			Path:         "/documents/{id}",
@@ -55,6 +84,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Document not found."},
 			},
 		},
+	}
+}
+
+// downloadDocumentRoute returns the GET /documents/{id}/file route entry.
+func downloadDocumentRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:      "GET",
 			Path:        "/documents/{id}/file",
@@ -66,6 +101,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Document or file not found."},
 			},
 		},
+	}
+}
+
+// updateDocumentRoute returns the PUT /documents/{id} route entry.
+func updateDocumentRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "PUT",
 			Path:         "/documents/{id}",
@@ -80,6 +121,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Document not found."},
 			},
 		},
+	}
+}
+
+// deleteDocumentRoute returns the DELETE /documents/{id} route entry.
+func deleteDocumentRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:      "DELETE",
 			Path:        "/documents/{id}",
@@ -92,6 +139,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Document not found."},
 			},
 		},
+	}
+}
+
+// sendRoutes returns the /documents/{id}/send route entry.
+func sendRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "POST",
 			Path:         "/documents/{id}/send",
@@ -105,5 +158,5 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Document not found."},
 			},
 		},
-	},
+	}
 }

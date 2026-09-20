@@ -7,10 +7,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/FacileStudio/Plume/apps/api/schemas"
 	"github.com/FacileStudio/Plume/apps/api/modules/smtp"
 	"github.com/FacileStudio/Plume/apps/api/modules/spaces"
 	"github.com/FacileStudio/Plume/apps/api/modules/webhooks"
+	"github.com/FacileStudio/Plume/apps/api/schemas"
 	"github.com/FacileStudio/tronc/errors"
 	"github.com/FacileStudio/tronc/testdb"
 

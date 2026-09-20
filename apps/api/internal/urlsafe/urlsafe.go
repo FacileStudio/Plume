@@ -9,28 +9,23 @@ import (
 	"time"
 )
 
-var privateRanges []*net.IPNet
-
-func init() {
-	cidrs := []string{
-		"0.0.0.0/8",
-		"127.0.0.0/8",
-		"10.0.0.0/8",
-		"172.16.0.0/12",
-		"192.168.0.0/16",
-		"169.254.0.0/16",
-		"100.64.0.0/10",
-		"198.18.0.0/15",
-		"224.0.0.0/4",
-		"240.0.0.0/4",
-		"fc00::/7",
-		"fe80::/10",
-		"::1/128",
-	}
-	for _, cidr := range cidrs {
-		_, block, _ := net.ParseCIDR(cidr)
-		privateRanges = append(privateRanges, block)
-	}
+// privateCIDRs is the set of reserved ranges an outbound SSRF guard must never
+// dial. Parsed per call: a dozen CIDR parses are nothing next to the DNS
+// lookups they gate.
+var privateCIDRs = []string{
+	"0.0.0.0/8",
+	"127.0.0.0/8",
+	"10.0.0.0/8",
+	"172.16.0.0/12",
+	"192.168.0.0/16",
+	"169.254.0.0/16",
+	"100.64.0.0/10",
+	"198.18.0.0/15",
+	"224.0.0.0/4",
+	"240.0.0.0/4",
+	"fc00::/7",
+	"fe80::/10",
+	"::1/128",
 }
 
 func isPrivateIP(ip net.IP) bool {
@@ -40,7 +35,11 @@ func isPrivateIP(ip net.IP) bool {
 	if ip4 := ip.To4(); ip4 != nil {
 		ip = ip4
 	}
-	for _, block := range privateRanges {
+	for _, cidr := range privateCIDRs {
+		_, block, err := net.ParseCIDR(cidr)
+		if err != nil {
+			continue
+		}
 		if block.Contains(ip) {
 			return true
 		}
@@ -97,17 +96,26 @@ func SafeTransport() *http.Transport {
 				return nil, err
 			}
 
-			dialer := &net.Dialer{Timeout: 10 * time.Second}
-
-			for _, resolved := range addrs {
-				ip := net.ParseIP(resolved)
-				if ip != nil && isPrivateIP(ip) {
-					continue
-				}
-				return dialer.DialContext(ctx, network, net.JoinHostPort(resolved, port))
+			resolved := firstPublicAddr(addrs)
+			if resolved == "" {
+				return nil, fmt.Errorf("connections to private network addresses are not allowed")
 			}
 
-			return nil, fmt.Errorf("connections to private network addresses are not allowed")
+			dialer := &net.Dialer{Timeout: 10 * time.Second}
+			return dialer.DialContext(ctx, network, net.JoinHostPort(resolved, port))
 		},
 	}
+}
+
+// firstPublicAddr returns the first resolved address outside the reserved
+// ranges, or an empty string when every address is private or unparseable.
+func firstPublicAddr(addrs []string) string {
+	for _, resolved := range addrs {
+		ip := net.ParseIP(resolved)
+		if ip == nil || isPrivateIP(ip) {
+			continue
+		}
+		return resolved
+	}
+	return ""
 }

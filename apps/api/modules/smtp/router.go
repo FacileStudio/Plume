@@ -13,75 +13,95 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+// ownerIDFrom extracts the authenticated owner's numeric ID from the request.
+func ownerIDFrom(r *http.Request) (int64, bool) {
+	identity, _ := authcontext.IdentityFromContext(r.Context())
+	ownerID, err := strconv.ParseInt(identity.UserID, 10, 64)
+	return ownerID, err == nil
+}
+
 // RegisterRoutes mounts the SMTP configuration, test and delete endpoints
 // behind auth.
 func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator) {
 	router.Route("/smtp", func(router chi.Router) {
 		router.Use(middleware.RequireAuth(authService))
 
-		router.Get("/", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			ownerID, _ := strconv.ParseInt(identity.UserID, 10, 64)
+		RegisterSmtpGetRoute(router, service)
+		RegisterSmtpSaveRoute(router, service)
+		RegisterSmtpDeleteRoute(router, service)
+		RegisterSmtpTestRoute(router, service)
+	})
+}
 
-			resp, err := service.getConfig(request.Context(), ownerID)
-			if err != nil {
-				var appErr *errors.Error
-				if stderrors.As(err, &appErr) && appErr.Code == "not_found" {
-					httpjson.WriteJSON(w, http.StatusOK, nil)
-					return
-				}
-				httpjson.WriteError(w, err)
+// RegisterSmtpGetRoute mounts GET /smtp.
+func RegisterSmtpGetRoute(router chi.Router, service *Service) {
+	router.Get("/", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
+
+		resp, err := service.getConfig(request.Context(), ownerID)
+		if err != nil {
+			var appErr *errors.Error
+			if stderrors.As(err, &appErr) && appErr.Code == "not_found" {
+				httpjson.WriteJSON(w, http.StatusOK, nil)
 				return
 			}
-			httpjson.WriteJSON(w, http.StatusOK, resp)
-		})
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusOK, resp)
+	})
+}
 
-		router.Put("/", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			ownerID, _ := strconv.ParseInt(identity.UserID, 10, 64)
+// RegisterSmtpSaveRoute mounts PUT /smtp.
+func RegisterSmtpSaveRoute(router chi.Router, service *Service) {
+	router.Put("/", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
 
-			var req SaveConfigRequest
-			if err := httpjson.DecodeJSON(w, request, &req); err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
+		var req SaveConfigRequest
+		if err := httpjson.DecodeJSON(w, request, &req); err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
 
-			resp, err := service.saveConfig(request.Context(), ownerID, &req)
-			if err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
-			httpjson.WriteJSON(w, http.StatusOK, resp)
-		})
+		resp, err := service.saveConfig(request.Context(), ownerID, &req)
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusOK, resp)
+	})
+}
 
-		router.Delete("/", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			ownerID, _ := strconv.ParseInt(identity.UserID, 10, 64)
+// RegisterSmtpDeleteRoute mounts DELETE /smtp.
+func RegisterSmtpDeleteRoute(router chi.Router, service *Service) {
+	router.Delete("/", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
 
-			err := service.deleteConfig(request.Context(), ownerID)
-			if err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
-			w.WriteHeader(http.StatusNoContent)
-		})
+		err := service.deleteConfig(request.Context(), ownerID)
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+}
 
-		router.Post("/test", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			ownerID, _ := strconv.ParseInt(identity.UserID, 10, 64)
+// RegisterSmtpTestRoute mounts POST /smtp/test.
+func RegisterSmtpTestRoute(router chi.Router, service *Service) {
+	router.Post("/test", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
 
-			var req TestRequest
-			if err := httpjson.DecodeJSON(w, request, &req); err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
+		var req TestRequest
+		if err := httpjson.DecodeJSON(w, request, &req); err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
 
-			err := service.testConfig(request.Context(), ownerID, req.To)
-			if err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
-			httpjson.WriteJSON(w, http.StatusOK, map[string]string{"status": "sent"})
-		})
+		err := service.testConfig(request.Context(), ownerID, req.To)
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusOK, map[string]string{"status": "sent"})
 	})
 }

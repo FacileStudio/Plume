@@ -12,205 +12,142 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// RegisterRoutes mounts the spaces CRUD and membership management endpoints
-// behind auth.
+// ownerIDFrom extracts the authenticated user's numeric ID from the request.
+// The bool reports whether an identity was present; routes guarded by
+// RequireAuth can ignore it.
+func ownerIDFrom(r *http.Request) (int64, bool) {
+	identity, ok := authcontext.IdentityFromContext(r.Context())
+	if !ok {
+		return 0, false
+	}
+	ownerID, _ := strconv.ParseInt(identity.UserID, 10, 64)
+	return ownerID, true
+}
+
+// RegisterRoutes mounts the spaces CRUD and membership endpoints behind auth.
 func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator) {
 	router.Route("/spaces", func(router chi.Router) {
 		router.Use(middleware.RequireAuth(authService))
 
-		router.Post("/", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			ownerID, _ := strconv.ParseInt(identity.UserID, 10, 64)
+		RegisterSpaceCollectionRoutes(router, service)
+		RegisterSpaceGetRoute(router, service)
+		RegisterSpaceLeaveRoute(router, service)
+		RegisterSpaceUpdateRoute(router, service)
+		RegisterSpaceDeleteRoute(router, service)
+		RegisterMemberListRoute(router, service)
+		RegisterMemberAddRoute(router, service)
+		RegisterMemberUpdateRoute(router, service)
+		RegisterMemberRemoveRoute(router, service)
+	})
+}
 
-			var req CreateSpaceRequest
-			if err := httpjson.DecodeJSON(w, request, &req); err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
+// RegisterSpaceCollectionRoutes mounts POST /spaces and GET /spaces.
+func RegisterSpaceCollectionRoutes(router chi.Router, service *Service) {
+	router.Post("/", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
 
-			resp, err := service.Create(request.Context(), ownerID, &req)
-			if err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
-			httpjson.WriteJSON(w, http.StatusCreated, resp)
-		})
+		var req CreateSpaceRequest
+		if err := httpjson.DecodeJSON(w, request, &req); err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
 
-		router.Get("/", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			userID, _ := strconv.ParseInt(identity.UserID, 10, 64)
+		resp, err := service.Create(request.Context(), ownerID, &req)
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusCreated, resp)
+	})
 
-			resp, err := service.List(request.Context(), userID)
-			if err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
-			httpjson.WriteJSON(w, http.StatusOK, resp)
-		})
+	router.Get("/", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
 
-		router.Route("/{spaceId}", func(router chi.Router) {
-			router.Get("/", func(w http.ResponseWriter, request *http.Request) {
-				identity, _ := authcontext.IdentityFromContext(request.Context())
-				userID, _ := strconv.ParseInt(identity.UserID, 10, 64)
-				spaceID, err := strconv.ParseInt(chi.URLParam(request, "spaceId"), 10, 64)
-				if err != nil {
-					httpjson.WriteError(w, errors.Invalid("invalid space ID"))
-					return
-				}
+		resp, err := service.List(request.Context(), ownerID)
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusOK, resp)
+	})
+}
 
-				resp, err := service.Get(request.Context(), userID, spaceID)
-				if err != nil {
-					httpjson.WriteError(w, err)
-					return
-				}
-				httpjson.WriteJSON(w, http.StatusOK, resp)
-			})
+// RegisterSpaceGetRoute mounts GET /spaces/{spaceId}.
+func RegisterSpaceGetRoute(router chi.Router, service *Service) {
+	router.Get("/{spaceId}", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
+		spaceID, err := strconv.ParseInt(chi.URLParam(request, "spaceId"), 10, 64)
+		if err != nil {
+			httpjson.WriteError(w, errors.Invalid("invalid space ID"))
+			return
+		}
 
-			router.Put("/", func(w http.ResponseWriter, request *http.Request) {
-				identity, _ := authcontext.IdentityFromContext(request.Context())
-				userID, _ := strconv.ParseInt(identity.UserID, 10, 64)
-				spaceID, err := strconv.ParseInt(chi.URLParam(request, "spaceId"), 10, 64)
-				if err != nil {
-					httpjson.WriteError(w, errors.Invalid("invalid space ID"))
-					return
-				}
+		resp, err := service.Get(request.Context(), ownerID, spaceID)
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusOK, resp)
+	})
+}
 
-				var req UpdateSpaceRequest
-				if err := httpjson.DecodeJSON(w, request, &req); err != nil {
-					httpjson.WriteError(w, err)
-					return
-				}
+// RegisterSpaceLeaveRoute mounts POST /spaces/{spaceId}/leave.
+func RegisterSpaceLeaveRoute(router chi.Router, service *Service) {
+	router.Post("/{spaceId}/leave", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
+		spaceID, err := strconv.ParseInt(chi.URLParam(request, "spaceId"), 10, 64)
+		if err != nil {
+			httpjson.WriteError(w, errors.Invalid("invalid space ID"))
+			return
+		}
 
-				resp, err := service.Update(request.Context(), userID, spaceID, &req)
-				if err != nil {
-					httpjson.WriteError(w, err)
-					return
-				}
-				httpjson.WriteJSON(w, http.StatusOK, resp)
-			})
+		if err := service.Leave(request.Context(), ownerID, spaceID); err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
+}
 
-			router.Delete("/", func(w http.ResponseWriter, request *http.Request) {
-				identity, _ := authcontext.IdentityFromContext(request.Context())
-				userID, _ := strconv.ParseInt(identity.UserID, 10, 64)
-				spaceID, err := strconv.ParseInt(chi.URLParam(request, "spaceId"), 10, 64)
-				if err != nil {
-					httpjson.WriteError(w, errors.Invalid("invalid space ID"))
-					return
-				}
+// RegisterSpaceUpdateRoute mounts PUT /spaces/{spaceId}.
+func RegisterSpaceUpdateRoute(router chi.Router, service *Service) {
+	router.Put("/{spaceId}", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
+		spaceID, err := strconv.ParseInt(chi.URLParam(request, "spaceId"), 10, 64)
+		if err != nil {
+			httpjson.WriteError(w, errors.Invalid("invalid space ID"))
+			return
+		}
 
-				if err := service.Delete(request.Context(), userID, spaceID); err != nil {
-					httpjson.WriteError(w, err)
-					return
-				}
-				w.WriteHeader(http.StatusNoContent)
-			})
+		var req UpdateSpaceRequest
+		if err := httpjson.DecodeJSON(w, request, &req); err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
 
-			router.Post("/leave", func(w http.ResponseWriter, request *http.Request) {
-				identity, _ := authcontext.IdentityFromContext(request.Context())
-				userID, _ := strconv.ParseInt(identity.UserID, 10, 64)
-				spaceID, err := strconv.ParseInt(chi.URLParam(request, "spaceId"), 10, 64)
-				if err != nil {
-					httpjson.WriteError(w, errors.Invalid("invalid space ID"))
-					return
-				}
+		resp, err := service.Update(request.Context(), ownerID, spaceID, &req)
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusOK, resp)
+	})
+}
 
-				if err := service.Leave(request.Context(), userID, spaceID); err != nil {
-					httpjson.WriteError(w, err)
-					return
-				}
-				httpjson.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-			})
+// RegisterSpaceDeleteRoute mounts DELETE /spaces/{spaceId}.
+func RegisterSpaceDeleteRoute(router chi.Router, service *Service) {
+	router.Delete("/{spaceId}", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
+		spaceID, err := strconv.ParseInt(chi.URLParam(request, "spaceId"), 10, 64)
+		if err != nil {
+			httpjson.WriteError(w, errors.Invalid("invalid space ID"))
+			return
+		}
 
-			router.Route("/members", func(router chi.Router) {
-				router.Get("/", func(w http.ResponseWriter, request *http.Request) {
-					identity, _ := authcontext.IdentityFromContext(request.Context())
-					userID, _ := strconv.ParseInt(identity.UserID, 10, 64)
-					spaceID, err := strconv.ParseInt(chi.URLParam(request, "spaceId"), 10, 64)
-					if err != nil {
-						httpjson.WriteError(w, errors.Invalid("invalid space ID"))
-						return
-					}
-
-					resp, err := service.ListMembers(request.Context(), userID, spaceID)
-					if err != nil {
-						httpjson.WriteError(w, err)
-						return
-					}
-					httpjson.WriteJSON(w, http.StatusOK, resp)
-				})
-
-				router.Post("/", func(w http.ResponseWriter, request *http.Request) {
-					identity, _ := authcontext.IdentityFromContext(request.Context())
-					userID, _ := strconv.ParseInt(identity.UserID, 10, 64)
-					spaceID, err := strconv.ParseInt(chi.URLParam(request, "spaceId"), 10, 64)
-					if err != nil {
-						httpjson.WriteError(w, errors.Invalid("invalid space ID"))
-						return
-					}
-
-					var req AddMemberRequest
-					if err := httpjson.DecodeJSON(w, request, &req); err != nil {
-						httpjson.WriteError(w, err)
-						return
-					}
-
-					resp, err := service.AddMember(request.Context(), userID, spaceID, &req)
-					if err != nil {
-						httpjson.WriteError(w, err)
-						return
-					}
-					httpjson.WriteJSON(w, http.StatusCreated, resp)
-				})
-
-				router.Put("/{memberId}", func(w http.ResponseWriter, request *http.Request) {
-					identity, _ := authcontext.IdentityFromContext(request.Context())
-					userID, _ := strconv.ParseInt(identity.UserID, 10, 64)
-					spaceID, err := strconv.ParseInt(chi.URLParam(request, "spaceId"), 10, 64)
-					if err != nil {
-						httpjson.WriteError(w, errors.Invalid("invalid space ID"))
-						return
-					}
-					memberID, err := strconv.ParseInt(chi.URLParam(request, "memberId"), 10, 64)
-					if err != nil {
-						httpjson.WriteError(w, errors.Invalid("invalid member ID"))
-						return
-					}
-
-					var req UpdateMemberRoleRequest
-					if err := httpjson.DecodeJSON(w, request, &req); err != nil {
-						httpjson.WriteError(w, err)
-						return
-					}
-
-					resp, err := service.UpdateMemberRole(request.Context(), userID, spaceID, memberID, &req)
-					if err != nil {
-						httpjson.WriteError(w, err)
-						return
-					}
-					httpjson.WriteJSON(w, http.StatusOK, resp)
-				})
-
-				router.Delete("/{memberId}", func(w http.ResponseWriter, request *http.Request) {
-					identity, _ := authcontext.IdentityFromContext(request.Context())
-					userID, _ := strconv.ParseInt(identity.UserID, 10, 64)
-					spaceID, err := strconv.ParseInt(chi.URLParam(request, "spaceId"), 10, 64)
-					if err != nil {
-						httpjson.WriteError(w, errors.Invalid("invalid space ID"))
-						return
-					}
-					memberID, err := strconv.ParseInt(chi.URLParam(request, "memberId"), 10, 64)
-					if err != nil {
-						httpjson.WriteError(w, errors.Invalid("invalid member ID"))
-						return
-					}
-
-					if err := service.RemoveMember(request.Context(), userID, spaceID, memberID); err != nil {
-						httpjson.WriteError(w, err)
-						return
-					}
-					w.WriteHeader(http.StatusNoContent)
-				})
-			})
-		})
+		if err := service.Delete(request.Context(), ownerID, spaceID); err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	})
 }

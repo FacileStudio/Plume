@@ -2,10 +2,22 @@ package smtp
 
 import documentation "github.com/FacileStudio/Plume/apps/api/internal/documentation"
 
-var Documentation = documentation.Module{
-	Name:        "smtp",
-	Description: "Custom SMTP configuration routes for the calling user.",
-	Routes: []documentation.Route{
+// Documentation returns the smtp module's route table for the API reference.
+func Documentation() documentation.Module {
+	routes := getConfigRoute()
+	routes = append(routes, saveConfigRoute()...)
+	routes = append(routes, deleteConfigRoute()...)
+	routes = append(routes, testConfigRoute()...)
+	return documentation.Module{
+		Name:        "smtp",
+		Description: "Custom SMTP configuration routes for the calling user.",
+		Routes:      routes,
+	}
+}
+
+// getConfigRoute returns the GET /smtp route entry.
+func getConfigRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "GET",
 			Path:         "/smtp",
@@ -14,6 +26,12 @@ var Documentation = documentation.Module{
 			Auth:         "bearer",
 			ResponseBody: ConfigResponse{},
 		},
+	}
+}
+
+// saveConfigRoute returns the PUT /smtp route entry.
+func saveConfigRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "PUT",
 			Path:         "/smtp",
@@ -26,6 +44,12 @@ var Documentation = documentation.Module{
 				{Status: 400, Code: "invalid_argument", Description: "Port is not between 1 and 65535, or the from_email is not a valid address."},
 			},
 		},
+	}
+}
+
+// deleteConfigRoute returns the DELETE /smtp route entry.
+func deleteConfigRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:      "DELETE",
 			Path:        "/smtp",
@@ -33,6 +57,12 @@ var Documentation = documentation.Module{
 			Description: "Clears the custom SMTP configuration for the calling user.",
 			Auth:        "bearer",
 		},
+	}
+}
+
+// testConfigRoute returns the POST /smtp/test route entry.
+func testConfigRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:      "POST",
 			Path:        "/smtp/test",
@@ -45,5 +75,5 @@ var Documentation = documentation.Module{
 				{Status: 502, Code: "upstream_error", Description: "The SMTP server rejected the connection or credentials."},
 			},
 		},
-	},
+	}
 }

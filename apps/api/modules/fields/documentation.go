@@ -2,14 +2,27 @@ package fields
 
 import documentation "github.com/FacileStudio/Plume/apps/api/internal/documentation"
 
+// DeleteFieldResponse is the payload returned when a signing field is removed.
 type DeleteFieldResponse struct {
 	Deleted bool `json:"deleted"`
 }
 
-var Documentation = documentation.Module{
-	Name:        "fields",
-	Description: "Document signing field routes (signature, text, date, checkbox).",
-	Routes: []documentation.Route{
+// Documentation returns the fields module's route table for the API reference.
+func Documentation() documentation.Module {
+	routes := listFieldsRoute()
+	routes = append(routes, createFieldRoute()...)
+	routes = append(routes, updateFieldRoute()...)
+	routes = append(routes, deleteFieldRoute()...)
+	return documentation.Module{
+		Name:        "fields",
+		Description: "Document signing field routes (signature, text, date, checkbox).",
+		Routes:      routes,
+	}
+}
+
+// listFieldsRoute returns the GET /documents/{docId}/fields route entry.
+func listFieldsRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "GET",
 			Path:         "/documents/{docId}/fields",
@@ -19,6 +32,12 @@ var Documentation = documentation.Module{
 			PathParams:   []documentation.Field{{Name: "docId", Type: "int", Description: "Document ID"}},
 			ResponseBody: []FieldResponse{},
 		},
+	}
+}
+
+// createFieldRoute returns the POST /documents/{docId}/fields route entry.
+func createFieldRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "POST",
 			Path:         "/documents/{docId}/fields",
@@ -33,6 +52,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Document or signer not found."},
 			},
 		},
+	}
+}
+
+// updateFieldRoute returns the PUT /documents/{docId}/fields/{fieldId} route entry.
+func updateFieldRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:      "PUT",
 			Path:        "/documents/{docId}/fields/{fieldId}",
@@ -50,6 +75,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Field not found."},
 			},
 		},
+	}
+}
+
+// deleteFieldRoute returns the DELETE /documents/{docId}/fields/{fieldId} route entry.
+func deleteFieldRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:      "DELETE",
 			Path:        "/documents/{docId}/fields/{fieldId}",
@@ -65,5 +96,5 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Field not found."},
 			},
 		},
-	},
+	}
 }

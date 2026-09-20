@@ -2,22 +2,39 @@ package spaces
 
 import documentation "github.com/FacileStudio/Plume/apps/api/internal/documentation"
 
+// DeleteSpaceResponse is the payload returned when a space is deleted.
 type DeleteSpaceResponse struct {
 	Deleted bool `json:"deleted"`
 }
 
+// LeaveSpaceResponse is the payload returned when the caller leaves a space.
 type LeaveSpaceResponse struct {
 	Left bool `json:"left"`
 }
 
+// RemoveMemberResponse is the payload returned when a member is removed.
 type RemoveMemberResponse struct {
 	Removed bool `json:"removed"`
 }
 
-var Documentation = documentation.Module{
-	Name:        "spaces",
-	Description: "Collaborative space management and membership routes.",
-	Routes: []documentation.Route{
+// Documentation returns the spaces module's route table for the API reference.
+func Documentation() documentation.Module {
+	routes := spaceRoutes()
+	routes = append(routes, getSpaceRoute()...)
+	routes = append(routes, updateSpaceRoute()...)
+	routes = append(routes, deleteSpaceRoute()...)
+	routes = append(routes, leaveSpaceRoute()...)
+	routes = append(routes, memberRoutes()...)
+	return documentation.Module{
+		Name:        "spaces",
+		Description: "Collaborative space management and membership routes.",
+		Routes:      routes,
+	}
+}
+
+// spaceRoutes returns the /spaces collection route entries.
+func spaceRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "POST",
 			Path:         "/spaces",
@@ -38,6 +55,12 @@ var Documentation = documentation.Module{
 			Auth:         "bearer",
 			ResponseBody: []SpaceResponse{},
 		},
+	}
+}
+
+// getSpaceRoute returns the GET /spaces/{spaceId} route entry.
+func getSpaceRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "GET",
 			Path:         "/spaces/{spaceId}",
@@ -50,6 +73,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Space not found or caller is not a member."},
 			},
 		},
+	}
+}
+
+// updateSpaceRoute returns the PUT /spaces/{spaceId} route entry.
+func updateSpaceRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "PUT",
 			Path:         "/spaces/{spaceId}",
@@ -65,6 +94,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Space not found."},
 			},
 		},
+	}
+}
+
+// deleteSpaceRoute returns the DELETE /spaces/{spaceId} route entry.
+func deleteSpaceRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:      "DELETE",
 			Path:        "/spaces/{spaceId}",
@@ -77,6 +112,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Space not found."},
 			},
 		},
+	}
+}
+
+// leaveSpaceRoute returns the POST /spaces/{spaceId}/leave route entry.
+func leaveSpaceRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:      "POST",
 			Path:        "/spaces/{spaceId}/leave",
@@ -89,66 +130,5 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Space not found or caller is not a member."},
 			},
 		},
-		{
-			Method:       "GET",
-			Path:         "/spaces/{spaceId}/members",
-			Summary:      "List space members",
-			Description:  "Returns all members of a space with their roles.",
-			Auth:         "bearer",
-			PathParams:   []documentation.Field{{Name: "spaceId", Type: "int", Description: "Space ID"}},
-			ResponseBody: []MemberResponse{},
-			Errors: []documentation.Error{
-				{Status: 404, Code: "not_found", Description: "Space not found or caller is not a member."},
-			},
-		},
-		{
-			Method:       "POST",
-			Path:         "/spaces/{spaceId}/members",
-			Summary:      "Add a member to a space",
-			Description:  "Adds a user to the space by email. Requires owner or admin role.",
-			Auth:         "bearer",
-			PathParams:   []documentation.Field{{Name: "spaceId", Type: "int", Description: "Space ID"}},
-			RequestBody:  AddMemberRequest{},
-			ResponseBody: MemberResponse{},
-			Errors: []documentation.Error{
-				{Status: 400, Code: "invalid_argument", Description: "Invalid email, invalid role, or user is already a member."},
-				{Status: 403, Code: "permission_denied", Description: "Caller is not an owner or admin."},
-				{Status: 404, Code: "not_found", Description: "Space or user not found."},
-			},
-		},
-		{
-			Method:      "PUT",
-			Path:        "/spaces/{spaceId}/members/{memberId}",
-			Summary:     "Update a member's role",
-			Description: "Changes a space member's role (admin, member, viewer). Requires owner or admin role.",
-			Auth:        "bearer",
-			PathParams: []documentation.Field{
-				{Name: "spaceId", Type: "int", Description: "Space ID"},
-				{Name: "memberId", Type: "int", Description: "Member ID"},
-			},
-			RequestBody:  UpdateMemberRoleRequest{},
-			ResponseBody: MemberResponse{},
-			Errors: []documentation.Error{
-				{Status: 400, Code: "invalid_argument", Description: "Invalid role or attempting to demote the sole owner."},
-				{Status: 403, Code: "permission_denied", Description: "Caller is not an owner or admin."},
-				{Status: 404, Code: "not_found", Description: "Space or member not found."},
-			},
-		},
-		{
-			Method:      "DELETE",
-			Path:        "/spaces/{spaceId}/members/{memberId}",
-			Summary:     "Remove a member from a space",
-			Description: "Removes a user from a space. Requires owner or admin role.",
-			Auth:        "bearer",
-			PathParams: []documentation.Field{
-				{Name: "spaceId", Type: "int", Description: "Space ID"},
-				{Name: "memberId", Type: "int", Description: "Member ID"},
-			},
-			Errors: []documentation.Error{
-				{Status: 400, Code: "invalid_argument", Description: "Cannot remove the space owner."},
-				{Status: 403, Code: "permission_denied", Description: "Caller is not an owner or admin."},
-				{Status: 404, Code: "not_found", Description: "Space or member not found."},
-			},
-		},
-	},
+	}
 }

@@ -2,6 +2,7 @@ package verify
 
 import (
 	"io"
+	"mime/multipart"
 	"net/http"
 	"strings"
 
@@ -26,64 +27,82 @@ func RegisterRoutes(router chi.Router, service *Service, limiter func(http.Handl
 		router.Use(limiter)
 		router.Use(middleware.NoStore)
 
-		router.Post("/", func(w http.ResponseWriter, request *http.Request) {
-			request.Body = http.MaxBytesReader(w, request.Body, maxVerifyUploadSize)
+		RegisterVerifyUploadRoute(router, service)
+		RegisterVerifyLookupRoute(router, service)
+	})
+}
 
-			reader, err := request.MultipartReader()
-			if err != nil {
-				httpjson.WriteError(w, errors.Invalid("expected multipart upload"))
-				return
-			}
+// RegisterVerifyUploadRoute mounts POST /verify, which hashes an uploaded PDF.
+func RegisterVerifyUploadRoute(router chi.Router, service *Service) {
+	router.Post("/", func(w http.ResponseWriter, request *http.Request) {
+		request.Body = http.MaxBytesReader(w, request.Body, maxVerifyUploadSize)
 
-			var hash string
-			for {
-				part, err := reader.NextPart()
-				if err == io.EOF {
-					break
-				}
-				if err != nil {
-					httpjson.WriteError(w, errors.Invalid("invalid multipart upload"))
-					return
-				}
-				if part.FormName() != "file" {
-					part.Close()
-					continue
-				}
-				hash, err = hashing.SHA256Reader(part)
-				part.Close()
-				if err != nil {
-					httpjson.WriteError(w, errors.Invalid("file too large or unreadable"))
-					return
-				}
-				break
-			}
+		hash, err := uploadHash(request)
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
 
-			if hash == "" {
-				httpjson.WriteError(w, errors.Invalid("file is required"))
-				return
-			}
+		resp, err := service.Lookup(request.Context(), hash)
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusOK, resp)
+	})
+}
 
-			resp, err := service.Lookup(request.Context(), hash)
-			if err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
-			httpjson.WriteJSON(w, http.StatusOK, resp)
-		})
+// filePart walks the multipart body and returns the file part.
+func filePart(request *http.Request) (*multipart.Part, error) {
+	reader, err := request.MultipartReader()
+	if err != nil {
+		return nil, errors.Invalid("expected multipart upload")
+	}
 
-		router.Get("/{hash}", func(w http.ResponseWriter, request *http.Request) {
-			hash := strings.ToLower(chi.URLParam(request, "hash"))
-			if !hashing.IsValidHex(hash) {
-				httpjson.WriteError(w, errors.Invalid("hash must be a 64-character hex string"))
-				return
-			}
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			return nil, errors.Invalid("file is required")
+		}
+		if err != nil {
+			return nil, errors.Invalid("invalid multipart upload")
+		}
+		if part.FormName() == "file" {
+			return part, nil
+		}
+		part.Close()
+	}
+}
 
-			resp, err := service.Lookup(request.Context(), hash)
-			if err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
-			httpjson.WriteJSON(w, http.StatusOK, resp)
-		})
+// uploadHash returns the SHA-256 hash of the upload's file part.
+func uploadHash(request *http.Request) (string, error) {
+	file, err := filePart(request)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	hash, err := hashing.SHA256Reader(file)
+	if err != nil {
+		return "", errors.Invalid("file too large or unreadable")
+	}
+	return hash, nil
+}
+
+// RegisterVerifyLookupRoute mounts GET /verify/{hash}.
+func RegisterVerifyLookupRoute(router chi.Router, service *Service) {
+	router.Get("/{hash}", func(w http.ResponseWriter, request *http.Request) {
+		hash := strings.ToLower(chi.URLParam(request, "hash"))
+		if !hashing.IsValidHex(hash) {
+			httpjson.WriteError(w, errors.Invalid("hash must be a 64-character hex string"))
+			return
+		}
+
+		resp, err := service.Lookup(request.Context(), hash)
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusOK, resp)
 	})
 }

@@ -1,13 +1,10 @@
 package pdfutil
 
 import (
-	"bytes"
-	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/go-pdf/fpdf"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
@@ -15,14 +12,6 @@ import (
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/model"
 	"github.com/pdfcpu/pdfcpu/pkg/pdfcpu/types"
 )
-
-var sigImgCounter int
-
-// init disables pdfcpu's on-disk config lookup so it runs with built-in
-// defaults; the distroless container has no home/config dir to read or write.
-func init() {
-	model.ConfigPath = "disable"
-}
 
 // FieldOverlay describes a single field value to stamp onto a page, in
 // percentage-of-page coordinates.
@@ -36,16 +25,26 @@ type FieldOverlay struct {
 	Value     string
 }
 
+// rect holds a field's absolute bounds on a page, plus the raw value the
+// field carries so each field-type painter can decide what to draw.
+type rect struct {
+	x, y, w, h float64
+	value      string
+}
+
+// configurePdfcpu runs pdfcpu with built-in defaults rather than an on-disk
+// config lookup; the distroless container has no home/config dir to read or
+// write.
+func configurePdfcpu() {
+	model.ConfigPath = "disable"
+}
+
 // FlattenFields burns the given field overlays into inputPath and writes the
-// result to outputPath. It builds a transparent overlay PDF with fpdf (one page
-// per source page, matching dimensions) and stamps it onto the source with
-// pdfcpu, which reads arbitrary PDFs robustly — unlike fpdf's page importer,
-// which panics on unsupported content-stream filters (e.g. /ASCII85Decode).
+// result to outputPath. Signature values may be data URLs, stamped as images.
 // Without any fields the signed document is identical to the original.
-// Stamping uses pdfcpu's multi-stamp mode (PdfPageNrSrc == 0), which maps
-// overlay page N onto source page N, placed bottom-left at 1:1 scale so
-// fpdf's coordinates line up exactly.
 func FlattenFields(inputPath, outputPath string, fields []FieldOverlay) (err error) {
+	configurePdfcpu()
+
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("pdfutil.FlattenFields panic", "recover", r, "input", inputPath)
@@ -57,56 +56,26 @@ func FlattenFields(inputPath, outputPath string, fields []FieldOverlay) (err err
 	if err != nil {
 		return fmt.Errorf("pdfutil: read page dimensions of %q: %w", inputPath, err)
 	}
-	totalPages := len(dims)
-	if totalPages == 0 {
+	if len(dims) == 0 {
 		return fmt.Errorf("pdfutil: source PDF %q has no pages", inputPath)
 	}
 
-	fieldsByPage := make(map[int][]FieldOverlay)
-	for _, f := range fields {
-		if f.Value == "" {
-			continue
-		}
-		fieldsByPage[f.Page] = append(fieldsByPage[f.Page], f)
-	}
-
+	fieldsByPage := buildFieldsByPage(fields)
 	if len(fieldsByPage) == 0 {
 		return copyFile(inputPath, outputPath)
 	}
 
-	pdf := fpdf.New("P", "pt", "A4", "")
-	pdf.SetAutoPageBreak(false, 0)
-	RegisterUnicodeFonts(pdf)
+	return stampOverlay(inputPath, outputPath, dims, fieldsByPage)
+}
 
-	for pageNum := 1; pageNum <= totalPages; pageNum++ {
-		d := dims[pageNum-1]
-		w, h := d.Width, d.Height
-		if w <= 0 || h <= 0 {
-			return fmt.Errorf("pdfutil: page %d has invalid dimensions (%fx%f)", pageNum, w, h)
-		}
-
-		orient := "P"
-		if w > h {
-			orient = "L"
-		}
-		pdf.AddPageFormat(orient, fpdf.SizeType{Wd: w, Ht: h})
-
-		for _, field := range fieldsByPage[pageNum] {
-			drawField(pdf, field, w, h)
-		}
-	}
-
-	overlayFile, err := os.CreateTemp(filepath.Dir(outputPath), "plume-overlay-*.pdf")
+// stampOverlay renders the overlay, stamps it onto inputPath and writes the
+// result to outputPath.
+func stampOverlay(inputPath, outputPath string, dims []types.Dim, fieldsByPage map[int][]FieldOverlay) error {
+	overlayPath, err := writeOverlay(filepath.Dir(outputPath), dims, fieldsByPage)
 	if err != nil {
-		return fmt.Errorf("pdfutil: create overlay temp file: %w", err)
+		return err
 	}
-	overlayPath := overlayFile.Name()
-	overlayFile.Close()
 	defer os.Remove(overlayPath)
-
-	if err := pdf.OutputFileAndClose(overlayPath); err != nil {
-		return fmt.Errorf("pdfutil: write overlay: %w", err)
-	}
 
 	wm, err := pdfcpu.ParsePDFWatermarkDetails(overlayPath, "scalefactor:1 abs, position:bl, offset:0 0, rotation:0, opacity:1", true, types.POINTS)
 	if err != nil {
@@ -119,6 +88,79 @@ func FlattenFields(inputPath, outputPath string, fields []FieldOverlay) (err err
 	return nil
 }
 
+// buildFieldsByPage groups the non-empty overlays by page number.
+func buildFieldsByPage(fields []FieldOverlay) map[int][]FieldOverlay {
+	fieldsByPage := make(map[int][]FieldOverlay)
+	for _, f := range fields {
+		if f.Value == "" {
+			continue
+		}
+		fieldsByPage[f.Page] = append(fieldsByPage[f.Page], f)
+	}
+	return fieldsByPage
+}
+
+// writeOverlay renders one fpdf page per source page with the field values
+// stamped, writes it to a temp PDF file next to dir, and returns its path. The
+// caller owns the file and must remove it.
+func writeOverlay(dir string, dims []types.Dim, fieldsByPage map[int][]FieldOverlay) (string, error) {
+	pdf := fpdf.New("P", "pt", "A4", "")
+	pdf.SetAutoPageBreak(false, 0)
+	RegisterUnicodeFonts(pdf)
+
+	sigSeq := 0
+
+	for pageNum := 1; pageNum <= len(dims); pageNum++ {
+		d := dims[pageNum-1]
+		w, h := d.Width, d.Height
+		if w <= 0 || h <= 0 {
+			return "", fmt.Errorf("pdfutil: page %d has invalid dimensions (%fx%f)", pageNum, w, h)
+		}
+
+		orient := "P"
+		if w > h {
+			orient = "L"
+		}
+		pdf.AddPageFormat(orient, fpdf.SizeType{Wd: w, Ht: h})
+
+		for _, field := range fieldsByPage[pageNum] {
+			drawField(pdf, field, fieldRect(field, w, h), &sigSeq)
+		}
+	}
+
+	return writeOverlayFile(dir, pdf)
+}
+
+// fieldRect converts a field's percentage-of-page coordinates to absolute
+// bounds on a page of the given dimensions.
+func fieldRect(field FieldOverlay, pageW, pageH float64) rect {
+	return rect{
+		x:     field.X / 100 * pageW,
+		y:     field.Y / 100 * pageH,
+		w:     field.Width / 100 * pageW,
+		h:     field.Height / 100 * pageH,
+		value: field.Value,
+	}
+}
+
+// writeOverlayFile writes the rendered overlay PDF to a temp file next to dir
+// and returns its path.
+func writeOverlayFile(dir string, pdf *fpdf.Fpdf) (string, error) {
+	overlayFile, err := os.CreateTemp(dir, "plume-overlay-*.pdf")
+	if err != nil {
+		return "", fmt.Errorf("pdfutil: create overlay temp file: %w", err)
+	}
+	overlayPath := overlayFile.Name()
+	overlayFile.Close()
+
+	if err := pdf.OutputFileAndClose(overlayPath); err != nil {
+		return "", fmt.Errorf("pdfutil: write overlay: %w", err)
+	}
+	return overlayPath, nil
+}
+
+// copyFile is used when no field has a value: the signed document must then be
+// identical to the original.
 func copyFile(src, dst string) error {
 	in, err := os.ReadFile(src)
 	if err != nil {
@@ -128,98 +170,4 @@ func copyFile(src, dst string) error {
 		return fmt.Errorf("pdfutil: write %q: %w", dst, err)
 	}
 	return nil
-}
-
-func drawField(pdf *fpdf.Fpdf, field FieldOverlay, pageW, pageH float64) {
-	x := field.X / 100 * pageW
-	y := field.Y / 100 * pageH
-	w := field.Width / 100 * pageW
-	h := field.Height / 100 * pageH
-
-	pdf.SetTextColor(0, 0, 0)
-
-	switch field.FieldType {
-	case "signature":
-		if strings.HasPrefix(field.Value, "data:image/") {
-			drawSignatureImage(pdf, field.Value, x, y, w, h)
-		} else {
-			fontSize := clampFontSize(h*0.55, 6, 24)
-			pdf.SetFont(UnicodeFontFamily, "I", fontSize)
-			pdf.Text(x+2, y+h/2+fontSize/3, field.Value)
-		}
-
-	case "checkbox":
-		if field.Value == "true" {
-			pdf.SetDrawColor(30, 30, 30)
-			lw := h * 0.08
-			if lw < 1 {
-				lw = 1
-			}
-			pdf.SetLineWidth(lw)
-			pdf.Line(x+w*0.2, y+h*0.55, x+w*0.42, y+h*0.78)
-			pdf.Line(x+w*0.42, y+h*0.78, x+w*0.8, y+h*0.22)
-		}
-
-	default:
-		fontSize := clampFontSize(h*0.55, 6, 14)
-		pdf.SetFont(UnicodeFontFamily, "", fontSize)
-		text := truncateToFit(pdf, field.Value, w-4)
-		pdf.Text(x+2, y+h/2+fontSize/3, text)
-	}
-}
-
-func clampFontSize(size, min, max float64) float64 {
-	if size < min {
-		return min
-	}
-	if size > max {
-		return max
-	}
-	return size
-}
-
-func truncateToFit(pdf *fpdf.Fpdf, text string, maxW float64) string {
-	if pdf.GetStringWidth(text) <= maxW {
-		return text
-	}
-	runes := []rune(text)
-	for i := len(runes) - 1; i > 0; i-- {
-		candidate := string(runes[:i]) + "..."
-		if pdf.GetStringWidth(candidate) <= maxW {
-			return candidate
-		}
-	}
-	return text
-}
-
-func drawSignatureImage(pdf *fpdf.Fpdf, dataURL string, x, y, w, h float64) {
-	parts := strings.SplitN(dataURL, ",", 2)
-	if len(parts) != 2 {
-		return
-	}
-
-	imgBytes, err := base64.StdEncoding.DecodeString(parts[1])
-	if err != nil {
-		return
-	}
-
-	imageType := "png"
-	if strings.HasPrefix(parts[0], "data:image/jpeg") || strings.HasPrefix(parts[0], "data:image/jpg") {
-		imageType = "jpg"
-	}
-
-	sigImgCounter++
-	name := fmt.Sprintf("sig_%d", sigImgCounter)
-
-	reader := bytes.NewReader(imgBytes)
-	opts := fpdf.ImageOptions{ImageType: imageType}
-	pdf.RegisterImageOptionsReader(name, opts, reader)
-
-	padding := h * 0.05
-	imgX := x + padding
-	imgY := y + padding
-	imgW := w - padding*2
-	imgH := h - padding*2
-
-	pdf.ImageOptions(name, imgX, imgY, imgW, imgH, false, opts, 0, "")
 }

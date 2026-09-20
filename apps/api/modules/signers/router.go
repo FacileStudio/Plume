@@ -19,13 +19,35 @@ var trackingPixelGIF = []byte{
 	0x44, 0x01, 0x00, 0x3B,
 }
 
+// ownerIDFrom extracts the authenticated user's ID from the request context,
+// parsed as an integer. The bool reports whether an identity was present;
+// routes guarded by RequireAuth can ignore it.
+func ownerIDFrom(r *http.Request) (int64, bool) {
+	identity, ok := authcontext.IdentityFromContext(r.Context())
+	if !ok {
+		return 0, false
+	}
+	ownerID, _ := strconv.ParseInt(identity.UserID, 10, 64)
+	return ownerID, true
+}
+
+// clientIP returns the request's client IP, honouring X-Real-IP when a trusted
+// proxy has forwarded the connection.
+func clientIP(request *http.Request) string {
+	ip := request.RemoteAddr
+	if forwarded := request.Header.Get("X-Real-IP"); forwarded != "" {
+		ip = forwarded
+	}
+	return ip
+}
+
 // DocumentRoutes returns the router that mounts the signer-management
 // endpoints (list, add) under a document-scoped subrouter.
 func DocumentRoutes(service *Service) func(chi.Router) {
 	return func(router chi.Router) {
 		router.Get("/{docId}/signers", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			resp, err := service.ListSigners(request.Context(), identity.UserID, chi.URLParam(request, "docId"))
+			ownerID, _ := ownerIDFrom(request)
+			resp, err := service.ListSigners(request.Context(), strconv.FormatInt(ownerID, 10), chi.URLParam(request, "docId"))
 			if err != nil {
 				httpjson.WriteError(w, err)
 				return
@@ -34,13 +56,13 @@ func DocumentRoutes(service *Service) func(chi.Router) {
 		})
 
 		router.Post("/{docId}/signers", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
+			ownerID, _ := ownerIDFrom(request)
 			var req AddSignerRequest
 			if err := httpjson.DecodeJSON(w, request, &req); err != nil {
 				httpjson.WriteError(w, err)
 				return
 			}
-			resp, err := service.AddSigner(request.Context(), identity.UserID, chi.URLParam(request, "docId"), &req)
+			resp, err := service.AddSigner(request.Context(), strconv.FormatInt(ownerID, 10), chi.URLParam(request, "docId"), &req)
 			if err != nil {
 				httpjson.WriteError(w, err)
 				return
@@ -50,15 +72,15 @@ func DocumentRoutes(service *Service) func(chi.Router) {
 	}
 }
 
-// RegisterRoutes mounts the signer CRUD and the public, token-scoped signing
-// endpoints, applying auth to everything except the token sign routes.
-func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator, nested ...func(chi.Router)) {
+// RegisterSignerRoutes mounts the authenticated /signers resource: removing a
+// signer, plus any nested routes such as reminders' send-remind action.
+func RegisterSignerRoutes(router chi.Router, service *Service, authService middleware.Authenticator, nested ...func(chi.Router)) {
 	router.Route("/signers", func(router chi.Router) {
 		router.Use(middleware.RequireAuth(authService))
 
 		router.Delete("/{id}", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			err := service.RemoveSigner(request.Context(), identity.UserID, chi.URLParam(request, "id"))
+			ownerID, _ := ownerIDFrom(request)
+			err := service.RemoveSigner(request.Context(), strconv.FormatInt(ownerID, 10), chi.URLParam(request, "id"))
 			if err != nil {
 				httpjson.WriteError(w, err)
 				return
@@ -70,7 +92,11 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 			fn(router)
 		}
 	})
+}
 
+// RegisterSigningStateRoutes mounts the public token-scoped endpoints that
+// read signing state: the signing view and the progress roster.
+func RegisterSigningStateRoutes(router chi.Router, service *Service) {
 	router.Get("/sign/{token}", func(w http.ResponseWriter, request *http.Request) {
 		resp, err := service.GetSigningView(request.Context(), chi.URLParam(request, "token"))
 		if err != nil {
@@ -88,7 +114,11 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 		}
 		httpjson.WriteJSON(w, http.StatusOK, resp)
 	})
+}
 
+// RegisterSigningDeliveryRoutes mounts the public token-scoped endpoints that
+// serve raw resources: the email-open tracking pixel and the PDF download.
+func RegisterSigningDeliveryRoutes(router chi.Router, service *Service) {
 	router.Get("/sign/{token}/opened.gif", func(w http.ResponseWriter, request *http.Request) {
 		service.MarkEmailOpened(request.Context(), chi.URLParam(request, "token"))
 		w.Header().Set("Content-Type", "image/gif")
@@ -98,25 +128,9 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Content-Length", strconv.Itoa(len(trackingPixelGIF)))
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write(trackingPixelGIF)
-	})
-
-	router.Post("/sign/{token}", func(w http.ResponseWriter, request *http.Request) {
-		var req SubmitSignatureRequest
-		if err := httpjson.DecodeJSON(w, request, &req); err != nil {
-			httpjson.WriteError(w, err)
+		if _, err := w.Write(trackingPixelGIF); err != nil {
 			return
 		}
-		ip := request.RemoteAddr
-		if forwarded := request.Header.Get("X-Real-IP"); forwarded != "" {
-			ip = forwarded
-		}
-		err := service.SubmitSignature(request.Context(), chi.URLParam(request, "token"), &req, ip, request.UserAgent())
-		if err != nil {
-			httpjson.WriteError(w, err)
-			return
-		}
-		httpjson.WriteJSON(w, http.StatusOK, map[string]string{"status": "signed"})
 	})
 
 	router.Get("/sign/{token}/file", func(w http.ResponseWriter, request *http.Request) {
@@ -129,17 +143,40 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		http.ServeFile(w, request, filePath)
 	})
+}
+
+// RegisterSigningDecisionRoutes mounts the public token-scoped endpoints that
+// move a signature forward: submitting the field values and declining.
+func RegisterSigningDecisionRoutes(router chi.Router, service *Service) {
+	router.Post("/sign/{token}", func(w http.ResponseWriter, request *http.Request) {
+		var req SubmitSignatureRequest
+		if err := httpjson.DecodeJSON(w, request, &req); err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		err := service.SubmitSignature(request.Context(), chi.URLParam(request, "token"), &req, clientIP(request), request.UserAgent())
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusOK, map[string]string{"status": "signed"})
+	})
 
 	router.Post("/sign/{token}/decline", func(w http.ResponseWriter, request *http.Request) {
-		ip := request.RemoteAddr
-		if forwarded := request.Header.Get("X-Real-IP"); forwarded != "" {
-			ip = forwarded
-		}
-		err := service.DeclineSignature(request.Context(), chi.URLParam(request, "token"), ip, request.UserAgent())
+		err := service.DeclineSignature(request.Context(), chi.URLParam(request, "token"), clientIP(request), request.UserAgent())
 		if err != nil {
 			httpjson.WriteError(w, err)
 			return
 		}
 		httpjson.WriteJSON(w, http.StatusOK, map[string]string{"status": "declined"})
 	})
+}
+
+// RegisterRoutes mounts the signer CRUD and the public, token-scoped signing
+// endpoints, applying auth to everything except the token sign routes.
+func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator, nested ...func(chi.Router)) {
+	RegisterSignerRoutes(router, service, authService, nested...)
+	RegisterSigningStateRoutes(router, service)
+	RegisterSigningDeliveryRoutes(router, service)
+	RegisterSigningDecisionRoutes(router, service)
 }

@@ -2,10 +2,24 @@ package webhooks
 
 import documentation "github.com/FacileStudio/Plume/apps/api/internal/documentation"
 
-var Documentation = documentation.Module{
-	Name:        "webhooks",
-	Description: "Webhook management and delivery configuration routes.",
-	Routes: []documentation.Route{
+// Documentation returns the webhooks module's route table for the API reference.
+func Documentation() documentation.Module {
+	routes := createWebhookRoute()
+	routes = append(routes, listWebhooksRoute()...)
+	routes = append(routes, getWebhookRoute()...)
+	routes = append(routes, updateWebhookRoute()...)
+	routes = append(routes, deleteWebhookRoute()...)
+	routes = append(routes, testWebhookRoute()...)
+	return documentation.Module{
+		Name:        "webhooks",
+		Description: "Webhook management and delivery configuration routes.",
+		Routes:      routes,
+	}
+}
+
+// createWebhookRoute returns the POST /webhooks route entry.
+func createWebhookRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "POST",
 			Path:         "/webhooks",
@@ -18,6 +32,12 @@ var Documentation = documentation.Module{
 				{Status: 400, Code: "invalid_argument", Description: "Invalid URL or invalid event types."},
 			},
 		},
+	}
+}
+
+// listWebhooksRoute returns the GET /webhooks route entry.
+func listWebhooksRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "GET",
 			Path:         "/webhooks",
@@ -26,6 +46,12 @@ var Documentation = documentation.Module{
 			Auth:         "bearer",
 			ResponseBody: []WebhookResponse{},
 		},
+	}
+}
+
+// getWebhookRoute returns the GET /webhooks/{id} route entry.
+func getWebhookRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "GET",
 			Path:         "/webhooks/{id}",
@@ -37,6 +63,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Webhook not found."},
 			},
 		},
+	}
+}
+
+// updateWebhookRoute returns the PUT /webhooks/{id} route entry.
+func updateWebhookRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "PUT",
 			Path:         "/webhooks/{id}",
@@ -50,6 +82,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Webhook not found."},
 			},
 		},
+	}
+}
+
+// deleteWebhookRoute returns the DELETE /webhooks/{id} route entry.
+func deleteWebhookRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:      "DELETE",
 			Path:        "/webhooks/{id}",
@@ -60,6 +98,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Webhook not found."},
 			},
 		},
+	}
+}
+
+// testWebhookRoute returns the POST /webhooks/{id}/test route entry.
+func testWebhookRoute() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:      "POST",
 			Path:        "/webhooks/{id}/test",
@@ -71,5 +115,5 @@ var Documentation = documentation.Module{
 				{Status: 502, Code: "upstream_error", Description: "The webhook target endpoint returned an error or timed out."},
 			},
 		},
-	},
+	}
 }

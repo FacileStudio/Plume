@@ -1,24 +1,15 @@
 package documents
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	stderrors "errors"
-	"fmt"
-	"io"
 	"net/http"
-	"os"
-	"path/filepath"
+	"strconv"
 
 	"github.com/FacileStudio/Plume/apps/api/internal/authcontext"
 	"github.com/FacileStudio/Plume/apps/api/internal/middleware"
-	"github.com/FacileStudio/tronc/errors"
 	"github.com/FacileStudio/tronc/httpjson"
 
 	"github.com/go-chi/chi/v5"
 )
-
-const maxUploadSize = 50 << 20
 
 // RegisterRoutes mounts the /documents routes on router: upload, list,
 // stats, get, file download, update, delete, and send. All require auth.
@@ -31,163 +22,120 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 			fn(router)
 		}
 
-		router.Post("/", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
+		RegisterUploadRoute(router, service)
+		RegisterListRoutes(router, service)
+		RegisterGetRoute(router, service)
+		RegisterFileRoute(router, service)
+		RegisterUpdateRoute(router, service)
+		RegisterDeleteRoute(router, service)
+		RegisterSendRoute(router, service)
+	})
+}
 
-			request.Body = http.MaxBytesReader(w, request.Body, maxUploadSize)
-			if err := request.ParseMultipartForm(maxUploadSize); err != nil {
-				var maxBytesErr *http.MaxBytesError
-				if stderrors.As(err, &maxBytesErr) {
-					httpjson.WriteError(w, errors.New("resource_exhausted", "file is too large — maximum upload size is 50 MB", nil))
-					return
-				}
-				httpjson.WriteError(w, errors.Invalid("invalid upload"))
-				return
-			}
+// ownerIDFrom extracts the authenticated user's numeric ID from the request.
+// The bool reports whether the identity was present and parsed.
+func ownerIDFrom(r *http.Request) (int64, bool) {
+	identity, _ := authcontext.IdentityFromContext(r.Context())
+	ownerID, err := strconv.ParseInt(identity.UserID, 10, 64)
+	return ownerID, err == nil
+}
 
-			name := request.FormValue("name")
-			if name == "" {
-				httpjson.WriteError(w, errors.Invalid("name is required"))
-				return
-			}
+// RegisterListRoutes mounts the collection read routes: GET /documents/stats
+// and GET /documents.
+func RegisterListRoutes(router chi.Router, service *Service) {
+	router.Get("/stats", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
+		spaceID := request.URL.Query().Get("space_id")
+		resp, err := service.Stats(request.Context(), strconv.FormatInt(ownerID, 10), spaceID)
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusOK, resp)
+	})
 
-			file, header, err := request.FormFile("file")
-			if err != nil {
-				httpjson.WriteError(w, errors.Invalid("file is required"))
-				return
-			}
-			defer file.Close()
+	router.Get("/", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
+		status := request.URL.Query().Get("status")
+		spaceID := request.URL.Query().Get("space_id")
+		clientID := request.URL.Query().Get("client_id")
+		resp, err := service.List(request.Context(), strconv.FormatInt(ownerID, 10), status, spaceID, clientID)
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusOK, resp)
+	})
+}
 
-			pdfHeader := make([]byte, 5)
-			if _, err := io.ReadFull(file, pdfHeader); err != nil || string(pdfHeader) != "%PDF-" {
-				httpjson.WriteError(w, errors.Invalid("uploaded file is not a valid PDF"))
-				return
-			}
-			if _, err := file.Seek(0, io.SeekStart); err != nil {
-				httpjson.WriteError(w, errors.Internal("failed to read uploaded file", err))
-				return
-			}
+// RegisterGetRoute mounts GET /documents/{id}.
+func RegisterGetRoute(router chi.Router, service *Service) {
+	router.Get("/{id}", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
+		resp, err := service.Get(request.Context(), strconv.FormatInt(ownerID, 10), chi.URLParam(request, "id"))
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusOK, resp)
+	})
+}
 
-			spaceID := request.FormValue("space_id")
+// RegisterFileRoute mounts GET /documents/{id}/file, streaming the PDF.
+func RegisterFileRoute(router chi.Router, service *Service) {
+	router.Get("/{id}/file", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
+		filePath, err := service.GetFilePath(request.Context(), strconv.FormatInt(ownerID, 10), chi.URLParam(request, "id"))
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		w.Header().Set("Content-Type", "application/pdf")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		http.ServeFile(w, request, filePath)
+	})
+}
 
-			resp, err := service.Create(request.Context(), identity.UserID, name, header.Filename, spaceID)
-			if err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
+// RegisterUpdateRoute mounts PUT /documents/{id}.
+func RegisterUpdateRoute(router chi.Router, service *Service) {
+	router.Put("/{id}", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
+		var req UpdateRequest
+		if err := httpjson.DecodeJSON(w, request, &req); err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		resp, err := service.Update(request.Context(), strconv.FormatInt(ownerID, 10), chi.URLParam(request, "id"), &req)
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusOK, resp)
+	})
+}
 
-			ownerDir := filepath.Join(service.uploadDir, identity.UserID)
-			if err := os.MkdirAll(ownerDir, 0o755); err != nil {
-				httpjson.WriteError(w, errors.Internal("failed to create upload directory", err))
-				return
-			}
+// RegisterDeleteRoute mounts DELETE /documents/{id}.
+func RegisterDeleteRoute(router chi.Router, service *Service) {
+	router.Delete("/{id}", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
+		err := service.Delete(request.Context(), strconv.FormatInt(ownerID, 10), chi.URLParam(request, "id"))
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	})
+}
 
-			storedName := fmt.Sprintf("%d_%s", resp.ID, filepath.Base(header.Filename))
-			fullPath := filepath.Join(ownerDir, storedName)
-
-			dst, err := os.Create(fullPath)
-			if err != nil {
-				httpjson.WriteError(w, errors.Internal("failed to save file", err))
-				return
-			}
-			defer dst.Close()
-
-			hasher := sha256.New()
-			if _, err := io.Copy(io.MultiWriter(dst, hasher), file); err != nil {
-				httpjson.WriteError(w, errors.Internal("failed to write file", err))
-				return
-			}
-			originalHash := hex.EncodeToString(hasher.Sum(nil))
-
-			relativePath := filepath.Join(identity.UserID, storedName)
-			if err := service.UpdateStorage(request.Context(), resp.ID, relativePath, originalHash); err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
-			resp.OriginalHash = originalHash
-
-			httpjson.WriteJSON(w, http.StatusCreated, resp)
-		})
-
-		router.Get("/stats", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			spaceID := request.URL.Query().Get("space_id")
-			resp, err := service.Stats(request.Context(), identity.UserID, spaceID)
-			if err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
-			httpjson.WriteJSON(w, http.StatusOK, resp)
-		})
-
-		router.Get("/", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			status := request.URL.Query().Get("status")
-			spaceID := request.URL.Query().Get("space_id")
-			clientID := request.URL.Query().Get("client_id")
-			resp, err := service.List(request.Context(), identity.UserID, status, spaceID, clientID)
-			if err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
-			httpjson.WriteJSON(w, http.StatusOK, resp)
-		})
-
-		router.Get("/{id}", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			resp, err := service.Get(request.Context(), identity.UserID, chi.URLParam(request, "id"))
-			if err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
-			httpjson.WriteJSON(w, http.StatusOK, resp)
-		})
-
-		router.Get("/{id}/file", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			filePath, err := service.GetFilePath(request.Context(), identity.UserID, chi.URLParam(request, "id"))
-			if err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
-			w.Header().Set("Content-Type", "application/pdf")
-			w.Header().Set("X-Content-Type-Options", "nosniff")
-			http.ServeFile(w, request, filePath)
-		})
-
-		router.Put("/{id}", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			var req UpdateRequest
-			if err := httpjson.DecodeJSON(w, request, &req); err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
-			resp, err := service.Update(request.Context(), identity.UserID, chi.URLParam(request, "id"), &req)
-			if err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
-			httpjson.WriteJSON(w, http.StatusOK, resp)
-		})
-
-		router.Delete("/{id}", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			err := service.Delete(request.Context(), identity.UserID, chi.URLParam(request, "id"))
-			if err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
-			w.WriteHeader(http.StatusNoContent)
-		})
-
-		router.Post("/{id}/send", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			resp, err := service.Send(request.Context(), identity.UserID, chi.URLParam(request, "id"))
-			if err != nil {
-				httpjson.WriteError(w, err)
-				return
-			}
-			httpjson.WriteJSON(w, http.StatusOK, resp)
-		})
+// RegisterSendRoute mounts POST /documents/{id}/send.
+func RegisterSendRoute(router chi.Router, service *Service) {
+	router.Post("/{id}/send", func(w http.ResponseWriter, request *http.Request) {
+		ownerID, _ := ownerIDFrom(request)
+		resp, err := service.Send(request.Context(), strconv.FormatInt(ownerID, 10), chi.URLParam(request, "id"))
+		if err != nil {
+			httpjson.WriteError(w, err)
+			return
+		}
+		httpjson.WriteJSON(w, http.StatusOK, resp)
 	})
 }

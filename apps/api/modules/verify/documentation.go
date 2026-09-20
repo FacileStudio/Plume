@@ -2,10 +2,18 @@ package verify
 
 import documentation "github.com/FacileStudio/Plume/apps/api/internal/documentation"
 
-var Documentation = documentation.Module{
-	Name:        "verify",
-	Description: "Public verification routes for signed PDF documents.",
-	Routes: []documentation.Route{
+// Documentation returns the verify module's route table for the API reference.
+func Documentation() documentation.Module {
+	return documentation.Module{
+		Name:        "verify",
+		Description: "Public verification routes for signed PDF documents.",
+		Routes:      append(hashRoutes(), uploadRoutes()...),
+	}
+}
+
+// hashRoutes returns the GET /verify/{hash} route entry.
+func hashRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "GET",
 			Path:         "/verify/{hash}",
@@ -18,6 +26,12 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "Document not found or not yet signed."},
 			},
 		},
+	}
+}
+
+// uploadRoutes returns the POST /verify route entry.
+func uploadRoutes() []documentation.Route {
+	return []documentation.Route{
 		{
 			Method:       "POST",
 			Path:         "/verify",
@@ -30,5 +44,5 @@ var Documentation = documentation.Module{
 				{Status: 404, Code: "not_found", Description: "No matching signed document found for this file hash."},
 			},
 		},
-	},
+	}
 }
