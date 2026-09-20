@@ -1,0 +1,41 @@
+# gare configuration for plume.
+# https://github.com/FacileStudio/gare
+#
+# CLI flags on `gare app create` take precedence over this file, so create the
+# app without flags and let this file drive:
+#
+#   gare app create plume --repo https://github.com/FacileStudio/plume.git
+#   gare domain add plume plume.facile.studio
+#   gare env set plume DOMAIN=https://plume.facile.studio
+#   gare deploy plume
+#
+# The app must be named `plume`: gare derives the compose project name from it,
+# matching the -p plume used below.
+
+type: compose
+
+# Default discovery would find compose.yml first anyway; spelled out so the
+# pairing with `port` below is obvious.
+compose_file: compose.yml
+
+# Must equal a published host port in compose.yml — gare parses that file raw
+# and refuses to deploy when the routed port is not published (no ${VAR}
+# allowed). Caddy proxies to 127.0.0.1:4000; the mapping is loopback-only.
+port: 4000
+
+# `podman compose up -d` never rebuilds images, so without this every deploy
+# after the first would silently run the old commit. Runs from the repo
+# checkout with the same -f/-p the systemd unit uses.
+build_cmd: podman compose -f compose.yml -p plume build
+
+# gare probes from the host over plain HTTP, so only HTTP checks to a published
+# port count. The compose healthchecks (/api healthcheck binary self-check,
+# pg_isready) are invisible to it — hence an explicit list. /api/ready pings
+# the database; /api/health does not.
+healthchecks:
+  - name: api
+    port: 4000
+    path: /api/ready
+
+tags:
+  - production

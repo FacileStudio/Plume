@@ -1,0 +1,79 @@
+# Plume stack for gare (rootless podman compose).
+#
+# This is the gare source of truth; docker-compose.yml stays for the Dokploy
+# deployment until that migration completes. gare reads this file raw to
+# validate gare.yml's `port` and to derive probes, so:
+#   - the published host port below must stay literal (no ${VAR}) and match
+#     `port` in gare.yml;
+#   - gare routes Caddy to 127.0.0.1:<port>, so bind the port to loopback only.
+#
+# Environment comes from `gare env set plume KEY=value` (injected through the
+# systemd unit's EnvironmentFile and interpolated into the ${VAR} references
+# below), not from a .env file. See .env.example for what production needs —
+# at minimum DOMAIN, or every signature email links to localhost.
+#
+# First deploy builds both images (slow: bun + go layers, then cached). gare's
+# build_cmd rebuilds on every deploy because `compose up -d` does not.
+
+services:
+  plume-db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-plume}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  plume-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      # Loopback only — Caddy terminates TLS and proxies from the same host.
+      # Parsed by gare as published=4000/target=4000; keep it in sync with
+      # `port` in gare.yml.
+      - "127.0.0.1:4000:4000"
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      PORT: "4000"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@plume-db:5432/${POSTGRES_DB:-plume}?sslmode=disable
+      UPLOAD_DIR: ${UPLOAD_DIR:-/data/uploads}
+      DOMAIN: ${DOMAIN:-http://localhost:4000}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+      OIDC_REDIRECT_URL: ${OIDC_REDIRECT_URL:-}
+      OIDC_SUCCESS_URL: ${OIDC_SUCCESS_URL:-}
+      SSO_ONLY: ${SSO_ONLY:-false}
+      JOURNAL_URL: ${JOURNAL_URL:-}
+      JOURNAL_TOKEN: ${JOURNAL_TOKEN:-}
+    volumes:
+      - uploads_data:/data/uploads
+    healthcheck:
+      test: ["CMD", "/api", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      plume-db:
+        condition: service_healthy
+
+volumes:
+  # Explicit names: without them the provider prefixes the compose project
+  # name, and plume_uploads holds every uploaded PDF — it must stay stable.
+  db_data:
+    name: plume_db_data
+  uploads_data:
+    name: plume_uploads
