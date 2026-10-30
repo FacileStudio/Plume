@@ -8,8 +8,11 @@ during an upgrade.
 `Dockerfile` is a four-stage build producing one distroless image.
 
 1. `oven/bun:1` installs the client dependencies from the lockfile and runs `bun run build`.
-2. `golang:1.25-alpine` downloads modules, then builds a static binary with
-   `CGO_ENABLED=0`, `-trimpath` and `-ldflags="-s -w"`.
+2. `golang:1.26-alpine` downloads modules, then builds a static binary with
+   `CGO_ENABLED=0`, `-trimpath` and `-ldflags="-s -w"`. It also reads the commit out of the
+   build context's `.git` and links it in, so `GET /api/version` names the revision the
+   container serves; `.git` is therefore absent from `.dockerignore`, and a context without it
+   still builds and reports `dev`.
 3. A throwaway stage creates `/data/uploads` so the final image has the directory even
    before a volume mounts over it.
 4. `gcr.io/distroless/static-debian12` receives the binary at `/api`, the built SPA at

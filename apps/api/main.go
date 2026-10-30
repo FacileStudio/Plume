@@ -281,6 +281,7 @@ func apiReference() apiref.Config {
 				clients.Documentation(),
 				smtp.Documentation(),
 				webhooks.Documentation(),
+				versionDocumentation(),
 			},
 		},
 	}
@@ -306,6 +307,7 @@ func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slo
 	router.Use(middleware.SecurityHeaders)
 
 	health.Mount(router, health.DB(sqlDB))
+	registerVersionRoute(router)
 	apiref.Mount(router, apiReference())
 
 	router.Route("/api", func(api chi.Router) {
