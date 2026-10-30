@@ -24,6 +24,8 @@ type Job struct {
 	Title         string
 	SpaceFacileID string
 	SpaceName     string
+	LinkedTo      string
+	OnPublished   func(spaceFacileID, linkedTo string)
 	Load          func() ([]byte, error)
 }
 
@@ -73,6 +75,11 @@ func (p *Publisher) run(ctx context.Context, job Job) {
 		log.Error("nuage publish failed", slog.Any("error", err))
 		return
 	}
+	if job.OnPublished != nil {
+		if t, err := resolveTarget(job, p.defaultSpaceID, p.defaultName); err == nil {
+			job.OnPublished(t.SpaceFacileID, t.LinkedTo)
+		}
+	}
 	log.Info("signed document published to nuage")
 }
 
@@ -99,30 +106,50 @@ func (p *Publisher) publishWithRetry(ctx context.Context, job Job, log *slog.Log
 }
 
 func (p *Publisher) publish(ctx context.Context, job Job) error {
-	facileID, name := job.SpaceFacileID, job.SpaceName
-	if facileID == "" {
-		facileID, name = p.defaultSpaceID, p.defaultName
+	target, err := resolveTarget(job, p.defaultSpaceID, p.defaultName)
+	if err != nil {
+		return err
 	}
-	if facileID == "" {
-		return errNoSpace
-	}
-	if name == "" {
-		name = p.defaultName
-	}
-
 	data, err := job.Load()
 	if err != nil {
 		return fmt.Errorf("read final pdf: %w", err)
 	}
-	spaceID, err := p.client.EnsureSpace(ctx, facileID, name)
+	spaceID, err := p.client.EnsureSpace(ctx, target.SpaceFacileID, target.SpaceName)
 	if err != nil {
 		return fmt.Errorf("provision space: %w", err)
 	}
-	linkedTo := fmt.Sprintf("plume:document:%d", job.DocumentID)
-	if err := p.client.Upload(ctx, spaceID, filename(job.Title), linkedTo, data); err != nil {
+	if err := p.client.Upload(ctx, spaceID, filename(job.Title), target.LinkedTo, data); err != nil {
 		return fmt.Errorf("upload: %w", err)
 	}
 	return nil
+}
+
+// Target is where a job lands in Nuage: a space and the linked_to key that
+// makes a retry idempotent.
+type Target struct {
+	SpaceFacileID string
+	SpaceName     string
+	LinkedTo      string
+}
+
+// resolveTarget picks the Nuage space and idempotency key for a job: the
+// job's own space and linked_to when set, else the default space and
+// plume:document:<id>. The two fall back independently.
+func resolveTarget(job Job, defaultSpaceID, defaultName string) (Target, error) {
+	t := Target{SpaceFacileID: job.SpaceFacileID, SpaceName: job.SpaceName, LinkedTo: job.LinkedTo}
+	if t.SpaceFacileID == "" {
+		t.SpaceFacileID, t.SpaceName = defaultSpaceID, defaultName
+	}
+	if t.SpaceFacileID == "" {
+		return Target{}, errNoSpace
+	}
+	if t.SpaceName == "" {
+		t.SpaceName = defaultName
+	}
+	if t.LinkedTo == "" {
+		t.LinkedTo = fmt.Sprintf("plume:document:%d", job.DocumentID)
+	}
+	return t, nil
 }
 
 func retryable(err error) bool {

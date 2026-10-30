@@ -47,14 +47,25 @@ type EventOwner struct {
 
 // EventDocument is the document state attached to an event.
 type EventDocument struct {
-	ID         int64     `json:"id"`
-	Name       string    `json:"name"`
-	Status     string    `json:"status"`
-	FileName   string    `json:"file_name"`
-	URL        string    `json:"url,omitempty"`
-	Sequential bool      `json:"sequential"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	ID          int64       `json:"id"`
+	Name        string      `json:"name"`
+	Status      string      `json:"status"`
+	FileName    string      `json:"file_name"`
+	URL         string      `json:"url,omitempty"`
+	Sequential  bool        `json:"sequential"`
+	CreatedAt   time.Time   `json:"created_at"`
+	UpdatedAt   time.Time   `json:"updated_at"`
+	ExternalRef string      `json:"external_ref,omitempty"`
+	Nuage       *EventNuage `json:"nuage,omitempty"`
+}
+
+// EventNuage names where the signed PDF is archived in Nuage. Published is
+// false while it is only the requested target, and true on the
+// document.archived event and once the archive has succeeded.
+type EventNuage struct {
+	SpaceFacileID string `json:"space_facile_id,omitempty"`
+	LinkedTo      string `json:"linked_to,omitempty"`
+	Published     bool   `json:"published"`
 }
 
 // EventSigner is the signer state attached to a signer-scoped event.
@@ -77,6 +88,7 @@ const (
 	EventDocumentCompleted = "document.completed"
 	EventDocumentDeclined  = "document.declined"
 	EventDocumentDeleted   = "document.deleted"
+	EventDocumentArchived  = "document.archived"
 	EventSignerAdded       = "signer.added"
 	EventSignerEmailOpened = "signer.email_opened"
 	EventSignerViewed      = "signer.viewed"

@@ -41,7 +41,29 @@ func buildDocumentDTO(doc *schemas.Document, domain string) EventDocument {
 		Sequential: doc.Sequential,
 		CreatedAt:  doc.CreatedAt,
 		UpdatedAt:  doc.UpdatedAt,
+
+		ExternalRef: doc.ExternalRef,
+		Nuage:       requestedNuage(doc),
 	}
+}
+
+func requestedNuage(doc *schemas.Document) *EventNuage {
+	if doc.NuageSpaceFacileID == "" && doc.NuageLinkedTo == "" {
+		return nil
+	}
+	return &EventNuage{
+		SpaceFacileID: doc.NuageSpaceFacileID,
+		LinkedTo:      doc.NuageLinkedTo,
+		Published:     doc.NuagePublishedAt != nil,
+	}
+}
+
+// BuildArchivedEvent builds the document.archived payload, sent once the
+// signed PDF is stored in Nuage under the given space and linked_to key.
+func BuildArchivedEvent(doc *schemas.Document, domain, spaceFacileID, linkedTo string) EventPayload {
+	payload := BuildDocumentEvent(EventDocumentArchived, doc, domain)
+	payload.Document.Nuage = &EventNuage{SpaceFacileID: spaceFacileID, LinkedTo: linkedTo, Published: true}
+	return payload
 }
 
 func buildSignerDTO(signer *schemas.Signer, domain string) EventSigner {

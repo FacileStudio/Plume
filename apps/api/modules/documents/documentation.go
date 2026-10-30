@@ -22,6 +22,7 @@ func Documentation() documentation.Module {
 	routes = append(routes, updateDocumentRoute()...)
 	routes = append(routes, deleteDocumentRoute()...)
 	routes = append(routes, sendRoutes()...)
+	routes = append(routes, signatureRoutes()...)
 	return documentation.Module{
 		Name:        "documents",
 		Description: "Document lifecycle routes: upload, edit, send, download, stats and deletion.",

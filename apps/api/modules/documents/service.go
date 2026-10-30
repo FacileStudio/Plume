@@ -520,5 +520,11 @@ func toResponse(record *schemas.Document) *DocumentResponse {
 		SignedHash:   record.SignedHash,
 		CreatedAt:    record.CreatedAt,
 		UpdatedAt:    record.UpdatedAt,
+		Link: Link{
+			ExternalRef:        record.ExternalRef,
+			NuageSpaceFacileID: record.NuageSpaceFacileID,
+			NuageLinkedTo:      record.NuageLinkedTo,
+		},
+		NuagePublishedAt: record.NuagePublishedAt,
 	}
 }

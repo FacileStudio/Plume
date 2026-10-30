@@ -1,6 +1,7 @@
 package documents
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	stderrors "errors"
@@ -74,12 +75,18 @@ func ensurePDFHeader(file multipart.File) error {
 // storeUpload writes parts.File under the owner's upload directory, hashes
 // it, records the storage path on the document, and returns the file hash.
 func storeUpload(request *http.Request, service *Service, parts *uploadParts, ownerID, docID int64) (string, error) {
-	ownerDir := filepath.Join(service.uploadDir, strconv.FormatInt(ownerID, 10))
+	return service.storeFile(request.Context(), parts.File, parts.FileName, ownerID, docID)
+}
+
+// storeFile streams src into the owner's upload directory as the document's
+// file, hashes it and records the storage path and hash on the document.
+func (s *Service) storeFile(ctx context.Context, src io.Reader, fileName string, ownerID, docID int64) (string, error) {
+	ownerDir := filepath.Join(s.uploadDir, strconv.FormatInt(ownerID, 10))
 	if err := os.MkdirAll(ownerDir, 0o755); err != nil {
 		return "", errors.Internal("failed to create upload directory", err)
 	}
 
-	storedName := storedFileName(docID, parts.FileName)
+	storedName := storedFileName(docID, fileName)
 	fullPath := filepath.Join(ownerDir, storedName)
 
 	dst, err := os.Create(fullPath)
@@ -88,13 +95,13 @@ func storeUpload(request *http.Request, service *Service, parts *uploadParts, ow
 	}
 	defer dst.Close()
 
-	hash, err := copyAndHash(dst, parts.File)
+	hash, err := copyAndHash(dst, src)
 	if err != nil {
 		return "", errors.Internal("failed to write file", err)
 	}
 
 	relativePath := filepath.Join(strconv.FormatInt(ownerID, 10), storedName)
-	if err := service.UpdateStorage(request.Context(), docID, relativePath, hash); err != nil {
+	if err := s.UpdateStorage(ctx, docID, relativePath, hash); err != nil {
 		return "", err
 	}
 	return hash, nil

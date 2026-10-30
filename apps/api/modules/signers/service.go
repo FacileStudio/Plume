@@ -3,7 +3,6 @@ package signers
 import (
 	"context"
 	stderrors "errors"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -334,33 +333,6 @@ func (s *Service) SubmitSignature(ctx context.Context, token string, req *Submit
 	go s.smtpSvc.SendNotificationEmail(doc.OwnerID, doc.ID, signer.Name, doc.Name, "signed", s.domain)
 
 	return nil
-}
-
-// publishToNuage queues the final PDF for archiving in Nuage. It never fails
-// the caller: Nuage being down must not undo a completed signature.
-func (s *Service) publishToNuage(ctx context.Context, doc *schemas.Document) {
-	if s.publisher == nil {
-		return
-	}
-	job := nuage.Job{
-		DocumentID: doc.ID,
-		Title:      doc.Name,
-		Load: func() ([]byte, error) {
-			path, err := s.docService.GetFilePathByDocID(context.Background(), doc.ID)
-			if err != nil {
-				return nil, err
-			}
-			return os.ReadFile(path)
-		},
-	}
-	if doc.SpaceID != nil {
-		var space schemas.Space
-		if err := s.orm.WithContext(ctx).First(&space, *doc.SpaceID).Error; err == nil {
-			job.SpaceFacileID = space.FacileID
-			job.SpaceName = space.Name
-		}
-	}
-	s.publisher.Enqueue(job)
 }
 
 func (s *Service) DeclineSignature(ctx context.Context, token string, ipAddress string, userAgent string) error {

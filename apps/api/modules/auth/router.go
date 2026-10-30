@@ -123,5 +123,6 @@ func RegisterRoutes(router chi.Router, service *Service, appEnv env.Config) {
 		registerCredentials(router, service, appEnv)
 		registerMe(router, service)
 		registerPassword(router, service)
+		registerAPIToken(router, service)
 	})
 }

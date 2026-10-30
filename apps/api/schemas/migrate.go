@@ -29,6 +29,10 @@ func MigrateWithIssuer(db *gorm.DB, issuer string) error {
 		return err
 	}
 
+	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_owner_external_ref ON documents (owner_id, external_ref) WHERE external_ref <> ''").Error; err != nil {
+		return err
+	}
+
 	if err := backfillAvatarColumns(db); err != nil {
 		return err
 	}

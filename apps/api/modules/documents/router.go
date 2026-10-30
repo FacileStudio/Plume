@@ -23,6 +23,7 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 		}
 
 		RegisterUploadRoute(router, service)
+		RegisterSignatureRoutes(router, service)
 		RegisterListRoutes(router, service)
 		RegisterGetRoute(router, service)
 		RegisterFileRoute(router, service)

@@ -18,6 +18,9 @@ registered route is missing from it.
 `/health` and `/ready` are mounted twice, bare and under `/api`, all unauthenticated.
 `/ready` pings the database; `/health` does not.
 
+`GET /version` and `GET /api/version` answer `{"version":"<commit>"}`: the commit the image was
+built from, or `dev` when the build carries no stamp.
+
 ## Auth
 
 | Method | Path | Auth | Notes |
@@ -31,6 +34,7 @@ registered route is missing from it.
 | GET | `/api/auth/oidc` | no | Sets the `oidc_state` cookie and redirects to the provider |
 | GET | `/api/auth/oidc/callback` | no | Provider redirect target; ends by redirecting to `OIDC_SUCCESS_URL?code=…` |
 | POST | `/api/auth/oidc/exchange` | no | `{ code }` → `{ user_id, token }`. Code is single-use and expires after 60s |
+| POST | `/api/auth/api-token` | yes | `{ label }` → `201 { id, label, token }`. Long-lived bearer token without expiry, shown once |
 | POST | `/api/auth/sync-profile` | yes | Re-reads the provider's userinfo for the current user |
 
 `/register` and `/login` share a 10-requests-per-minute rate limiter. The four OIDC routes
@@ -48,6 +52,8 @@ only exist when `OIDC_ISSUER` is set.
 |---|---|---|---|
 | POST | `/api/documents` | yes | Multipart with `name`, `file`, optional `space_id`. 50 MB cap, `%PDF-` header required → `201` |
 | GET | `/api/documents` | yes | Query filters `status`, `space_id`, `client_id` |
+| POST | `/api/documents/signature-requests` | yes | Multipart: PDF in `file`, JSON in `request` (signers, optional fields, `send`, `external_ref`, `nuage_space_facile_id`, `nuage_linked_to`). Creates, adds signers and fields and sends in one call. A repeated `external_ref` returns the existing document with `200`; otherwise `201`. See `docs/ardoise-link.md` |
+| GET | `/api/documents/lookup` | yes | `?external_ref=` → document and signers, scoped to the caller. `404` when unknown |
 | GET | `/api/documents/stats` | yes | `{ total, pending, completed }` |
 | GET | `/api/documents/{id}` | yes | One document |
 | PUT | `/api/documents/{id}` | yes | `{ name, file_name, sequential?, client_id? }` |
@@ -56,7 +62,8 @@ only exist when `OIDC_ISSUER` is set.
 | POST | `/api/documents/{id}/send` | yes | Draft only, at least one signer. Moves to `pending` and emails invitations |
 
 `DocumentResponse` carries `id`, `name`, `status`, `file_name`, `owner_id`, `sequential`,
-`client_id`, `original_hash`, `signed_hash`, `created_at`, `updated_at`.
+`client_id`, `original_hash`, `signed_hash`, `created_at`, `updated_at`, and, only when set,
+`external_ref`, `nuage_space_facile_id`, `nuage_linked_to`, `nuage_published_at`.
 
 ## Fields
 
@@ -200,5 +207,10 @@ webhook's secret. Verify it before trusting anything in the body.
 
 `signer` is absent on document-level events. Event types: `document.created`,
 `document.sent`, `document.completed`, `document.declined`, `document.deleted`,
+`document.archived` (the signed PDF reached Nuage),
 `signer.added`, `signer.email_opened`, `signer.viewed`, `signer.signed`, `signer.declined`,
 `signer.reminded`.
+
+`document` also carries `external_ref` and `nuage` (`space_facile_id`, `linked_to`, `published`)
+when the document was created with them. The full contract for the Ardoise link is in
+`docs/ardoise-link.md`.

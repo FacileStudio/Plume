@@ -57,6 +57,15 @@ docker compose up --build       # Full stack (db + api serving the client)
 docker compose down             # Stop all services
 ```
 
+## API for other apps
+
+- `GET /api/version` (and `/version`) answers `{"version":"<commit>"}`. The Dockerfile copies `.git` into the build and links the short commit with `-ldflags -X .../internal/version.stamp`; `.dockerignore` must keep `.git`.
+- `POST /api/auth/api-token` `{label}` mints a long-lived bearer token (a labelled porte session). It authenticates like any session.
+- `POST /api/documents/signature-requests` (multipart: PDF in `file`, JSON in `request`) creates document, signers and fields and sends, in one call. Optional `external_ref`, `nuage_space_facile_id` (`fac_` + 24 hex), `nuage_linked_to` are stored on the document (unique `(owner_id, external_ref)` when set; a repeat returns the existing document with 200).
+- `GET /api/documents/lookup?external_ref=` returns the document and signers for polling.
+- Completion: `nuageJob` in `modules/signers/nuage.go` picks the Nuage space (`nuage_space_facile_id`, else the Plume space, else the default) and `nuage_linked_to` (else `plume:document:<id>`) independently. After the upload `document.archived` is dispatched and `nuage_published_at` set.
+- Webhooks: `document.*` payloads carry `external_ref` and `nuage`. Header `x-plume-signature-256: sha256=<hex HMAC-SHA256 of the raw body>`, keyed on the webhook secret. Contract: `docs/ardoise-link.md`.
+
 ## Environment Variables
 
 Read through `tronc/env`. See `.env.example` and `apps/api/.env.example`.
@@ -75,7 +84,7 @@ Read through `tronc/env`. See `.env.example` and `apps/api/.env.example`.
 | `SSO_ONLY` | `false` | Disable local email/password auth |
 | `JOURNAL_URL`, `JOURNAL_TOKEN` | unset | Ship logs to Journal. Both must be set or nothing ships |
 | `NUAGE_URL`, `NUAGE_API_TOKEN` | unset | Archive fully signed PDFs in Nuage with a restricted app token (`provision: true`). Both must be set or the API exits 1. Publishing is async, 5 attempts with backoff; a Nuage outage never fails signing |
-| `NUAGE_DEFAULT_SPACE_FACILE_ID` | unset | `fac_` + 24 lowercase hex. Nuage space for documents outside any Plume space; unset skips them. A document in a Plume space goes to the Nuage space with the same `facile_id` |
+| `NUAGE_DEFAULT_SPACE_FACILE_ID` | unset | `fac_` + 24 lowercase hex. Nuage space for documents outside any Plume space; unset skips them. A document in a Plume space goes to the Nuage space with the same `facile_id`. A document created with `nuage_space_facile_id` goes there instead. `docker-compose.yml` and `compose.yml` forward all four `NUAGE_*` variables with empty defaults |
 | `NUAGE_DEFAULT_SPACE_NAME` | `Plume` | Name given to the default space when Nuage provisions it |
 
 ## Architecture Notes

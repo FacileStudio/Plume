@@ -91,6 +91,6 @@ func Documentation() documentation.Module {
 	return documentation.Module{
 		Name:        "auth",
 		Description: "Authentication routes.",
-		Routes:      append(configRoutes(), append(credentialRoutes(), profileRoutes()...)...),
+		Routes:      append(configRoutes(), append(credentialRoutes(), append(profileRoutes(), apiTokenRoutes()...)...)...),
 	}
 }

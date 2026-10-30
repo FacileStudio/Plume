@@ -31,4 +31,6 @@ type DocumentResponse struct {
 	SignedHash   string    `json:"signed_hash,omitempty"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
+	Link
+	NuagePublishedAt *time.Time `json:"nuage_published_at,omitempty"`
 }

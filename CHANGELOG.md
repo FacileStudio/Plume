@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `GET /api/version` (and `/version`) reports the commit the image was built from, or `dev`.
+  The Dockerfile reads it from `.git`, so `.dockerignore` now keeps `.git`.
+- Link with Ardoise (see `docs/ardoise-link.md`): `POST /api/documents/signature-requests`
+  creates a document from a PDF with its signers and fields and sends it in one call;
+  `POST /api/auth/api-token` mints a long-lived bearer token for the calling app;
+  `GET /api/documents/lookup?external_ref=` reads a document's status by the caller's own
+  reference.
+- Documents take three optional fields: `external_ref`, `nuage_space_facile_id` and
+  `nuage_linked_to`, plus a `nuage_published_at` set by the archive. The migration is additive;
+  a partial unique index on `(owner_id, external_ref)` makes a retried request return the
+  existing document.
+- The Nuage archive honours `nuage_space_facile_id` and `nuage_linked_to` when set.
+- Webhook payloads carry `external_ref` and a `nuage` object, and a new `document.archived`
+  event follows a successful Nuage archive.
+
+### Fixed
+
+- `docker-compose.yml` and `compose.yml` now forward `NUAGE_URL`, `NUAGE_API_TOKEN`,
+  `NUAGE_DEFAULT_SPACE_FACILE_ID` and `NUAGE_DEFAULT_SPACE_NAME` (empty by default). Until
+  now the container never received them, so the v0.2.0 archive could not run in production.
+
 ## 0.2.0 - 2026-10-30
 
 ### Added
