@@ -22,6 +22,13 @@ func MigrateWithIssuer(db *gorm.DB, issuer string) error {
 
 	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_space_members_space_user ON space_members (space_id, user_id)")
 
+	if err := db.Exec("UPDATE spaces SET facile_id = 'fac_' || substr(md5(random()::text || id::text || clock_timestamp()::text), 1, 24) WHERE facile_id IS NULL OR facile_id = ''").Error; err != nil {
+		return err
+	}
+	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_spaces_facile_id ON spaces (facile_id)").Error; err != nil {
+		return err
+	}
+
 	if err := backfillAvatarColumns(db); err != nil {
 		return err
 	}

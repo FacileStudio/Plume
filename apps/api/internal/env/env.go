@@ -4,6 +4,7 @@ import (
 	"github.com/FacileStudio/porte"
 
 	"fmt"
+	"regexp"
 	"strings"
 
 	troncenv "github.com/FacileStudio/tronc/env"
@@ -18,12 +19,23 @@ type OIDCConfig struct {
 	SuccessURL   string
 }
 
+var facileID = regexp.MustCompile(`^fac_[0-9a-f]{24}$`)
+
+// NuageConfig holds the settings for archiving signed documents in Nuage.
+type NuageConfig struct {
+	URL                  string
+	Token                string
+	DefaultSpaceFacileID string
+	DefaultSpaceName     string
+}
+
 // Config holds the application's environment-derived configuration.
 type Config struct {
 	troncenv.Core
 	Domain    string
 	UploadDir string
 	OIDC      *OIDCConfig
+	Nuage     *NuageConfig
 	SSOOnly   bool
 }
 
@@ -69,7 +81,40 @@ func Load() (Config, error) {
 		}
 	}
 
+	nuage, err := loadNuage()
+	if err != nil {
+		return Config{}, err
+	}
+	env.Nuage = nuage
+
 	return env, nil
+}
+
+func loadNuage() (*NuageConfig, error) {
+	url := strings.TrimSpace(troncenv.String("NUAGE_URL", ""))
+	token := troncenv.String("NUAGE_API_TOKEN", "")
+	spaceID := troncenv.String("NUAGE_DEFAULT_SPACE_FACILE_ID", "")
+	if url == "" && token == "" {
+		if spaceID != "" {
+			return nil, fmt.Errorf("NUAGE_URL and NUAGE_API_TOKEN are required when NUAGE_DEFAULT_SPACE_FACILE_ID is set")
+		}
+		return nil, nil
+	}
+	if url == "" || token == "" {
+		return nil, fmt.Errorf("NUAGE_URL and NUAGE_API_TOKEN must be set together")
+	}
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
+		return nil, fmt.Errorf("NUAGE_URL must start with http:// or https://")
+	}
+	if spaceID != "" && !facileID.MatchString(spaceID) {
+		return nil, fmt.Errorf("NUAGE_DEFAULT_SPACE_FACILE_ID must be fac_ followed by 24 lowercase hex characters")
+	}
+	return &NuageConfig{
+		URL:                  url,
+		Token:                token,
+		DefaultSpaceFacileID: spaceID,
+		DefaultSpaceName:     troncenv.String("NUAGE_DEFAULT_SPACE_NAME", "Plume"),
+	}, nil
 }
 
 func validateLogLevel(level string) error {

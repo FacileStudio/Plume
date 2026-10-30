@@ -74,6 +74,9 @@ Read through `tronc/env`. See `.env.example` and `apps/api/.env.example`.
 | `OIDC_*` | unset | OIDC/SSO config (all four required if `OIDC_ISSUER` is set) |
 | `SSO_ONLY` | `false` | Disable local email/password auth |
 | `JOURNAL_URL`, `JOURNAL_TOKEN` | unset | Ship logs to Journal. Both must be set or nothing ships |
+| `NUAGE_URL`, `NUAGE_API_TOKEN` | unset | Archive fully signed PDFs in Nuage with a restricted app token (`provision: true`). Both must be set or the API exits 1. Publishing is async, 5 attempts with backoff; a Nuage outage never fails signing |
+| `NUAGE_DEFAULT_SPACE_FACILE_ID` | unset | `fac_` + 24 lowercase hex. Nuage space for documents outside any Plume space; unset skips them. A document in a Plume space goes to the Nuage space with the same `facile_id` |
+| `NUAGE_DEFAULT_SPACE_NAME` | `Plume` | Name given to the default space when Nuage provisions it |
 
 ## Architecture Notes
 

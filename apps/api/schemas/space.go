@@ -1,11 +1,18 @@
 package schemas
 
-import "time"
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"time"
+
+	"gorm.io/gorm"
+)
 
 // Space is a workspace grouping documents under one owner, shared through
 // member records.
 type Space struct {
 	ID          int64     `gorm:"column:id;primaryKey"`
+	FacileID    string    `gorm:"column:facile_id"`
 	Name        string    `gorm:"column:name"`
 	Description string    `gorm:"column:description"`
 	OwnerID     int64     `gorm:"column:owner_id;index"`
@@ -14,6 +21,18 @@ type Space struct {
 }
 
 func (Space) TableName() string { return "spaces" }
+
+// BeforeCreate gives a new space its suite-wide facile_id.
+func (s *Space) BeforeCreate(*gorm.DB) error {
+	if s.FacileID == "" {
+		b := make([]byte, 12)
+		if _, err := rand.Read(b); err != nil {
+			return err
+		}
+		s.FacileID = "fac_" + hex.EncodeToString(b)
+	}
+	return nil
+}
 
 // SpaceMember is the join record linking a user to a space with a role.
 type SpaceMember struct {
