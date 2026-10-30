@@ -92,7 +92,7 @@ func TestSubmitSignatureRequiresRequiredFields(t *testing.T) {
 	smtpSvc := smtp.NewService(db)
 	webhookSvc := webhooks.NewService(db)
 	docSvc := documents.NewService(db, smtpSvc, webhookSvc, "http://localhost:5173", uploadDir)
-	service := NewService(db, docSvc, webhookSvc, smtpSvc, "http://localhost:5173")
+	service := NewService(db, docSvc, webhookSvc, smtpSvc, nil, "http://localhost:5173")
 
 	doc := schemas.Document{Name: "Contract", Status: "pending", FileName: "contract.pdf", OwnerID: 1}
 	if err := db.Create(&doc).Error; err != nil {

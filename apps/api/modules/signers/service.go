@@ -3,10 +3,12 @@ package signers
 import (
 	"context"
 	stderrors "errors"
+	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/FacileStudio/Plume/apps/api/internal/nuage"
 	"github.com/FacileStudio/Plume/apps/api/modules/documents"
 	"github.com/FacileStudio/Plume/apps/api/modules/smtp"
 	"github.com/FacileStudio/Plume/apps/api/modules/webhooks"
@@ -30,13 +32,14 @@ type Service struct {
 	docService *documents.Service
 	webhookSvc *webhooks.Service
 	smtpSvc    *smtp.Service
+	publisher  *nuage.Publisher
 	domain     string
 }
 
 // NewService wires the signers service to its database and the document,
 // webhooks and smtp services it depends on.
-func NewService(orm *gorm.DB, docService *documents.Service, webhookSvc *webhooks.Service, smtpSvc *smtp.Service, domain string) *Service {
-	return &Service{orm: orm, docService: docService, webhookSvc: webhookSvc, smtpSvc: smtpSvc, domain: domain}
+func NewService(orm *gorm.DB, docService *documents.Service, webhookSvc *webhooks.Service, smtpSvc *smtp.Service, publisher *nuage.Publisher, domain string) *Service {
+	return &Service{orm: orm, docService: docService, webhookSvc: webhookSvc, smtpSvc: smtpSvc, publisher: publisher, domain: domain}
 }
 
 func (s *Service) ListSigners(ctx context.Context, ownerID string, docID string) ([]SignerResponse, error) {
@@ -325,11 +328,39 @@ func (s *Service) SubmitSignature(ctx context.Context, token string, req *Submit
 	if pendingCount == 0 {
 		doc.Status = "completed"
 		go s.webhookSvc.Dispatch(doc.OwnerID, webhooks.BuildDocumentEvent(webhooks.EventDocumentCompleted, doc, s.domain))
+		s.publishToNuage(ctx, doc)
 	}
 
 	go s.smtpSvc.SendNotificationEmail(doc.OwnerID, doc.ID, signer.Name, doc.Name, "signed", s.domain)
 
 	return nil
+}
+
+// publishToNuage queues the final PDF for archiving in Nuage. It never fails
+// the caller: Nuage being down must not undo a completed signature.
+func (s *Service) publishToNuage(ctx context.Context, doc *schemas.Document) {
+	if s.publisher == nil {
+		return
+	}
+	job := nuage.Job{
+		DocumentID: doc.ID,
+		Title:      doc.Name,
+		Load: func() ([]byte, error) {
+			path, err := s.docService.GetFilePathByDocID(context.Background(), doc.ID)
+			if err != nil {
+				return nil, err
+			}
+			return os.ReadFile(path)
+		},
+	}
+	if doc.SpaceID != nil {
+		var space schemas.Space
+		if err := s.orm.WithContext(ctx).First(&space, *doc.SpaceID).Error; err == nil {
+			job.SpaceFacileID = space.FacileID
+			job.SpaceName = space.Name
+		}
+	}
+	s.publisher.Enqueue(job)
 }
 
 func (s *Service) DeclineSignature(ctx context.Context, token string, ipAddress string, userAgent string) error {

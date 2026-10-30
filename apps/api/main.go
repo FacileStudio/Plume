@@ -17,6 +17,7 @@ import (
 	documentation "github.com/FacileStudio/Plume/apps/api/internal/documentation"
 	"github.com/FacileStudio/Plume/apps/api/internal/env"
 	"github.com/FacileStudio/Plume/apps/api/internal/middleware"
+	"github.com/FacileStudio/Plume/apps/api/internal/nuage"
 	"github.com/FacileStudio/Plume/apps/api/modules/auth"
 	"github.com/FacileStudio/Plume/apps/api/modules/clients"
 	"github.com/FacileStudio/Plume/apps/api/modules/documents"
@@ -253,7 +254,7 @@ func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, session
 		smtp:      smtpService,
 		webhooks:  webhookService,
 		documents: docService,
-		signers:   signers.NewService(db, docService, webhookService, smtpService, appEnv.Domain),
+		signers:   signers.NewService(db, docService, webhookService, smtpService, newNuagePublisher(appEnv, appLogger), appEnv.Domain),
 		fields:    fields.NewService(db, docService),
 		signing:   signing.NewService(db, appEnv.UploadDir, docService),
 		verify:    verify.NewService(db, docService),
@@ -341,4 +342,13 @@ func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slo
 	}
 
 	return router
+}
+
+func newNuagePublisher(appEnv env.Config, appLogger *slog.Logger) *nuage.Publisher {
+	cfg := appEnv.Nuage
+	if cfg == nil {
+		return nil
+	}
+	appLogger.Info("nuage archiving enabled", slog.String("url", cfg.URL))
+	return nuage.NewPublisher(nuage.NewClient(cfg.URL, cfg.Token), cfg.DefaultSpaceFacileID, cfg.DefaultSpaceName, appLogger)
 }
