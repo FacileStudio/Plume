@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.2.0 - 2026-10-30
+
+### Added
+
+- Completed documents can be archived in Nuage. When the last signer finishes, the stamped PDF
+  is published in the background to the Nuage space that shares the Plume space's `facile_id`
+  (Nuage creates it on first use), or to a default space for documents with no space. It is
+  off unless `NUAGE_URL` and `NUAGE_API_TOKEN` are set, retries up to five times with backoff,
+  runs at most four jobs at once, and never blocks or fails signing. The publish carries
+  `plume:document:<id>`, so a retry never stores a second copy.
+- Spaces have a `facile_id`, the suite-wide key. Existing spaces get one at migration, and a
+  unique index enforces it.
+
 ## 0.1.0 — 2026-09-20
 
 ### Changed
