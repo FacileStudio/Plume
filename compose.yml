@@ -58,6 +58,10 @@ services:
       SSO_ONLY: ${SSO_ONLY:-false}
       JOURNAL_URL: ${JOURNAL_URL:-}
       JOURNAL_TOKEN: ${JOURNAL_TOKEN:-}
+      NUAGE_URL: ${NUAGE_URL:-}
+      NUAGE_API_TOKEN: ${NUAGE_API_TOKEN:-}
+      NUAGE_DEFAULT_SPACE_FACILE_ID: ${NUAGE_DEFAULT_SPACE_FACILE_ID:-}
+      NUAGE_DEFAULT_SPACE_NAME: ${NUAGE_DEFAULT_SPACE_NAME:-}
     volumes:
       - uploads_data:/data/uploads
     healthcheck:
