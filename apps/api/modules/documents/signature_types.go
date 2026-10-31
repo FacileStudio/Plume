@@ -13,7 +13,16 @@ type SignatureRequest struct {
 	Send       *bool             `json:"send,omitempty"`
 	Signers    []SignatureSigner `json:"signers"`
 	Fields     []SignatureField  `json:"fields,omitempty"`
+	Client     *SignatureClient  `json:"client,omitempty"`
 	Link
+}
+
+// SignatureClient names the caller's customer. Plume files the document under
+// the owner's client with the same email, or creates it when there is none.
+type SignatureClient struct {
+	Name    string `json:"name"`
+	Email   string `json:"email"`
+	Company string `json:"company,omitempty"`
 }
 
 // SignatureSigner is one participant of a signature request.

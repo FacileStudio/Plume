@@ -66,6 +66,7 @@ Two parts:
 | `external_ref` | no | Your reference. At most 200 characters, printable, no leading or trailing space. Unique per Plume user |
 | `nuage_space_facile_id` | no | `fac_` plus 24 lowercase hex. Nuage space for the signed PDF |
 | `nuage_linked_to` | no | Same validation as `external_ref`. Idempotency key for the Nuage upload |
+| `client` | no | `{name, email, company?}`. Files the document under the caller's Plume client with the same email (case-insensitive), and creates that client when there is none. A later request with the same email reuses it and does not rename it. `name` and a valid `email` are required when `client` is sent |
 
 Response, `201` when created:
 

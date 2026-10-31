@@ -60,6 +60,13 @@ func (s *Service) createLinkedDraft(ctx context.Context, ownerID int64, req *Sig
 			return nil, err
 		}
 	}
+	if req.Client != nil {
+		clientID, err := s.clientFor(ctx, ownerID, req.Client)
+		if err != nil {
+			return nil, err
+		}
+		record.ClientID = &clientID
+	}
 	if err := s.orm.WithContext(ctx).Create(record).Error; err != nil {
 		return nil, errors.Internal("failed to create document", err)
 	}

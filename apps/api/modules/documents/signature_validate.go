@@ -6,7 +6,10 @@ import (
 	"github.com/FacileStudio/tronc/errors"
 )
 
-const maxSignatureSigners = 20
+const (
+	maxSignatureSigners  = 20
+	maxClientFieldLength = 200
+)
 
 var signerRoles = map[string]bool{"signer": true, "viewer": true, "approver": true}
 
@@ -27,10 +30,25 @@ func (r *SignatureRequest) validate() error {
 			return err
 		}
 	}
+	if r.Client != nil {
+		if err := r.Client.validate(); err != nil {
+			return err
+		}
+	}
 	for i := range r.Fields {
 		if err := r.Fields[i].validate(len(r.Signers)); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (c *SignatureClient) validate() error {
+	if c.Name == "" || len(c.Name) > maxClientFieldLength || len(c.Company) > maxClientFieldLength {
+		return errors.Invalid("client needs a name of at most 200 characters")
+	}
+	if _, err := mail.ParseAddress(c.Email); err != nil {
+		return errors.Invalid("client needs a valid email")
 	}
 	return nil
 }

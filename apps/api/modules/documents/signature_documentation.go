@@ -10,7 +10,7 @@ func signatureRoutes() []documentation.Route {
 			Method:       "POST",
 			Path:         "/documents/signature-requests",
 			Summary:      "Create a document for signature in one call",
-			Description:  "Multipart form with the PDF in `file` and a JSON object in `request` (name, signers, optional fields, send, external_ref, nuage_space_facile_id, nuage_linked_to). Creates the document, its signers and fields, and sends it unless send is false. A repeated external_ref for the same caller returns the existing document with 200 instead of creating a second one.",
+			Description:  "Multipart form with the PDF in `file` and a JSON object in `request` (name, signers, optional fields, send, external_ref, nuage_space_facile_id, nuage_linked_to, client). Creates the document, its signers and fields, and sends it unless send is false. An optional client ({name, email, company}) files the document under the caller's client with that email, creating it when missing. A repeated external_ref for the same caller returns the existing document with 200 instead of creating a second one.",
 			Auth:         "bearer",
 			RequestBody:  SignatureRequest{},
 			ResponseBody: SignatureResponse{},

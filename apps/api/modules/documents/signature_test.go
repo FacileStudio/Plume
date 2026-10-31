@@ -33,7 +33,7 @@ func signatureService(t *testing.T) (*Service, int64) {
 	if testDB == nil {
 		t.Skip(testdb.SkipReason("sh scripts/postgres-up.sh"))
 	}
-	if err := testDB.Exec(`TRUNCATE users, spaces, space_members, documents, signers, fields RESTART IDENTITY CASCADE`).Error; err != nil {
+	if err := testDB.Exec(`TRUNCATE users, spaces, space_members, documents, signers, fields, clients RESTART IDENTITY CASCADE`).Error; err != nil {
 		t.Fatalf("clear tables: %v", err)
 	}
 	svc := NewService(testDB, smtp.NewService(testDB), webhooks.NewService(testDB), "http://plume.test", t.TempDir())
@@ -59,6 +59,7 @@ func TestSignatureRequestValidation(t *testing.T) {
 		"bad role":   func(r *SignatureRequest) { r.Signers[0].Role = "boss" },
 		"bad ref":    func(r *SignatureRequest) { r.ExternalRef = "a\nb" },
 		"bad space":  func(r *SignatureRequest) { r.NuageSpaceFacileID = "fac_x" },
+		"bad client": func(r *SignatureRequest) { r.Client = &SignatureClient{Name: "Acme", Email: "nope"} },
 		"field off signer": func(r *SignatureRequest) {
 			r.Fields = []SignatureField{{Signer: 5, FieldType: "signature", Page: 1, X: 1, Y: 1, Width: 5, Height: 5}}
 		},
@@ -155,5 +156,28 @@ func TestLookupByExternalRefIsScopedToTheOwner(t *testing.T) {
 	}
 	if _, err := svc.LookupByExternalRef(ctx, owner, ""); codeOf(err) != "invalid_argument" {
 		t.Fatalf("empty ref: %v", err)
+	}
+}
+
+func TestSignatureRequestFilesTheDocumentUnderTheClient(t *testing.T) {
+	svc, owner := signatureService(t)
+	ctx := context.Background()
+	req := validRequest()
+	req.Client = &SignatureClient{Name: "Acme", Email: "Contact@Acme.example", Company: "Acme SAS"}
+	first, _, err := svc.CreateSignatureRequest(ctx, owner, req, "c.pdf", bytes.NewReader(twoPagePDF(t)))
+	if err != nil || first.Document.ClientID == nil {
+		t.Fatalf("first = %+v err=%v", first, err)
+	}
+	again := validRequest()
+	again.ExternalRef = "ardoise:contract:43"
+	again.Client = &SignatureClient{Name: "Acme renamed", Email: "contact@acme.example"}
+	second, _, err := svc.CreateSignatureRequest(ctx, owner, again, "c.pdf", bytes.NewReader(twoPagePDF(t)))
+	if err != nil || second.Document.ClientID == nil || *second.Document.ClientID != *first.Document.ClientID {
+		t.Fatalf("same email must reuse the client: %+v err=%v", second, err)
+	}
+	var clients int64
+	testDB.Model(&schemas.Client{}).Count(&clients)
+	if clients != 1 {
+		t.Fatalf("want 1 client, got %d", clients)
 	}
 }
