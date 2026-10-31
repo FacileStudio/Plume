@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 - 2026-10-31
+
+### Added
+
+- `POST /api/documents/signature-requests` takes an optional `client` (`name`, `email`,
+  `company`). The document is filed under the caller's client with that email, which is
+  created when missing. Clients sent by Ardoise no longer leave Plume documents unfiled.
+
 ## 0.4.0 - 2026-10-31
 
 ### Added
