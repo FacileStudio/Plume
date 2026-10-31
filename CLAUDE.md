@@ -60,7 +60,7 @@ docker compose down             # Stop all services
 ## API for other apps
 
 - `GET /api/version` (and `/version`) answers `{"version":"<commit>"}`. The Dockerfile copies `.git` into the build and links the short commit with `-ldflags -X .../internal/version.stamp`; `.dockerignore` must keep `.git`.
-- `POST /api/auth/api-token` `{label}` mints a long-lived bearer token (a labelled porte session). It authenticates like any session.
+- `POST /api/auth/api-token` `{label}` mints a long-lived bearer token (a labelled porte session). It authenticates like any session. `GET /api/auth/api-tokens` lists the caller's labelled tokens (never the values) and `DELETE /api/auth/api-token/{id}` revokes one; a login session answers 404 there. Settings > API has the UI.
 - `POST /api/documents/signature-requests` (multipart: PDF in `file`, JSON in `request`) creates document, signers and fields and sends, in one call. Optional `external_ref`, `nuage_space_facile_id` (`fac_` + 24 hex), `nuage_linked_to` are stored on the document (unique `(owner_id, external_ref)` when set; a repeat returns the existing document with 200).
 - `GET /api/documents/lookup?external_ref=` returns the document and signers for polling.
 - Completion: `nuageJob` in `modules/signers/nuage.go` picks the Nuage space (`nuage_space_facile_id`, else the Plume space, else the default) and `nuage_linked_to` (else `plume:document:<id>`) independently. After the upload `document.archived` is dispatched and `nuage_published_at` set.

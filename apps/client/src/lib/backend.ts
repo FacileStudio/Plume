@@ -148,6 +148,19 @@ async function upload<T>(method: string, path: string, formData: FormData, opts?
 	return data as T;
 }
 
+export interface ApiToken {
+	id: number;
+	label: string;
+	created_at: string;
+	last_used_at: string;
+}
+
+export interface ApiTokenCreated {
+	id: number;
+	label: string;
+	token: string;
+}
+
 export const api = {
 	auth: {
 		register: (email: string, password: string) =>
@@ -165,7 +178,11 @@ export const api = {
 			if (result.token) setToken(result.token);
 			return result;
 		},
-		syncProfile: () => request<{ status: string }>('POST', '/auth/sync-profile')
+		syncProfile: () => request<{ status: string }>('POST', '/auth/sync-profile'),
+		apiTokens: () => request<ApiToken[]>('GET', '/auth/api-tokens'),
+		createApiToken: (label: string) =>
+			request<ApiTokenCreated>('POST', '/auth/api-token', { label }),
+		revokeApiToken: (id: number) => request<{ deleted: boolean }>('DELETE', `/auth/api-token/${id}`)
 	},
 	documents: {
 		list: (spaceId?: number | null) =>

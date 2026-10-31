@@ -152,6 +152,25 @@ func (service *Service) Issue(ctx context.Context, userID int64, label string) (
 	return service.sessions.Issue(ctx, userID, label)
 }
 
+// revokeAPIToken ends one named token of the user. A login session carries no
+// label and answers 404, so this route cannot sign a browser out.
+func (service *Service) revokeAPIToken(ctx context.Context, userID, id int64) error {
+	sessions, err := service.sessions.List(ctx, userID)
+	if err != nil {
+		return errors.Internal("failed to list tokens", err)
+	}
+	for _, session := range sessions {
+		if session.ID != id || session.Label == "" {
+			continue
+		}
+		if err := service.sessions.Revoke(ctx, userID, id); err != nil {
+			return errors.Internal("failed to revoke the token", err)
+		}
+		return nil
+	}
+	return errors.NotFound("api token not found")
+}
+
 // AuthenticateRequest resolves the caller of a route that is not mounted
 // behind RequireAuth — the inline-image endpoint, which a browser reaches with
 // an <img src> and therefore with a cookie and no header.
