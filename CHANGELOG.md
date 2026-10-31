@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0 - 2026-10-31
+
+### Added
+
+- Settings > API generates, lists and revokes named API tokens. A token is shown once, acts as
+  the account, has no expiry and survives a sign-out.
+- `GET /api/auth/api-tokens` lists the caller's tokens (label, creation, last use; never the
+  value) and `DELETE /api/auth/api-token/{id}` revokes one. A login session answers 404 there.
+
+### Fixed
+
+- The API page claimed Plume issues no API keys and told people to script against a dedicated
+  account. It now matches `POST /api/auth/api-token`.
+
 ## 0.3.0 - 2026-10-30
 
 ### Added
