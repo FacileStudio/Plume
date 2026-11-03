@@ -80,7 +80,7 @@
 			</p>
 		</div>
 		{#if registreUrl}
-			<Button href={registreUrl} icon={icons.shield}>Manage in Registre</Button>
+			<Button href={registreUrl} icon={icons.space}>Manage in Registre</Button>
 		{:else}
 			<Button href="/spaces/new" icon={icons.plus}>New space</Button>
 		{/if}
@@ -92,14 +92,14 @@
 		</div>
 	{:else if spaces.length === 0}
 		<EmptyState
-			icon={icons.usersGroup}
+			icon={icons.space}
 			title="No spaces yet"
 			description={registreUrl
 				? 'Create one in Registre and it shows up here within seconds.'
 				: 'Create one to collaborate with your team on the same documents.'}
 		>
 			{#if registreUrl}
-				<Button href={registreUrl} variant="outline" icon={icons.shield}>Manage in Registre</Button>
+				<Button href={registreUrl} variant="outline" icon={icons.space}>Manage in Registre</Button>
 			{:else}
 				<Button href="/spaces/new" variant="outline" icon={icons.plus}>New space</Button>
 			{/if}

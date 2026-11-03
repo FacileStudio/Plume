@@ -127,7 +127,7 @@
 					: 'Owners cannot be removed.'}
 			</p>
 			{#if space.registre_url}
-				<Button href={space.registre_url} variant="outline" icon={icons.shield} class="w-fit">
+				<Button href={space.registre_url} variant="outline" icon={icons.space} class="w-fit">
 					Manage in Registre
 				</Button>
 			{/if}

@@ -82,7 +82,7 @@
 						Members ({members.length})
 					</Button>
 					{#if space.registre_url}
-						<Button variant="outline" icon={icons.shield} href={space.registre_url}>
+						<Button variant="outline" icon={icons.space} href={space.registre_url}>
 							Manage in Registre
 						</Button>
 					{:else if isAdminOrOwner}

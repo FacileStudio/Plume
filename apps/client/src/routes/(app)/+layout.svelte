@@ -45,7 +45,7 @@
 		{ href: '/dashboard', label: 'Dashboard', icon: icons.dashboard },
 		{ href: '/documents', label: 'Documents', icon: 'solar:document-linear' },
 		{ href: '/clients', label: 'Clients', icon: 'solar:users-group-two-rounded-linear' },
-		{ href: '/spaces', label: 'Spaces', icon: icons.usersGroup }
+		{ href: '/spaces', label: 'Spaces', icon: icons.space }
 	];
 
 	function isActive(href: string) {
