@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.6.0 - 2026-11-03
+
+### Added
+
+- Space members and teammate signers show their suite profile picture, the one set in Registre.
+  A change there shows in Plume on the next page load. External signers keep their initials.
+- Boot fills the picture URL for SSO users who have not signed in since, so nobody has to sign
+  in again to get theirs.
+
+### Changed
+
+- `@facile/muse` moves to v0.6.5. A missing picture falls back to the initial instead of a
+  broken image.
+
+### Security
+
+- `/api/files/*` no longer exists. It served the whole upload volume with directory listings,
+  so every stored PDF, certificate and audit trail was readable without a session. The legacy
+  uploaded-avatar fallback it existed for is gone; Plume had no upload form left.
+
 ## 0.5.0 - 2026-10-31
 
 ### Added
