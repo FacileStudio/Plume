@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.7.0 - 2026-11-03
+
+### Added
+
+- Shared spaces come from Registre. Plume hands Registre its existing spaces once, merged by
+  name, then keeps every space you are in, with its members and roles, equal to Registre's
+  within seconds of a change and at least every five minutes. Someone added in Registre is
+  provisioned before their first sign-in.
+- `POST /api/registre/sync` is the nudge Registre posts after a change. It needs no
+  credentials and only schedules an authenticated pull.
+
+### Changed
+
+- With SSO configured, creating, renaming, deleting a space, adding, removing or re-ranking a
+  member and leaving are done in Registre. Plume shows a "Manage in Registre" link and the API
+  answers 409 for a linked space. Member lists stay, read-only. Local password accounts in a
+  space are never removed by a sync. Without SSO nothing changes.
+
 ## 0.6.0 - 2026-11-03
 
 ### Added
