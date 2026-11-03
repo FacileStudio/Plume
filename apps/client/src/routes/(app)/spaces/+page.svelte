@@ -19,6 +19,7 @@
 	let loading = $state(true);
 	let confirmLeave = $state(false);
 	let pendingLeave = $state<Space | null>(null);
+	let registreUrl = $state('');
 
 	const roleTone = { owner: 'owner', admin: 'admin', member: 'neutral' } as const;
 
@@ -55,8 +56,13 @@
 
 	onMount(async () => {
 		try {
-			spaces = await api.spaces.list();
+			const [list, cfg] = await Promise.all([
+				api.spaces.list(),
+				fetch('/api/auth/config').then((r) => r.json())
+			]);
+			spaces = list;
 			spaceStore.spaces = spaces;
+			registreUrl = cfg.registre_spaces_url ?? '';
 		} catch {}
 		loading = false;
 	});
@@ -70,9 +76,14 @@
 			<h1 class="text-fc-2xl font-semibold text-fc-fg">Spaces</h1>
 			<p class="text-fc-sm text-fc-fg-muted">
 				Shared workspaces. Everyone in a space sees its documents and clients.
+				{#if registreUrl}Spaces and their members are managed in Registre, for every Facile app at once.{/if}
 			</p>
 		</div>
-		<Button href="/spaces/new" icon={icons.plus}>New space</Button>
+		{#if registreUrl}
+			<Button href={registreUrl} icon={icons.shield}>Manage in Registre</Button>
+		{:else}
+			<Button href="/spaces/new" icon={icons.plus}>New space</Button>
+		{/if}
 	</div>
 
 	{#if loading}
@@ -83,9 +94,15 @@
 		<EmptyState
 			icon={icons.usersGroup}
 			title="No spaces yet"
-			description="Create one to collaborate with your team on the same documents."
+			description={registreUrl
+				? 'Create one in Registre and it shows up here within seconds.'
+				: 'Create one to collaborate with your team on the same documents.'}
 		>
-			<Button href="/spaces/new" variant="outline" icon={icons.plus}>New space</Button>
+			{#if registreUrl}
+				<Button href={registreUrl} variant="outline" icon={icons.shield}>Manage in Registre</Button>
+			{:else}
+				<Button href="/spaces/new" variant="outline" icon={icons.plus}>New space</Button>
+			{/if}
 		</EmptyState>
 	{:else}
 		<div class="hidden md:block">
@@ -115,15 +132,17 @@
 							<td><Badge tone={roleTone[space.role]}>{space.role}</Badge></td>
 							<td class="whitespace-nowrap text-fc-fg-muted">{formatDate(space.created_at)}</td>
 							<td class="text-right">
-								<Button
-									variant="ghost-danger"
-									size="sm"
-									icon={icons.logout}
-									aria-label="Leave {space.name}"
-									onclick={() => askLeave(space)}
-								>
-									Leave
-								</Button>
+								{#if !space.registre_url}
+									<Button
+										variant="ghost-danger"
+										size="sm"
+										icon={icons.logout}
+										aria-label="Leave {space.name}"
+										onclick={() => askLeave(space)}
+									>
+										Leave
+									</Button>
+								{/if}
 							</td>
 						</tr>
 					{/each}
@@ -144,17 +163,19 @@
 						</a>
 						<Badge tone={roleTone[space.role]}>{space.role}</Badge>
 					</div>
-					<div class="flex items-center justify-end">
-						<Button
-							variant="ghost-danger"
-							size="lg"
-							icon={icons.logout}
-							aria-label="Leave {space.name}"
-							onclick={() => askLeave(space)}
-						>
-							Leave
-						</Button>
-					</div>
+					{#if !space.registre_url}
+						<div class="flex items-center justify-end">
+							<Button
+								variant="ghost-danger"
+								size="lg"
+								icon={icons.logout}
+								aria-label="Leave {space.name}"
+								onclick={() => askLeave(space)}
+							>
+								Leave
+							</Button>
+						</div>
+					{/if}
 				</Card>
 			{/each}
 		</div>

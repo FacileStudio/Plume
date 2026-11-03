@@ -25,6 +25,7 @@ func Documentation() documentation.Module {
 	routes = append(routes, deleteSpaceRoute()...)
 	routes = append(routes, leaveSpaceRoute()...)
 	routes = append(routes, memberRoutes()...)
+	routes = append(routes, syncRoute()...)
 	return documentation.Module{
 		Name:        "spaces",
 		Description: "Collaborative space management and membership routes.",
@@ -45,6 +46,7 @@ func spaceRoutes() []documentation.Route {
 			ResponseBody: SpaceResponse{},
 			Errors: []documentation.Error{
 				{Status: 400, Code: "invalid_argument", Description: "Invalid JSON body, missing name or invalid color/icon."},
+				{Status: 409, Code: "already_exists", Description: "Registre manages this app's spaces; create it there."},
 			},
 		},
 		{
@@ -126,9 +128,25 @@ func leaveSpaceRoute() []documentation.Route {
 			Auth:        "bearer",
 			PathParams:  []documentation.Field{{Name: "spaceId", Type: "int", Description: "Space ID"}},
 			Errors: []documentation.Error{
-				{Status: 400, Code: "invalid_argument", Description: "Sole owner cannot leave the space."},
-				{Status: 404, Code: "not_found", Description: "Space not found or caller is not a member."},
+				{Status: 403, Code: "permission_denied", Description: "Caller is not a member."},
+				{Status: 409, Code: "already_exists", Description: "Sole owner cannot leave, or Registre manages the space."},
 			},
+		},
+	}
+}
+
+// syncRoute returns the POST /registre/sync route entry, mounted only when
+// OIDC is configured.
+func syncRoute() []documentation.Route {
+	return []documentation.Route{
+		{
+			Method:  "POST",
+			Path:    "/registre/sync",
+			Summary: "Nudge a Registre sync",
+			Description: "Registre posts here after any change to a shared space. The body is ignored and the call " +
+				"needs no credentials: it only schedules an authenticated pull of the Registre snapshot. Answers 202. " +
+				"A space Registre manages refuses rename, delete, member changes and leave with 409.",
+			Status: 202,
 		},
 	}
 }

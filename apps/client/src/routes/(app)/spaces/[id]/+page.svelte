@@ -81,7 +81,11 @@
 					<Button variant="outline" icon={icons.usersGroup} href="/spaces/{spaceId}/members">
 						Members ({members.length})
 					</Button>
-					{#if isAdminOrOwner}
+					{#if space.registre_url}
+						<Button variant="outline" icon={icons.shield} href={space.registre_url}>
+							Manage in Registre
+						</Button>
+					{:else if isAdminOrOwner}
 						<Button variant="outline" icon={icons.settings} href="/spaces/{spaceId}/settings">
 							Settings
 						</Button>

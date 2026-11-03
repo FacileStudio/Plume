@@ -454,6 +454,7 @@ export interface Space {
 	role: 'owner' | 'admin' | 'member';
 	created_at: string;
 	updated_at: string;
+	registre_url: string;
 }
 
 export interface Client {

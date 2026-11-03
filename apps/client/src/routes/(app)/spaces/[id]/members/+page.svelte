@@ -31,7 +31,9 @@
 	let pendingRemove = $state<SpaceMember | null>(null);
 
 	const spaceId = $derived(Number(page.params.id));
-	const isAdminOrOwner = $derived(space?.role === 'owner' || space?.role === 'admin');
+	const canManage = $derived(
+		!space?.registre_url && (space?.role === 'owner' || space?.role === 'admin')
+	);
 
 	const roleTone = { owner: 'owner', admin: 'admin', member: 'neutral' } as const;
 
@@ -119,12 +121,19 @@
 			</Button>
 			<h1 class="text-fc-2xl font-semibold text-fc-fg">Members</h1>
 			<p class="text-fc-sm text-fc-fg-muted">
-				{members.length} member{members.length === 1 ? '' : 's'} in this space. Owners cannot be
-				removed.
+				{members.length} member{members.length === 1 ? '' : 's'} in this space.
+				{space.registre_url
+					? 'Members and roles are managed in Registre, for every Facile app at once.'
+					: 'Owners cannot be removed.'}
 			</p>
+			{#if space.registre_url}
+				<Button href={space.registre_url} variant="outline" icon={icons.shield} class="w-fit">
+					Manage in Registre
+				</Button>
+			{/if}
 		</div>
 
-		{#if isAdminOrOwner}
+		{#if canManage}
 			<SettingsSection
 				title="Add a member"
 				description="They get access to every document in this space straight away."
@@ -159,14 +168,16 @@
 
 		<SettingsSection
 			title="People"
-			description="Change a role or revoke access."
+			description={canManage ? 'Change a role or revoke access.' : 'Everyone with access to this space.'}
 			bare={members.length === 0}
 		>
 			{#if members.length === 0}
 				<EmptyState
 					icon={icons.usersGroup}
 					title="No one here yet"
-					description="Add a teammate above and they will show up in this list."
+					description={canManage
+						? 'Add a teammate above and they will show up in this list.'
+						: 'People added in Registre show up here within seconds.'}
 				/>
 			{:else}
 				{#each members as member (member.id)}
@@ -181,7 +192,7 @@
 							</div>
 						</div>
 						<div class="flex items-center gap-2 sm:shrink-0 sm:justify-end">
-							{#if isAdminOrOwner && member.role !== 'owner'}
+							{#if canManage && member.role !== 'owner'}
 								<Select
 									value={member.role}
 									aria-label="Role for {member.name || member.email}"

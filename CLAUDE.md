@@ -64,6 +64,11 @@ docker compose down             # Stop all services
 - `POST /api/documents/signature-requests` (multipart: PDF in `file`, JSON in `request`) creates document, signers and fields and sends, in one call. Optional `external_ref`, `nuage_space_facile_id` (`fac_` + 24 hex), `nuage_linked_to` are stored on the document (unique `(owner_id, external_ref)` when set; a repeat returns the existing document with 200).
 - `GET /api/documents/lookup?external_ref=` returns the document and signers for polling.
 - Completion: `nuageJob` in `modules/signers/nuage.go` picks the Nuage space (`nuage_space_facile_id`, else the Plume space, else the default) and `nuage_linked_to` (else `plume:document:<id>`) independently. After the upload `document.archived` is dispatched and `nuage_published_at` set.
+- Spaces belong to Registre when OIDC is configured. At boot `spaces.Registre.Run` imports every unlinked space once
+  (`porte/directory` Import, retried with backoff up to 5 min while Registre answers 404), then pulls the snapshot at
+  boot, every 5 min and 2 s after `POST /api/registre/sync` (anonymous, 202). Apply links by `registre_space_id`, then
+  by name ignoring case, pre-provisions unknown members with a porte identity, and removes only members holding an
+  identity under the issuer. Creating a space, and changing or leaving a linked one, answers 409.
 - Webhooks: `document.*` payloads carry `external_ref` and `nuage`. Header `x-plume-signature-256: sha256=<hex HMAC-SHA256 of the raw body>`, keyed on the webhook secret. Contract: `docs/ardoise-link.md`.
 
 ## Environment Variables

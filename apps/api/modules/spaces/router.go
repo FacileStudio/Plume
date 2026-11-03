@@ -3,9 +3,11 @@ package spaces
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/FacileStudio/Plume/apps/api/internal/authcontext"
 	"github.com/FacileStudio/Plume/apps/api/internal/middleware"
+	"github.com/FacileStudio/porte/directory"
 	"github.com/FacileStudio/tronc/errors"
 	"github.com/FacileStudio/tronc/httpjson"
 
@@ -150,4 +152,15 @@ func RegisterSpaceDeleteRoute(router chi.Router, service *Service) {
 		}
 		w.WriteHeader(http.StatusNoContent)
 	})
+}
+
+// RegisterSyncRoute mounts Registre's nudge at POST /registre/sync, outside
+// RequireAuth: Registre posts it anonymously, and all it does is make the
+// next authenticated pull happen sooner. A nil registre, a Plume without
+// OIDC, mounts nothing.
+func RegisterSyncRoute(router chi.Router, registre *Registre) {
+	if registre == nil {
+		return
+	}
+	router.Method(http.MethodPost, strings.TrimPrefix(directory.SyncPath, "/api"), registre.syncer.Handler())
 }

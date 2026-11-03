@@ -65,7 +65,7 @@
 	onMount(async () => {
 		try {
 			space = await api.spaces.get(spaceId);
-			if (space.role !== 'owner' && space.role !== 'admin') {
+			if (space.registre_url || (space.role !== 'owner' && space.role !== 'admin')) {
 				goto(`/spaces/${spaceId}`);
 				return;
 			}

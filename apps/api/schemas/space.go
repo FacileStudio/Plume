@@ -9,15 +9,17 @@ import (
 )
 
 // Space is a workspace grouping documents under one owner, shared through
-// member records.
+// member records. RegistreSpaceID links it to the Registre space it mirrors;
+// a linked space's name and members are Registre's, not this app's.
 type Space struct {
-	ID          int64     `gorm:"column:id;primaryKey"`
-	FacileID    string    `gorm:"column:facile_id"`
-	Name        string    `gorm:"column:name"`
-	Description string    `gorm:"column:description"`
-	OwnerID     int64     `gorm:"column:owner_id;index"`
-	CreatedAt   time.Time `gorm:"column:created_at;autoCreateTime"`
-	UpdatedAt   time.Time `gorm:"column:updated_at;autoUpdateTime"`
+	ID              int64     `gorm:"column:id;primaryKey"`
+	FacileID        string    `gorm:"column:facile_id"`
+	RegistreSpaceID *string   `gorm:"column:registre_space_id;uniqueIndex:idx_spaces_registre_space_id"`
+	Name            string    `gorm:"column:name"`
+	Description     string    `gorm:"column:description"`
+	OwnerID         int64     `gorm:"column:owner_id;index"`
+	CreatedAt       time.Time `gorm:"column:created_at;autoCreateTime"`
+	UpdatedAt       time.Time `gorm:"column:updated_at;autoUpdateTime"`
 }
 
 func (Space) TableName() string { return "spaces" }

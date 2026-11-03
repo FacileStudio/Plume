@@ -25,7 +25,7 @@ type UpdateMemberRoleRequest struct {
 }
 
 // SpaceResponse is the API representation of a space and the caller's role in
-// it.
+// it. RegistreURL is the Registre page managing a linked space, else empty.
 type SpaceResponse struct {
 	ID          int64  `json:"id"`
 	Name        string `json:"name"`
@@ -34,6 +34,7 @@ type SpaceResponse struct {
 	Role        string `json:"role"`
 	CreatedAt   string `json:"created_at"`
 	UpdatedAt   string `json:"updated_at"`
+	RegistreURL string `json:"registre_url"`
 }
 
 // MemberResponse is the API representation of a space membership.

@@ -134,6 +134,7 @@ func run() error {
 
 	reminders.Start(shutdownSignal, svc.reminders, appLogger)
 	auth.StartSessionCleanup(shutdownSignal, svc.auth)
+	startRegistreSync(shutdownSignal, svc)
 
 	serverErrCh := make(chan error, 1)
 	go func() {
@@ -171,6 +172,7 @@ type services struct {
 	signing   *signing.Service
 	verify    *verify.Service
 	spaces    *spaces.Service
+	registre  *spaces.Registre
 	clients   *clients.Service
 	reminders *reminders.Service
 }
@@ -218,8 +220,9 @@ func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *s
 				return nil
 			}
 			return map[string]any{
-				"oidc_redirect_url": appEnv.OIDC.RedirectURL,
-				"oidc_issuer":       appEnv.OIDC.Issuer,
+				"oidc_redirect_url":   appEnv.OIDC.RedirectURL,
+				"oidc_issuer":         appEnv.OIDC.Issuer,
+				"registre_spaces_url": spaces.RegistreSpacesURL(appEnv.OIDC.Issuer),
 			}
 		},
 	})
@@ -243,6 +246,7 @@ func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, session
 	smtpService := smtp.NewService(db)
 	webhookService := webhooks.NewService(db)
 	docService := documents.NewService(db, smtpService, webhookService, appEnv.Domain, appEnv.UploadDir)
+	spaceService, registre := newSpaces(db, appEnv, appLogger)
 	return &services{
 		auth:      auth.NewService(db, sessions, passwords, appLogger),
 		smtp:      smtpService,
@@ -252,7 +256,8 @@ func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, session
 		fields:    fields.NewService(db, docService),
 		signing:   signing.NewService(db, appEnv.UploadDir, docService),
 		verify:    verify.NewService(db, docService),
-		spaces:    spaces.NewService(db),
+		spaces:    spaceService,
+		registre:  registre,
 		clients:   clients.NewService(db),
 		reminders: reminders.NewService(db, smtpService, webhookService, appEnv.Domain),
 	}
@@ -319,6 +324,7 @@ func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slo
 		webhooks.RegisterRoutes(api, svc.webhooks, svc.auth)
 		smtp.RegisterRoutes(api, svc.smtp, svc.auth)
 		spaces.RegisterRoutes(api, svc.spaces, svc.auth)
+		spaces.RegisterSyncRoute(api, svc.registre)
 		clients.RegisterRoutes(api, svc.clients, svc.auth)
 
 		verifyLimiter := middleware.NewRateLimiter(30, 10).Handler()

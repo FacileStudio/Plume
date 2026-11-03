@@ -12,8 +12,13 @@ import (
 )
 
 // Service implements the spaces CRUD and membership and role management.
+//
+// registreURL is Registre's spaces page when Registre owns this app's spaces,
+// and empty otherwise. While it is set, creating a space and changing a
+// linked one are refused with a pointer to Registre.
 type Service struct {
-	orm *gorm.DB
+	orm         *gorm.DB
+	registreURL string
 }
 
 // NewService wires the spaces service to its database.
@@ -22,6 +27,9 @@ func NewService(orm *gorm.DB) *Service {
 }
 
 func (s *Service) Create(ctx context.Context, ownerID int64, req *CreateSpaceRequest) (*SpaceResponse, error) {
+	if s.registreURL != "" {
+		return nil, errors.Conflict("spaces are managed in Registre: " + s.registreURL)
+	}
 	if req.Name == "" {
 		return nil, errors.Invalid("name is required")
 	}
@@ -44,7 +52,7 @@ func (s *Service) Create(ctx context.Context, ownerID int64, req *CreateSpaceReq
 		return nil, errors.Internal("failed to add owner as member", err)
 	}
 
-	return toSpaceResponse(space, RoleOwner), nil
+	return s.toSpaceResponse(space, RoleOwner), nil
 }
 
 func (s *Service) List(ctx context.Context, userID int64) ([]SpaceResponse, error) {
@@ -71,7 +79,7 @@ func (s *Service) List(ctx context.Context, userID int64) ([]SpaceResponse, erro
 
 	out := make([]SpaceResponse, len(spaces))
 	for i := range spaces {
-		out[i] = *toSpaceResponse(&spaces[i], roleMap[spaces[i].ID])
+		out[i] = *s.toSpaceResponse(&spaces[i], roleMap[spaces[i].ID])
 	}
 	return out, nil
 }
@@ -87,11 +95,11 @@ func (s *Service) Get(ctx context.Context, userID int64, spaceID int64) (*SpaceR
 		return nil, errors.NotFound("space not found")
 	}
 
-	return toSpaceResponse(&space, role), nil
+	return s.toSpaceResponse(&space, role), nil
 }
 
 func (s *Service) Update(ctx context.Context, userID int64, spaceID int64, req *UpdateSpaceRequest) (*SpaceResponse, error) {
-	role, err := s.requireMinRole(ctx, spaceID, userID, RoleAdmin)
+	role, err := s.requireUnlinked(ctx, spaceID, userID, RoleAdmin)
 	if err != nil {
 		return nil, err
 	}
@@ -110,11 +118,11 @@ func (s *Service) Update(ctx context.Context, userID int64, spaceID int64, req *
 		return nil, errors.Internal("failed to update space", err)
 	}
 
-	return toSpaceResponse(&space, role), nil
+	return s.toSpaceResponse(&space, role), nil
 }
 
 func (s *Service) Delete(ctx context.Context, userID int64, spaceID int64) error {
-	if _, err := s.requireMinRole(ctx, spaceID, userID, RoleOwner); err != nil {
+	if _, err := s.requireUnlinked(ctx, spaceID, userID, RoleOwner); err != nil {
 		return err
 	}
 
@@ -142,7 +150,7 @@ func (s *Service) ListMembers(ctx context.Context, userID int64, spaceID int64) 
 }
 
 func (s *Service) AddMember(ctx context.Context, userID int64, spaceID int64, req *AddMemberRequest) (*MemberResponse, error) {
-	if _, err := s.requireMinRole(ctx, spaceID, userID, RoleAdmin); err != nil {
+	if _, err := s.requireUnlinked(ctx, spaceID, userID, RoleAdmin); err != nil {
 		return nil, err
 	}
 
@@ -190,7 +198,7 @@ func (s *Service) AddMember(ctx context.Context, userID int64, spaceID int64, re
 }
 
 func (s *Service) UpdateMemberRole(ctx context.Context, userID int64, spaceID int64, memberID int64, req *UpdateMemberRoleRequest) (*MemberResponse, error) {
-	if _, err := s.requireMinRole(ctx, spaceID, userID, RoleAdmin); err != nil {
+	if _, err := s.requireUnlinked(ctx, spaceID, userID, RoleAdmin); err != nil {
 		return nil, err
 	}
 
@@ -224,7 +232,7 @@ func (s *Service) UpdateMemberRole(ctx context.Context, userID int64, spaceID in
 }
 
 func (s *Service) RemoveMember(ctx context.Context, userID int64, spaceID int64, memberID int64) error {
-	if _, err := s.requireMinRole(ctx, spaceID, userID, RoleAdmin); err != nil {
+	if _, err := s.requireUnlinked(ctx, spaceID, userID, RoleAdmin); err != nil {
 		return err
 	}
 
@@ -246,16 +254,22 @@ func (s *Service) RemoveMember(ctx context.Context, userID int64, spaceID int64,
 	return nil
 }
 
-func toSpaceResponse(s *schemas.Space, role string) *SpaceResponse {
-	return &SpaceResponse{
-		ID:          s.ID,
-		Name:        s.Name,
-		Description: s.Description,
-		OwnerID:     s.OwnerID,
+// toSpaceResponse renders a space for the caller holding role, with the
+// Registre page that manages it when it is linked.
+func (s *Service) toSpaceResponse(space *schemas.Space, role string) *SpaceResponse {
+	resp := &SpaceResponse{
+		ID:          space.ID,
+		Name:        space.Name,
+		Description: space.Description,
+		OwnerID:     space.OwnerID,
 		Role:        role,
-		CreatedAt:   s.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:   s.UpdatedAt.Format(time.RFC3339),
+		CreatedAt:   space.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   space.UpdatedAt.Format(time.RFC3339),
 	}
+	if s.registreURL != "" && space.RegistreSpaceID != nil {
+		resp.RegistreURL = s.registreURL + "/" + *space.RegistreSpaceID
+	}
+	return resp
 }
 
 func toMemberResponse(m *schemas.SpaceMember) MemberResponse {

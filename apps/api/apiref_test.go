@@ -77,6 +77,7 @@ func TestRegistryIsComplete(t *testing.T) {
 		"/spaces/{spaceId}",
 		"/spaces/{spaceId}/leave",
 		"/spaces/{spaceId}/members/{memberId}",
+		"/registre/sync",
 		"/clients/{clientId}",
 		"/smtp",
 		"/smtp/test",

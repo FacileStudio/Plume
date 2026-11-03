@@ -15,6 +15,9 @@ import (
 // the count and the delete share one transaction so that two owners leaving at
 // once cannot both pass.
 func (s *Service) Leave(ctx context.Context, userID int64, spaceID int64) error {
+	if _, err := s.requireUnlinked(ctx, spaceID, userID, RoleMember); err != nil {
+		return err
+	}
 	return s.orm.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := lockMembers(tx, spaceID); err != nil {
 			return errors.Internal("failed to lock the space membership", err)
