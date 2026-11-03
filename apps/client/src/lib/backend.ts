@@ -339,6 +339,7 @@ export interface Signer {
 	document_id: number;
 	name: string;
 	email: string;
+	avatar_url?: string;
 	role: string;
 	status: 'pending' | 'signed' | 'declined';
 	token: string;
@@ -472,6 +473,7 @@ export interface SpaceMember {
 	user_id: number;
 	email: string;
 	name: string;
+	avatar_url: string;
 	role: 'owner' | 'admin' | 'member';
 	joined_at: string;
 }

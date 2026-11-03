@@ -56,9 +56,43 @@ func (s *Service) ListSigners(ctx context.Context, ownerID string, docID string)
 	for i := range records {
 		out[i] = *toSignerResponse(&records[i])
 	}
-	return out, nil
+	return out, s.attachAvatars(ctx, out)
 }
 
+// attachAvatars sets AvatarURL on every signer whose email belongs to a Plume
+// account, so a teammate signing shows the same picture as everywhere else in
+// the suite. An external signer has no account and keeps an empty AvatarURL,
+// which the client draws as initials. It is applied only on the owner's
+// authenticated routes, never on the token-scoped signing view.
+func (s *Service) attachAvatars(ctx context.Context, signers []SignerResponse) error {
+	if len(signers) == 0 {
+		return nil
+	}
+	emails := make([]string, len(signers))
+	for i := range signers {
+		emails[i] = strings.ToLower(signers[i].Email)
+	}
+	var rows []struct {
+		Email  string
+		Avatar string
+	}
+	if err := s.orm.WithContext(ctx).Model(&schemas.User{}).
+		Select("lower(users.email) AS email, "+schemas.AvatarSelectExpr+" AS avatar").
+		Where("lower(users.email) IN ?", emails).
+		Scan(&rows).Error; err != nil {
+		return errors.Internal("failed to read signer avatars", err)
+	}
+	avatars := make(map[string]string, len(rows))
+	for _, row := range rows {
+		avatars[row.Email] = row.Avatar
+	}
+	for i := range signers {
+		signers[i].AvatarURL = avatars[strings.ToLower(signers[i].Email)]
+	}
+	return nil
+}
+
+// AddSigner adds a signer to a draft document.
 func (s *Service) AddSigner(ctx context.Context, ownerID string, docID string, req *AddSignerRequest) (*SignerResponse, error) {
 	doc, err := s.docService.Get(ctx, ownerID, docID)
 	if err != nil {
@@ -99,7 +133,16 @@ func (s *Service) AddSigner(ctx context.Context, ownerID string, docID string, r
 		go s.webhookSvc.Dispatch(uid, webhooks.BuildSignerEvent(webhooks.EventSignerAdded, &docRecord, record, s.domain))
 	}
 
-	return toSignerResponse(record), nil
+	return s.withAvatar(ctx, toSignerResponse(record)), nil
+}
+
+// withAvatar is attachAvatars for one signer that is already stored, so a
+// failed lookup returns the signer without a picture rather than an error the
+// client would read as "not added".
+func (s *Service) withAvatar(ctx context.Context, signer *SignerResponse) *SignerResponse {
+	resp := []SignerResponse{*signer}
+	_ = s.attachAvatars(ctx, resp)
+	return &resp[0]
 }
 
 func (s *Service) RemoveSigner(ctx context.Context, ownerID string, signerID string) error {

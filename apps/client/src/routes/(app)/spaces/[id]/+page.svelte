@@ -5,10 +5,10 @@
 	import { api } from '$lib';
 	import type { Space, SpaceMember } from '$lib';
 	import {
+		Avatar,
 		Badge,
 		Button,
 		EmptyState,
-		SettingsRow,
 		SettingsSection,
 		Spinner,
 		StatCard,
@@ -109,9 +109,20 @@
 				/>
 			{:else}
 				{#each preview as member (member.id)}
-					<SettingsRow label={member.name || member.email} description={member.email}>
-						<Badge tone={roleTone[member.role]}>{member.role}</Badge>
-					</SettingsRow>
+					<div
+						class="flex flex-col gap-3 border-t border-fc-border py-4 first:border-t-0 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+					>
+						<div class="flex min-w-0 items-center gap-3">
+							<Avatar src={member.avatar_url || undefined} name={member.name || member.email} size="sm" />
+							<div class="flex min-w-0 flex-col gap-1">
+								<span class="truncate text-fc-sm font-medium text-fc-fg">{member.name || member.email}</span>
+								<p class="truncate text-fc-xs text-fc-fg-muted">{member.email}</p>
+							</div>
+						</div>
+						<div class="flex items-center gap-2 sm:shrink-0 sm:justify-end">
+							<Badge tone={roleTone[member.role]}>{member.role}</Badge>
+						</div>
+					</div>
 				{/each}
 			{/if}
 		</SettingsSection>

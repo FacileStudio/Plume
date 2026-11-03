@@ -166,3 +166,29 @@ func TestSubmitSignatureRequiresRequiredFields(t *testing.T) {
 		t.Fatalf("signer status = %q, want %q", signed.Status, "signed")
 	}
 }
+
+// A teammate signing carries their suite picture whatever case the owner typed
+// the address in; an external signer carries none and is drawn as initials.
+func TestAttachAvatarsMatchesAccountsByEmail(t *testing.T) {
+	db := requireDB(t)
+	if err := db.Exec(`DELETE FROM users WHERE email = 'teammate@facile.studio'`).Error; err != nil {
+		t.Fatalf("clear user: %v", err)
+	}
+	teammate := schemas.User{Email: "teammate@facile.studio", OIDCPictureURL: "https://sso.test/avatars/sub-1"}
+	if err := db.Create(&teammate).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	t.Cleanup(func() { db.Delete(&teammate) })
+
+	service := &Service{orm: db}
+	signers := []SignerResponse{{Email: "Teammate@Facile.Studio"}, {Email: "client@example.com"}}
+	if err := service.attachAvatars(context.Background(), signers); err != nil {
+		t.Fatalf("attach: %v", err)
+	}
+	if signers[0].AvatarURL != teammate.OIDCPictureURL {
+		t.Errorf("teammate avatar = %q, want %q", signers[0].AvatarURL, teammate.OIDCPictureURL)
+	}
+	if signers[1].AvatarURL != "" {
+		t.Errorf("external signer avatar = %q, want none", signers[1].AvatarURL)
+	}
+}

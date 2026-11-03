@@ -5,6 +5,7 @@
 	import { api } from '$lib';
 	import type { Space, SpaceMember } from '$lib';
 	import {
+		Avatar,
 		Badge,
 		Button,
 		ConfirmModal,
@@ -12,7 +13,6 @@
 		Field,
 		Input,
 		Select,
-		SettingsRow,
 		SettingsSection,
 		Spinner,
 		icons,
@@ -170,29 +170,40 @@
 				/>
 			{:else}
 				{#each members as member (member.id)}
-					<SettingsRow label={member.name || member.email} description={member.email}>
-						{#if isAdminOrOwner && member.role !== 'owner'}
-							<Select
-								value={member.role}
-								aria-label="Role for {member.name || member.email}"
-								class="h-9 w-36 text-fc-sm"
-								onchange={(e) => updateRole(member, e.currentTarget.value)}
-							>
-								<option value="member">Member</option>
-								<option value="admin">Admin</option>
-							</Select>
-							<Button
-								variant="ghost-danger"
-								icon={icons.remove}
-								aria-label="Remove {member.name || member.email}"
-								onclick={() => askRemove(member)}
-							>
-								Remove
-							</Button>
-						{:else}
-							<Badge tone={roleTone[member.role]}>{member.role}</Badge>
-						{/if}
-					</SettingsRow>
+					<div
+						class="flex flex-col gap-3 border-t border-fc-border py-4 first:border-t-0 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+					>
+						<div class="flex min-w-0 items-center gap-3">
+							<Avatar src={member.avatar_url || undefined} name={member.name || member.email} size="sm" />
+							<div class="flex min-w-0 flex-col gap-1">
+								<span class="truncate text-fc-sm font-medium text-fc-fg">{member.name || member.email}</span>
+								<p class="truncate text-fc-xs text-fc-fg-muted">{member.email}</p>
+							</div>
+						</div>
+						<div class="flex items-center gap-2 sm:shrink-0 sm:justify-end">
+							{#if isAdminOrOwner && member.role !== 'owner'}
+								<Select
+									value={member.role}
+									aria-label="Role for {member.name || member.email}"
+									class="h-9 w-36 text-fc-sm"
+									onchange={(e) => updateRole(member, e.currentTarget.value)}
+								>
+									<option value="member">Member</option>
+									<option value="admin">Admin</option>
+								</Select>
+								<Button
+									variant="ghost-danger"
+									icon={icons.remove}
+									aria-label="Remove {member.name || member.email}"
+									onclick={() => askRemove(member)}
+								>
+									Remove
+								</Button>
+							{:else}
+								<Badge tone={roleTone[member.role]}>{member.role}</Badge>
+							{/if}
+						</div>
+					</div>
 				{/each}
 			{/if}
 		</SettingsSection>

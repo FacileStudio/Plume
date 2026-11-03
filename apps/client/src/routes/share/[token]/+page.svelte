@@ -281,7 +281,7 @@
 						></div>
 					</div>
 				</div>
-				<Divider class="my-0" />
+				<Divider />
 			{/if}
 
 			<ul class="flex flex-col gap-3">
@@ -480,7 +480,7 @@
 						</Button>
 
 						{#if payload.fields.length > 0}
-							<Divider class="my-0" />
+							<Divider />
 
 							<div class="flex flex-col gap-4">
 								{#each payload.fields as field (field.id)}
@@ -574,7 +574,7 @@
 							<Alert tone="danger" title="Could not sign">{error}</Alert>
 						{/if}
 
-						<Divider class="my-0" />
+						<Divider />
 
 						<div class="flex flex-col gap-2 sm:flex-row">
 							<Button

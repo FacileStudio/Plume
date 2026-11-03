@@ -1,6 +1,9 @@
 package schemas
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestAvatarPrecedence(t *testing.T) {
 	const porte = "https://porte.facile.studio/media/user-avatars/x.png"
@@ -126,5 +129,39 @@ func TestBackfillAvatarColumns(t *testing.T) {
 	}
 	if placeholder.Avatar() != "" || placeholder.AvatarOrigin() != "" {
 		t.Errorf("a data: placeholder still reads as a photo: %q / %q", placeholder.Avatar(), placeholder.AvatarOrigin())
+	}
+}
+
+// A user who signed in before the picture claim became a stable URL has nothing
+// stored, and must get their Registre picture without signing in again. A
+// stored claim and an identity under another provider are left alone.
+func TestFillPictureURLs(t *testing.T) {
+	db := requireDB(t)
+	for _, statement := range []string{
+		porteSchema,
+		`INSERT INTO users (id, email, password_hash, oidc_picture_url) VALUES
+			(1, 'stale@facile.studio', '', ''), (2, 'kept@facile.studio', '', 'https://sso.test/avatars/other'),
+			(3, 'elsewhere@facile.studio', '', '')`,
+		`INSERT INTO porte_identities (user_id, provider, subject) VALUES
+			(1, 'https://sso.test/', 'sub-1'), (2, 'https://sso.test/', 'sub-2'), (3, 'https://authentik.test/', 'sub-3')`,
+	} {
+		if err := db.Exec(statement).Error; err != nil {
+			t.Fatalf("seed: %v\n%s", err, statement)
+		}
+	}
+
+	for range 2 {
+		if err := fillPictureURLs(db, "https://sso.test/"); err != nil {
+			t.Fatalf("fill: %v", err)
+		}
+	}
+
+	var got []string
+	if err := db.Raw(`SELECT oidc_picture_url FROM users ORDER BY id`).Scan(&got).Error; err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	want := []string{"https://sso.test/avatars/sub-1", "https://sso.test/avatars/other", ""}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("oidc_picture_url = %q, want %q", got, want)
 	}
 }

@@ -33,7 +33,7 @@
 
 	<div class="flex flex-col gap-4">
 		<Tabs items={sections} value={active} label="Settings sections" />
-		<Divider class="my-0" />
+		<Divider />
 	</div>
 
 	<PageTransition key={active} distance={8} duration={0.25}>

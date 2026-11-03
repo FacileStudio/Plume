@@ -1,6 +1,10 @@
 package schemas
 
-import "gorm.io/gorm"
+import (
+	"strings"
+
+	"gorm.io/gorm"
+)
 
 // AdoptPorte moves Plume's credentials onto porte's tables.
 //
@@ -23,8 +27,35 @@ func AdoptPorte(db *gorm.DB, issuer string) error {
 	if issuer == "" {
 		return nil
 	}
-	return db.Exec(adoptOIDCSubjects, issuer).Error
+	if err := db.Exec(adoptOIDCSubjects, issuer).Error; err != nil {
+		return err
+	}
+	return fillPictureURLs(db, issuer)
 }
+
+// fillPictureURLs gives every SSO user who has not signed in since the
+// picture claim became a stable URL the same value their next sign-in would
+// store: <issuer>/avatars/<subject>, which Registre serves for every human,
+// answering 404 when there is no photo so the client draws initials.
+//
+// It touches only rows with no picture stored and only identities under the
+// configured issuer, so it is idempotent and never overrides a claim. An
+// issuer that is not https:// is skipped, matching oidcavatar.PhotoURL.
+func fillPictureURLs(db *gorm.DB, issuer string) error {
+	if !strings.HasPrefix(strings.ToLower(issuer), "https://") {
+		return nil
+	}
+	return db.Exec(backfillPictureURLs, strings.TrimRight(issuer, "/")+"/avatars/", issuer).Error
+}
+
+const backfillPictureURLs = `
+UPDATE users u
+   SET oidc_picture_url = ? || i.subject
+  FROM porte_identities i
+ WHERE i.user_id = u.id
+   AND i.provider = ?
+   AND coalesce(u.oidc_picture_url, '') = '';
+`
 
 // porteSchema is porte/pg's Schema with its porte_users table left out and the
 // foreign keys repointed at Plume's own users.

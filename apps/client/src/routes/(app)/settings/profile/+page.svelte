@@ -33,7 +33,7 @@
 
 	const avatarNote = $derived(
 		profile?.avatar_source === 'oidc'
-			? 'Your photo comes from single sign-on. Change it there and it updates here within a few minutes.'
+			? 'Your photo comes from single sign-on. Change it there and it shows here on your next page load.'
 			: 'No photo in single sign-on yet — add one there and it appears here.'
 	);
 

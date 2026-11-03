@@ -147,6 +147,8 @@
 					maxSize={MAX_FILE_SIZE}
 					disabled={submitting}
 					label="Drop a PDF here"
+					browseLabel="Browse"
+					dropAnnouncement="Release to add the PDF"
 					hint="PDF only · 10 MB maximum"
 					onFiles={acceptFiles}
 					onReject={rejectFiles}

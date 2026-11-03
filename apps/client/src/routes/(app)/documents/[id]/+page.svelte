@@ -6,6 +6,7 @@
 	import type { Document, Signer, Field as DocumentField, Client } from '$lib';
 	import { spaceStore } from '$lib/stores/space.svelte';
 	import {
+		Avatar,
 		Badge,
 		Button,
 		EmptyState,
@@ -498,9 +499,12 @@
 							class="flex flex-col gap-3 border-t border-fc-border pt-4 first:border-t-0 first:pt-0 sm:flex-row sm:items-start sm:justify-between"
 						>
 							<div class="flex min-w-0 flex-col gap-2">
-								<div class="min-w-0">
-									<p class="text-fc-sm font-medium break-words text-fc-fg">{signer.name}</p>
-									<p class="truncate text-fc-sm text-fc-fg-muted">{signer.email}</p>
+								<div class="flex min-w-0 items-center gap-3">
+									<Avatar src={signer.avatar_url || undefined} name={signer.name || signer.email} size="sm" />
+									<div class="min-w-0">
+										<p class="text-fc-sm font-medium break-words text-fc-fg">{signer.name}</p>
+										<p class="truncate text-fc-sm text-fc-fg-muted">{signer.email}</p>
+									</div>
 								</div>
 
 								{#if doc?.status === 'draft'}

@@ -240,7 +240,7 @@
 			{/if}
 
 			<div class="flex flex-col gap-4">
-				<Divider class="my-0" />
+				<Divider />
 				<p class="text-center text-fc-sm text-fc-fg-muted">
 					Verification compares the SHA-256 hash of the uploaded file against hashes Plume recorded at
 					upload and at completion. Any change to a single byte produces a different fingerprint.

@@ -28,6 +28,7 @@ type SignerResponse struct {
 	DocumentID     int64      `json:"document_id"`
 	Name           string     `json:"name"`
 	Email          string     `json:"email"`
+	AvatarURL      string     `json:"avatar_url,omitempty"`
 	Role           string     `json:"role"`
 	Status         string     `json:"status"`
 	Token          string     `json:"token,omitempty"`
