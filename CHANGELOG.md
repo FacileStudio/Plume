@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1 - 2026-11-03
+
+### Changed
+
+- Spaces use the share-circle icon, the one every Facile app now shows for spaces.
+
 ## 0.7.0 - 2026-11-03
 
 ### Added
