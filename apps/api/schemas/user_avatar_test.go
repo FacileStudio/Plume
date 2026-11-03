@@ -11,8 +11,8 @@ func TestAvatarPrecedence(t *testing.T) {
 		wantURL    string
 		wantOrigin string
 	}{
-		{"Porte photo wins over an upload", User{OIDCPictureURL: porte, AvatarUploadPath: "avatars/user-3-1.png"}, porte, "oidc"},
-		{"upload is the fallback", User{AvatarUploadPath: "avatars/user-3-1.png"}, "/api/files/avatars/user-3-1.png", "upload"},
+		{"a legacy upload no longer shows over the SSO photo", User{OIDCPictureURL: porte, AvatarUploadPath: "avatars/user-3-1.png"}, porte, "oidc"},
+		{"a legacy upload alone is ignored", User{AvatarUploadPath: "avatars/user-3-1.png"}, "", ""},
 		{"only Porte", User{OIDCPictureURL: porte}, porte, "oidc"},
 		{"neither, so the client draws initials", User{}, "", ""},
 	}
@@ -25,16 +25,6 @@ func TestAvatarPrecedence(t *testing.T) {
 				t.Errorf("AvatarOrigin() = %q, want %q", got, tc.wantOrigin)
 			}
 		})
-	}
-}
-
-// The client uses avatar_url as an src attribute exactly as it arrives, because the other
-// branch is an absolute Porte URL and concatenating "/api" onto that yields
-// "/apihttps://…". So the upload branch has to carry the prefix the file route is mounted
-// on — this is the test that fails if main.go's route and this constant drift apart.
-func TestUploadedAvatarIsUsableAsAnSrcUnchanged(t *testing.T) {
-	if AvatarFilePrefix != "/api/files/" {
-		t.Fatalf("AvatarFilePrefix is %q; main.go serves the upload volume at /api/files/", AvatarFilePrefix)
 	}
 }
 

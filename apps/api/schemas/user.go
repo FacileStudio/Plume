@@ -24,41 +24,23 @@ type User struct {
 
 func (User) TableName() string { return "users" }
 
-// AvatarFilePrefix is where main.go mounts the upload volume. It is part of the derived
-// value rather than something the client prepends: the other branch of Avatar is an
-// absolute Porte URL, and a client that concatenates turns that into "/apihttps://…".
-// One value, usable as an src attribute exactly as it arrives.
-const AvatarFilePrefix = "/api/files/"
-
 // AvatarSelectExpr is Avatar() as SQL, for any join that reads a user's picture without
-// loading the row. It has to stay in step with Avatar below — hence both being here, one
-// above the other, rather than one in Go and one buried in a Select string.
-const AvatarSelectExpr = `COALESCE(NULLIF(users.oidc_picture_url, ''), ` +
-	`NULLIF('` + AvatarFilePrefix + `' || COALESCE(users.avatar_upload_path, ''), '` + AvatarFilePrefix + `'), '')`
+// loading the row. It has to stay in step with Avatar below, hence both being here.
+const AvatarSelectExpr = `COALESCE(users.oidc_picture_url, '')`
 
-// Avatar is the picture to render. It is derived from the two sources rather than stored
-// alongside them: a photo set in Porte always wins, an upload shows only when the IdP
-// offers none, and because nothing is written there is no third value that can drift out
-// of agreement with the two that matter.
+// Avatar is the picture to render: the stable Registre URL from the picture claim, or ""
+// for a user who never signed in through SSO. Registre answers 404 for a user without a
+// photo, and the client falls back to initials. avatar_upload_path is kept in the table
+// but no longer read: Plume has no upload form, and the profile picture belongs to Registre.
 func (u User) Avatar() string {
-	if u.OIDCPictureURL != "" {
-		return u.OIDCPictureURL
-	}
-	if u.AvatarUploadPath != "" {
-		return AvatarFilePrefix + u.AvatarUploadPath
-	}
-	return ""
+	return u.OIDCPictureURL
 }
 
 // AvatarOrigin names where Avatar came from, so the client can say *why* a picture is not
 // editable here instead of leaving the user hunting for a control that will never appear.
 func (u User) AvatarOrigin() string {
-	switch {
-	case u.OIDCPictureURL != "":
+	if u.OIDCPictureURL != "" {
 		return "oidc"
-	case u.AvatarUploadPath != "":
-		return "upload"
-	default:
-		return ""
 	}
+	return ""
 }

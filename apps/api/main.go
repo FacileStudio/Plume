@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -99,11 +98,6 @@ func run() error {
 			appLogger.Error("failed to close database", slog.Any("error", err))
 		}
 	}()
-
-	if err := os.MkdirAll(filepath.Join(appEnv.UploadDir, "avatars"), 0o755); err != nil {
-		appLogger.Error("failed to create avatars directory", slog.Any("error", err))
-		return err
-	}
 
 	sessions, passwords, kit, err := buildAuth(context.Background(), db, appEnv, appLogger)
 	if err != nil {
@@ -311,12 +305,6 @@ func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slo
 	apiref.Mount(router, apiReference())
 
 	router.Route("/api", func(api chi.Router) {
-		avatarFS := http.StripPrefix("/api/files/", http.FileServer(http.Dir(appEnv.UploadDir)))
-		api.Get("/files/*", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Cache-Control", "public, max-age=86400, immutable")
-			avatarFS.ServeHTTP(w, r)
-		})
-
 		sessions.Mount(api)
 		kit.Mount(api)
 		auth.RegisterRoutes(api, svc.auth, appEnv)
