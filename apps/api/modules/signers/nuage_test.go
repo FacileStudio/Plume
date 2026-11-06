@@ -6,26 +6,19 @@ import (
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 )
 
-func TestNuageJobSelectsTheTarget(t *testing.T) {
-	space := &schemas.Space{Name: "Studio", FacileID: "fac_aaaaaaaaaaaaaaaaaaaaaaaa"}
-	explicit := "fac_bbbbbbbbbbbbbbbbbbbbbbbb"
+func TestNuageJobTargetsTheOwnersFolderAndKeepsTheRequestedKey(t *testing.T) {
 	cases := []struct {
-		name         string
-		doc          schemas.Document
-		space        *schemas.Space
-		wantSpace    string
-		wantSpaceNam string
-		wantLinked   string
+		name       string
+		doc        schemas.Document
+		wantLinked string
 	}{
-		{"plain document keeps today's behaviour", schemas.Document{ID: 3}, nil, "", "", ""},
-		{"plume space is used", schemas.Document{ID: 3}, space, space.FacileID, "Studio", ""},
-		{"explicit space wins over the plume space", schemas.Document{ID: 3, NuageSpaceFacileID: explicit}, space, explicit, "", ""},
-		{"explicit key alone keeps the plume space", schemas.Document{ID: 3, NuageLinkedTo: "ardoise:1"}, space, space.FacileID, "Studio", "ardoise:1"},
-		{"both set", schemas.Document{ID: 3, NuageSpaceFacileID: explicit, NuageLinkedTo: "ardoise:1"}, nil, explicit, "", "ardoise:1"},
+		{"plain document", schemas.Document{ID: 3, OwnerID: 8, Name: "n"}, ""},
+		{"requested key", schemas.Document{ID: 3, OwnerID: 8, Name: "n", NuageLinkedTo: "ardoise:1"}, "ardoise:1"},
+		{"a requested space no longer routes anything", schemas.Document{ID: 3, OwnerID: 8, Name: "n", NuageSpaceFacileID: "fac_bbbbbbbbbbbbbbbbbbbbbbbb"}, ""},
 	}
 	for _, c := range cases {
-		job := nuageJob(&c.doc, c.space)
-		if job.SpaceFacileID != c.wantSpace || job.SpaceName != c.wantSpaceNam || job.LinkedTo != c.wantLinked || job.DocumentID != 3 {
+		job := nuageJob(&c.doc)
+		if job.DocumentID != 3 || job.OwnerID != 8 || job.Title != "n" || job.LinkedTo != c.wantLinked {
 			t.Errorf("%s: got %+v", c.name, job)
 		}
 	}

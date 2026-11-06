@@ -14,53 +14,40 @@ import (
 
 func quietLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
 
-func fastPublisher(url, defaultSpace string) *Publisher {
-	p := NewPublisher(NewClient(url, "tok"), defaultSpace, "Plume", quietLogger())
+type fakeTokens struct {
+	err   error
+	users atomic.Int64
+}
+
+func (f *fakeTokens) Token(_ context.Context, userID int64) (string, error) {
+	f.users.Store(userID)
+	return "delegated", f.err
+}
+
+func fastPublisher(url string, tokens TokenSource) *Publisher {
+	p := NewPublisher(NewClient(url), tokens, quietLogger())
 	p.backoff = time.Millisecond
 	return p
 }
 
 func loadPDF() ([]byte, error) { return []byte("%PDF-1.7"), nil }
 
-func TestEnsureSpaceMemoisesAndHandlesBothStatuses(t *testing.T) {
-	var puts atomic.Int32
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		puts.Add(1)
-		if r.Header.Get("Authorization") != "Bearer tok" || r.URL.Path != "/api/spaces/by-facile-id/fac_a" {
-			t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
-		}
-		w.WriteHeader(map[bool]int{true: 201, false: 200}[puts.Load() == 1])
-		_, _ = w.Write([]byte(`{"id":7}`))
-	}))
-	defer srv.Close()
-
-	c := NewClient(srv.URL, "tok")
-	for i := 0; i < 3; i++ {
-		id, err := c.EnsureSpace(context.Background(), "fac_a", "A")
-		if err != nil || id != 7 {
-			t.Fatalf("EnsureSpace = %d, %v", id, err)
-		}
-	}
-	if puts.Load() != 1 {
-		t.Fatalf("expected one PUT, got %d", puts.Load())
-	}
-}
-
-func TestUploadAcceptsExistingFile(t *testing.T) {
+func TestPutSendsKeyNameAndTokenAndAcceptsReplace(t *testing.T) {
 	for _, status := range []int{http.StatusOK, http.StatusCreated} {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if err := r.ParseMultipartForm(1 << 20); err != nil {
-				t.Errorf("parse form: %v", err)
+			body, _ := io.ReadAll(r.Body)
+			if r.Method != http.MethodPut || r.URL.Path != "/api/app/object" {
+				t.Errorf("unexpected request %s %s", r.Method, r.URL.Path)
 			}
-			if r.FormValue("space_id") != "7" || r.FormValue("linked_to") != "plume:document:3" {
-				t.Errorf("bad form: %v", r.MultipartForm.Value)
+			if r.URL.Query().Get("key") != "plume:document:3" || r.URL.Query().Get("name") != "a b.pdf" {
+				t.Errorf("bad query %v", r.URL.Query())
 			}
-			if _, _, err := r.FormFile("file"); err != nil {
-				t.Errorf("missing file: %v", err)
+			if r.Header.Get("Authorization") != "Bearer tok" || r.Header.Get("Content-Type") != "application/pdf" || string(body) != "x" {
+				t.Errorf("bad headers or body %v %q", r.Header, body)
 			}
 			w.WriteHeader(status)
 		}))
-		err := NewClient(srv.URL, "tok").Upload(context.Background(), 7, "a.pdf", "plume:document:3", []byte("x"))
+		err := NewClient(srv.URL).Put(context.Background(), "tok", "plume:document:3", "a b.pdf", []byte("x"))
 		srv.Close()
 		if err != nil {
 			t.Fatalf("status %d: %v", status, err)
@@ -68,14 +55,10 @@ func TestUploadAcceptsExistingFile(t *testing.T) {
 	}
 }
 
-func TestPublishRetriesOn5xx(t *testing.T) {
-	var uploads atomic.Int32
+func TestPublishActsForTheOwnerAndRetriesOn5xx(t *testing.T) {
+	var puts atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPut {
-			_, _ = w.Write([]byte(`{"id":1}`))
-			return
-		}
-		if uploads.Add(1) < 3 {
+		if puts.Add(1) < 3 {
 			w.WriteHeader(http.StatusBadGateway)
 			return
 		}
@@ -83,10 +66,10 @@ func TestPublishRetriesOn5xx(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := fastPublisher(srv.URL, "fac_d")
-	err := p.publishWithRetry(context.Background(), Job{DocumentID: 1, Title: "x", Load: loadPDF}, quietLogger())
-	if err != nil || uploads.Load() != 3 {
-		t.Fatalf("err=%v uploads=%d", err, uploads.Load())
+	tokens := &fakeTokens{}
+	err := fastPublisher(srv.URL, tokens).publishWithRetry(context.Background(), Job{DocumentID: 1, OwnerID: 42, Title: "x", Load: loadPDF}, quietLogger())
+	if err != nil || puts.Load() != 3 || tokens.users.Load() != 42 {
+		t.Fatalf("err=%v puts=%d owner=%d", err, puts.Load(), tokens.users.Load())
 	}
 }
 
@@ -98,8 +81,7 @@ func TestPublishGivesUpAfterMaxAttempts(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := fastPublisher(srv.URL, "fac_d")
-	err := p.publishWithRetry(context.Background(), Job{DocumentID: 1, Load: loadPDF}, quietLogger())
+	err := fastPublisher(srv.URL, &fakeTokens{}).publishWithRetry(context.Background(), Job{DocumentID: 1, Load: loadPDF}, quietLogger())
 	if err == nil || calls.Load() != maxAttempts {
 		t.Fatalf("err=%v calls=%d", err, calls.Load())
 	}
@@ -109,23 +91,47 @@ func TestPublishDoesNotRetryOn4xx(t *testing.T) {
 	var calls atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls.Add(1)
-		w.WriteHeader(http.StatusForbidden)
+		w.WriteHeader(http.StatusPaymentRequired)
 	}))
 	defer srv.Close()
 
-	p := fastPublisher(srv.URL, "fac_d")
-	err := p.publishWithRetry(context.Background(), Job{DocumentID: 1, Load: loadPDF}, quietLogger())
+	err := fastPublisher(srv.URL, &fakeTokens{}).publishWithRetry(context.Background(), Job{DocumentID: 1, Load: loadPDF}, quietLogger())
 	var se *StatusError
-	if !errors.As(err, &se) || se.Status != 403 || calls.Load() != 1 {
+	if !errors.As(err, &se) || se.Status != http.StatusPaymentRequired || calls.Load() != 1 {
 		t.Fatalf("err=%v calls=%d", err, calls.Load())
 	}
 }
 
-func TestPublishWithoutAnySpaceIsNotRetried(t *testing.T) {
-	p := fastPublisher("http://127.0.0.1:1", "")
-	err := p.publishWithRetry(context.Background(), Job{DocumentID: 1, Load: loadPDF}, quietLogger())
-	if !errors.Is(err, errNoSpace) {
-		t.Fatalf("err=%v", err)
+func TestPublishWithoutARegistreSessionIsNotRetriedAndNeverCallsNuage(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { calls.Add(1) }))
+	defer srv.Close()
+
+	tokens := &fakeTokens{err: ErrNotConnected}
+	err := fastPublisher(srv.URL, tokens).publishWithRetry(context.Background(), Job{DocumentID: 1, Load: loadPDF}, quietLogger())
+	if !errors.Is(err, ErrNotConnected) || calls.Load() != 0 {
+		t.Fatalf("err=%v nuage calls=%d", err, calls.Load())
+	}
+}
+
+func TestEnqueueReportsTheStoredKey(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusCreated)
+	}))
+	defer srv.Close()
+
+	done := make(chan string, 1)
+	fastPublisher(srv.URL, &fakeTokens{}).Enqueue(Job{
+		DocumentID: 1, OwnerID: 1, Title: "t", LinkedTo: "ardoise:contract:42:signed",
+		Load: loadPDF, OnPublished: func(key string) { done <- key },
+	})
+	select {
+	case key := <-done:
+		if key != "ardoise:contract:42:signed" {
+			t.Fatalf("OnPublished got %q", key)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("never published")
 	}
 }
 
@@ -138,7 +144,7 @@ func TestEnqueueNeverBlocksNorFailsWhenNuageIsDown(t *testing.T) {
 	defer srv.Close()
 	defer close(release)
 
-	p := fastPublisher(srv.URL, "fac_d")
+	p := fastPublisher(srv.URL, &fakeTokens{})
 	start := time.Now()
 	for i := 0; i < 20; i++ {
 		p.Enqueue(Job{DocumentID: int64(i), Load: loadPDF})
@@ -147,6 +153,15 @@ func TestEnqueueNeverBlocksNorFailsWhenNuageIsDown(t *testing.T) {
 	nilPublisher.Enqueue(Job{})
 	if elapsed := time.Since(start); elapsed > 100*time.Millisecond {
 		t.Fatalf("Enqueue blocked for %s", elapsed)
+	}
+}
+
+func TestObjectKey(t *testing.T) {
+	if got := objectKey(Job{DocumentID: 9}); got != "plume:document:9" {
+		t.Errorf("default key = %q", got)
+	}
+	if got := objectKey(Job{DocumentID: 9, LinkedTo: "ardoise:1"}); got != "ardoise:1" {
+		t.Errorf("explicit key = %q", got)
 	}
 }
 

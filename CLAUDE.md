@@ -63,7 +63,7 @@ docker compose down             # Stop all services
 - `POST /api/auth/api-token` `{label}` mints a long-lived bearer token (a labelled porte session). It authenticates like any session. `GET /api/auth/api-tokens` lists the caller's labelled tokens (never the values) and `DELETE /api/auth/api-token/{id}` revokes one; a login session answers 404 there. Settings > API has the UI.
 - `POST /api/documents/signature-requests` (multipart: PDF in `file`, JSON in `request`) creates document, signers and fields and sends, in one call. Optional `external_ref`, `nuage_space_facile_id` (`fac_` + 24 hex), `nuage_linked_to` are stored on the document (unique `(owner_id, external_ref)` when set; a repeat returns the existing document with 200).
 - `GET /api/documents/lookup?external_ref=` returns the document and signers for polling.
-- Completion: `nuageJob` in `modules/signers/nuage.go` picks the Nuage space (`nuage_space_facile_id`, else the Plume space, else the default) and `nuage_linked_to` (else `plume:document:<id>`) independently. After the upload `document.archived` is dispatched and `nuage_published_at` set.
+- Completion: `nuageJob` in `modules/signers/nuage.go` queues the PDF for the owner's Plume folder in Nuage under the key `nuage_linked_to` (else `plume:document:<id>`); a repeat replaces the object. `nuage_space_facile_id` is still accepted, stored and echoed in webhooks, but routes nothing since app folders replaced spaces. After the upload `document.archived` is dispatched and `nuage_published_at` set.
 - Spaces belong to Registre when OIDC is configured. At boot `spaces.Registre.Run` imports every unlinked space once
   (`porte/directory` Import, retried with backoff up to 5 min while Registre answers 404), then pulls the snapshot at
   boot, every 5 min and 2 s after `POST /api/registre/sync` (anonymous, 202). Apply links by `registre_space_id`, then
@@ -88,9 +88,7 @@ Read through `tronc/env`. See `.env.example` and `apps/api/.env.example`.
 | `OIDC_*` | unset | OIDC/SSO config (all four required if `OIDC_ISSUER` is set) |
 | `SSO_ONLY` | `false` | Disable local email/password auth |
 | `JOURNAL_URL`, `JOURNAL_TOKEN` | unset | Ship logs to Journal. Both must be set or nothing ships |
-| `NUAGE_URL`, `NUAGE_API_TOKEN` | unset | Archive fully signed PDFs in Nuage with a restricted app token (`provision: true`). Both must be set or the API exits 1. Publishing is async, 5 attempts with backoff; a Nuage outage never fails signing |
-| `NUAGE_DEFAULT_SPACE_FACILE_ID` | unset | `fac_` + 24 lowercase hex. Nuage space for documents outside any Plume space; unset skips them. A document in a Plume space goes to the Nuage space with the same `facile_id`. A document created with `nuage_space_facile_id` goes there instead. `docker-compose.yml` and `compose.yml` forward all four `NUAGE_*` variables with empty defaults |
-| `NUAGE_DEFAULT_SPACE_NAME` | `Plume` | Name given to the default space when Nuage provisions it |
+| `NUAGE_URL`, `NUAGE_AUDIENCE` | unset | Archive fully signed PDFs in the document owner's private Plume folder in Nuage (app folders, `PUT /api/app/object`). Both must be set, and `OIDC_ISSUER` too, or the API exits 1. `NUAGE_AUDIENCE` is Nuage's Registre client id. Plume refreshes the owner's stored Registre token, exchanges it (RFC 8693, scope `nuage.write`) and sends the 5-minute delegated token (`act.sub` = Plume's client id). Needs Registre `token_exchange` for Plume and Nuage's `NUAGE_APPS` entry. Publishing is async, 5 attempts with backoff; a Nuage outage never fails signing. An owner with no stored Registre refresh token (password-only account, or never signed in since SSO) is skipped and logged |
 
 ## Architecture Notes
 

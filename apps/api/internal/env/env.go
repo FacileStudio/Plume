@@ -4,7 +4,6 @@ import (
 	"github.com/FacileStudio/porte"
 
 	"fmt"
-	"regexp"
 	"strings"
 
 	troncenv "github.com/FacileStudio/tronc/env"
@@ -19,14 +18,12 @@ type OIDCConfig struct {
 	SuccessURL   string
 }
 
-var facileID = regexp.MustCompile(`^fac_[0-9a-f]{24}$`)
-
 // NuageConfig holds the settings for archiving signed documents in Nuage.
+// Audience is Nuage's own Registre client id, the audience Plume asks Registre
+// to put in the delegated token.
 type NuageConfig struct {
-	URL                  string
-	Token                string
-	DefaultSpaceFacileID string
-	DefaultSpaceName     string
+	URL      string
+	Audience string
 }
 
 // Config holds the application's environment-derived configuration.
@@ -81,7 +78,7 @@ func Load() (Config, error) {
 		}
 	}
 
-	nuage, err := loadNuage()
+	nuage, err := loadNuage(env.OIDC)
 	if err != nil {
 		return Config{}, err
 	}
@@ -90,31 +87,22 @@ func Load() (Config, error) {
 	return env, nil
 }
 
-func loadNuage() (*NuageConfig, error) {
+func loadNuage(oidc *OIDCConfig) (*NuageConfig, error) {
 	url := strings.TrimSpace(troncenv.String("NUAGE_URL", ""))
-	token := troncenv.String("NUAGE_API_TOKEN", "")
-	spaceID := troncenv.String("NUAGE_DEFAULT_SPACE_FACILE_ID", "")
-	if url == "" && token == "" {
-		if spaceID != "" {
-			return nil, fmt.Errorf("NUAGE_URL and NUAGE_API_TOKEN are required when NUAGE_DEFAULT_SPACE_FACILE_ID is set")
-		}
+	audience := strings.TrimSpace(troncenv.String("NUAGE_AUDIENCE", ""))
+	if url == "" && audience == "" {
 		return nil, nil
 	}
-	if url == "" || token == "" {
-		return nil, fmt.Errorf("NUAGE_URL and NUAGE_API_TOKEN must be set together")
+	if url == "" || audience == "" {
+		return nil, fmt.Errorf("NUAGE_URL and NUAGE_AUDIENCE must be set together")
 	}
 	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		return nil, fmt.Errorf("NUAGE_URL must start with http:// or https://")
 	}
-	if spaceID != "" && !facileID.MatchString(spaceID) {
-		return nil, fmt.Errorf("NUAGE_DEFAULT_SPACE_FACILE_ID must be fac_ followed by 24 lowercase hex characters")
+	if oidc == nil {
+		return nil, fmt.Errorf("NUAGE_URL requires OIDC_ISSUER: Plume reaches Nuage with a token Registre issues for the document owner")
 	}
-	return &NuageConfig{
-		URL:                  url,
-		Token:                token,
-		DefaultSpaceFacileID: spaceID,
-		DefaultSpaceName:     troncenv.String("NUAGE_DEFAULT_SPACE_NAME", "Plume"),
-	}, nil
+	return &NuageConfig{URL: url, Audience: audience}, nil
 }
 
 func validateLogLevel(level string) error {

@@ -252,7 +252,7 @@ func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, session
 		smtp:      smtpService,
 		webhooks:  webhookService,
 		documents: docService,
-		signers:   signers.NewService(db, docService, webhookService, smtpService, newNuagePublisher(appEnv, appLogger), appEnv.Domain),
+		signers:   signers.NewService(db, docService, webhookService, smtpService, newNuagePublisher(db, appEnv, appLogger), appEnv.Domain),
 		fields:    fields.NewService(db, docService),
 		signing:   signing.NewService(db, appEnv.UploadDir, docService),
 		verify:    verify.NewService(db, docService),
@@ -340,11 +340,22 @@ func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slo
 	return router
 }
 
-func newNuagePublisher(appEnv env.Config, appLogger *slog.Logger) *nuage.Publisher {
+func newNuagePublisher(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) *nuage.Publisher {
 	cfg := appEnv.Nuage
 	if cfg == nil {
 		return nil
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		appLogger.Error("nuage archiving disabled", slog.Any("error", err))
+		return nil
+	}
+	delegation := nuage.NewDelegation(nuage.DelegationConfig{
+		Issuer:       appEnv.OIDC.Issuer,
+		ClientID:     appEnv.OIDC.ClientID,
+		ClientSecret: appEnv.OIDC.ClientSecret,
+		Audience:     cfg.Audience,
+	}, portepg.New(sqlDB).Identities())
 	appLogger.Info("nuage archiving enabled", slog.String("url", cfg.URL))
-	return nuage.NewPublisher(nuage.NewClient(cfg.URL, cfg.Token), cfg.DefaultSpaceFacileID, cfg.DefaultSpaceName, appLogger)
+	return nuage.NewPublisher(nuage.NewClient(cfg.URL), delegation, appLogger)
 }
