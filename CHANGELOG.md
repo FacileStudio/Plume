@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- The landing page shows Facile's plans under "Pricing", from Ardoise's public catalog. The
+  section is absent while the catalog is empty or unreachable.
+
+### Changed
+
+- `@facile/muse` v0.6.6 to v0.11.0.
+
 ## 0.7.1 - 2026-11-03
 
 ### Changed

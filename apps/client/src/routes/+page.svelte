@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import LandingOffers from '$lib/components/LandingOffers.svelte';
 	import { currentUser } from '$lib';
 
 	const ghostLinkClass =
@@ -161,6 +162,8 @@
 				</a>
 			</section>
 		</main>
+
+		<LandingOffers />
 
 		<footer class="border-t border-border text-center">
 			<div class="mx-auto max-w-5xl px-6 py-6 text-sm text-muted-foreground">
