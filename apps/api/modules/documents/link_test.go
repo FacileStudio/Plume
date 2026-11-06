@@ -23,6 +23,12 @@ func TestLinkValidate(t *testing.T) {
 		{"facile id short", Link{NuageSpaceFacileID: "fac_abc"}, false},
 		{"facile id wrong prefix", Link{NuageSpaceFacileID: "xxx_0123456789abcdef01234567"}, false},
 		{"linked_to too long", Link{NuageLinkedTo: strings.Repeat("a", 201)}, false},
+		{"linked_to over 512 bytes", Link{NuageLinkedTo: strings.Repeat("😀", 150)}, false},
+		{"linked_to backslash", Link{NuageLinkedTo: `a\b`}, false},
+		{"linked_to empty segment", Link{NuageLinkedTo: "a//b"}, false},
+		{"linked_to leading slash", Link{NuageLinkedTo: "/a"}, false},
+		{"linked_to dot segment", Link{NuageLinkedTo: "a/../b"}, false},
+		{"linked_to with slashes", Link{NuageLinkedTo: "ardoise/contract/42"}, true},
 	}
 	for _, c := range cases {
 		err := c.link.Validate()

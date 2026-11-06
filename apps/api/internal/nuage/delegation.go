@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
@@ -21,6 +22,7 @@ const (
 	writeScope      = "nuage.write"
 	tokenMargin     = 30 * time.Second
 	maxBody         = 1 << 20
+	saveAttempts    = 3
 )
 
 // ErrNotConnected means the user has no usable Registre session for Plume: no
@@ -52,14 +54,20 @@ type Delegation struct {
 	client *http.Client
 	now    func() time.Time
 
-	mu         sync.Mutex
-	endpointMu sync.Mutex
-	endpoint   string
+	log         *slog.Logger
+	locksMu     sync.Mutex
+	locks       map[int64]*sync.Mutex
+	endpointMu  sync.Mutex
+	endpoint    string
+	saveBackoff time.Duration
 }
 
 // NewDelegation builds a Delegation over the identity store.
-func NewDelegation(cfg DelegationConfig, ids Identities) *Delegation {
-	return &Delegation{cfg: cfg, ids: ids, client: &http.Client{Timeout: requestTimeout}, now: time.Now}
+func NewDelegation(cfg DelegationConfig, ids Identities, log *slog.Logger) *Delegation {
+	return &Delegation{
+		cfg: cfg, ids: ids, log: log, client: &http.Client{Timeout: requestTimeout}, now: time.Now,
+		locks: map[int64]*sync.Mutex{}, saveBackoff: 50 * time.Millisecond,
+	}
 }
 
 type tokenResponse struct {
@@ -71,6 +79,9 @@ type tokenResponse struct {
 
 // Token returns a Nuage token for userID, valid for one app-folder write.
 func (d *Delegation) Token(ctx context.Context, userID int64) (string, error) {
+	lock := d.userLock(userID)
+	lock.Lock()
+	defer lock.Unlock()
 	for _, force := range []bool{false, true} {
 		subject, err := d.subject(ctx, userID, force)
 		if err != nil {
@@ -93,9 +104,18 @@ func (d *Delegation) Token(ctx context.Context, userID int64) (string, error) {
 	return "", ErrNotConnected
 }
 
+func (d *Delegation) userLock(userID int64) *sync.Mutex {
+	d.locksMu.Lock()
+	defer d.locksMu.Unlock()
+	lock, ok := d.locks[userID]
+	if !ok {
+		lock = &sync.Mutex{}
+		d.locks[userID] = lock
+	}
+	return lock
+}
+
 func (d *Delegation) subject(ctx context.Context, userID int64, force bool) (string, error) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
 	identity, err := d.identity(ctx, userID)
 	if err != nil {
 		return "", err
@@ -127,10 +147,26 @@ func (d *Delegation) refresh(ctx context.Context, identity porte.StoredIdentity)
 		RefreshToken: next,
 		Expiry:       d.now().Add(time.Duration(out.ExpiresIn) * time.Second),
 	}
-	if err := d.ids.Save(ctx, identity); err != nil {
-		return "", fmt.Errorf("save refreshed token: %w", err)
+	if err := d.saveWithRetry(ctx, identity); err != nil {
+		d.log.Error("rotated Registre refresh token could not be saved: the user must sign in again",
+			slog.Int64("user_id", identity.UserID), slog.Any("error", err))
 	}
 	return out.AccessToken, nil
+}
+
+func (d *Delegation) saveWithRetry(ctx context.Context, identity porte.StoredIdentity) error {
+	var err error
+	for attempt := 0; attempt < saveAttempts; attempt++ {
+		if err = d.ids.Save(ctx, identity); err == nil {
+			return nil
+		}
+		select {
+		case <-time.After(d.saveBackoff * time.Duration(attempt+1)):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return err
 }
 
 func (d *Delegation) identity(ctx context.Context, userID int64) (porte.StoredIdentity, error) {

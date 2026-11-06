@@ -30,6 +30,9 @@ func (l Link) Validate() error {
 	if err := validateRef("nuage_linked_to", l.NuageLinkedTo); err != nil {
 		return err
 	}
+	if err := validateNuageKey(l.NuageLinkedTo); err != nil {
+		return err
+	}
 	if l.NuageSpaceFacileID != "" && !facileIDPattern.MatchString(l.NuageSpaceFacileID) {
 		return errors.Invalid("nuage_space_facile_id must be fac_ followed by 24 lowercase hex characters")
 	}
@@ -49,6 +52,26 @@ func validateRef(name, value string) error {
 	for _, r := range value {
 		if !unicode.IsPrint(r) {
 			return errors.Invalid(name + " must contain printable characters only")
+		}
+	}
+	return nil
+}
+
+const maxNuageKeyBytes = 512
+
+func validateNuageKey(value string) error {
+	if value == "" {
+		return nil
+	}
+	if len(value) > maxNuageKeyBytes {
+		return errors.Invalid("nuage_linked_to must be at most 512 bytes")
+	}
+	if strings.ContainsRune(value, '\\') {
+		return errors.Invalid("nuage_linked_to must not contain backslashes")
+	}
+	for segment := range strings.SplitSeq(value, "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return errors.Invalid("nuage_linked_to segments must not be empty, . or ..")
 		}
 	}
 	return nil

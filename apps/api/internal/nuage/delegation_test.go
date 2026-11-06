@@ -15,8 +15,10 @@ import (
 )
 
 type fakeIdentities struct {
-	mu     sync.Mutex
-	stored []porte.StoredIdentity
+	mu        sync.Mutex
+	stored    []porte.StoredIdentity
+	failSaves int
+	saves     int
 }
 
 func (f *fakeIdentities) ListByUser(context.Context, int64) ([]porte.StoredIdentity, error) {
@@ -28,6 +30,10 @@ func (f *fakeIdentities) ListByUser(context.Context, int64) ([]porte.StoredIdent
 func (f *fakeIdentities) Save(_ context.Context, identity porte.StoredIdentity) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.saves++
+	if f.saves <= f.failSaves {
+		return errors.New("database down")
+	}
 	f.stored = []porte.StoredIdentity{identity}
 	return nil
 }
@@ -87,7 +93,7 @@ func TestTokenExchangesTheStoredAccessTokenForNuageWrite(t *testing.T) {
 		AccessToken: "stored", RefreshToken: "r", Expiry: time.Now().Add(10 * time.Minute),
 	})}}
 
-	token, err := NewDelegation(cfg, ids).Token(context.Background(), 1)
+	token, err := NewDelegation(cfg, ids, quietLogger()).Token(context.Background(), 1)
 	if err != nil || token != "delegated" {
 		t.Fatalf("token=%q err=%v", token, err)
 	}
@@ -108,7 +114,7 @@ func TestTokenRefreshesAnExpiredAccessTokenAndSavesTheRotation(t *testing.T) {
 		AccessToken: "old", RefreshToken: "r", Expiry: time.Now().Add(-time.Minute),
 	})}}
 
-	if _, err := NewDelegation(cfg, ids).Token(context.Background(), 1); err != nil {
+	if _, err := NewDelegation(cfg, ids, quietLogger()).Token(context.Background(), 1); err != nil {
 		t.Fatal(err)
 	}
 	if reg.exchanges[0] != "fresh" || ids.stored[0].Tokens.RefreshToken != "rotated" || ids.stored[0].Tokens.AccessToken != "fresh" {
@@ -123,7 +129,7 @@ func TestTokenRetriesOnceWithAForcedRefreshWhenRegistreRejectsTheSubject(t *test
 		AccessToken: "revoked", RefreshToken: "r", Expiry: time.Now().Add(10 * time.Minute),
 	})}}
 
-	token, err := NewDelegation(cfg, ids).Token(context.Background(), 1)
+	token, err := NewDelegation(cfg, ids, quietLogger()).Token(context.Background(), 1)
 	if err != nil || token != "delegated" || len(reg.exchanges) != 2 || reg.exchanges[1] != "fresh" {
 		t.Fatalf("token=%q err=%v exchanges=%v", token, err, reg.exchanges)
 	}
@@ -134,7 +140,7 @@ func TestTokenIsNotConnectedWhenTheRefreshTokenIsDead(t *testing.T) {
 	_, cfg := reg.serve(t)
 	ids := &fakeIdentities{stored: []porte.StoredIdentity{identityFor(cfg.Issuer, porte.TokenSet{RefreshToken: "dead"})}}
 
-	_, err := NewDelegation(cfg, ids).Token(context.Background(), 1)
+	_, err := NewDelegation(cfg, ids, quietLogger()).Token(context.Background(), 1)
 	if !errors.Is(err, ErrNotConnected) || len(reg.exchanges) != 0 {
 		t.Fatalf("err=%v exchanges=%v", err, reg.exchanges)
 	}
@@ -149,12 +155,59 @@ func TestTokenIsNotConnectedForPasswordOnlyOrTokenlessUsers(t *testing.T) {
 		"no refresh":    {identityFor(cfg.Issuer, porte.TokenSet{})},
 	}
 	for name, stored := range cases {
-		_, err := NewDelegation(cfg, &fakeIdentities{stored: stored}).Token(context.Background(), 1)
+		_, err := NewDelegation(cfg, &fakeIdentities{stored: stored}, quietLogger()).Token(context.Background(), 1)
 		if !errors.Is(err, ErrNotConnected) {
 			t.Errorf("%s: err=%v", name, err)
 		}
 	}
 	if len(reg.forms) != 0 {
 		t.Errorf("Registre was called %d times", len(reg.forms))
+	}
+}
+
+func TestConcurrentTokensForOneUserRefreshOnce(t *testing.T) {
+	reg := &fakeRegistre{}
+	_, cfg := reg.serve(t)
+	ids := &fakeIdentities{stored: []porte.StoredIdentity{identityFor(cfg.Issuer, porte.TokenSet{
+		AccessToken: "old", RefreshToken: "r", Expiry: time.Now().Add(-time.Minute),
+	})}}
+	d := NewDelegation(cfg, ids, quietLogger())
+
+	var wg sync.WaitGroup
+	for i := 0; i < 5; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := d.Token(context.Background(), 1); err != nil {
+				t.Errorf("token: %v", err)
+			}
+		}()
+	}
+	wg.Wait()
+	refreshes := 0
+	for _, form := range reg.forms {
+		if form.Get("grant_type") == "refresh_token" {
+			refreshes++
+		}
+	}
+	if refreshes != 1 {
+		t.Fatalf("refresh grants = %d, want 1", refreshes)
+	}
+}
+
+func TestSaveOfARotatedTokenIsRetried(t *testing.T) {
+	reg := &fakeRegistre{}
+	_, cfg := reg.serve(t)
+	ids := &fakeIdentities{failSaves: 2, stored: []porte.StoredIdentity{identityFor(cfg.Issuer, porte.TokenSet{
+		AccessToken: "old", RefreshToken: "r", Expiry: time.Now().Add(-time.Minute),
+	})}}
+	d := NewDelegation(cfg, ids, quietLogger())
+	d.saveBackoff = time.Millisecond
+
+	if _, err := d.Token(context.Background(), 1); err != nil {
+		t.Fatal(err)
+	}
+	if ids.saves != 3 || ids.stored[0].Tokens.RefreshToken != "rotated" {
+		t.Fatalf("saves=%d stored=%+v", ids.saves, ids.stored[0].Tokens)
 	}
 }
