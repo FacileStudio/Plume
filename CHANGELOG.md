@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Signed PDFs are archived in the document owner's private Plume folder in Nuage (app folders)
+  instead of a Nuage space. Plume refreshes the owner's stored Registre token, exchanges it for a
+  5-minute `nuage.write` token and calls `PUT /api/app/object`. An owner with no stored Registre
+  refresh token is skipped and logged.
+- `NUAGE_AUDIENCE` (Nuage's Registre client id) replaces `NUAGE_API_TOKEN`,
+  `NUAGE_DEFAULT_SPACE_FACILE_ID` and `NUAGE_DEFAULT_SPACE_NAME`. `NUAGE_URL` now also needs
+  `OIDC_ISSUER`.
+- `nuage_space_facile_id` on signature requests is still accepted and echoed but selects nothing.
+
+### Removed
+
+- The find-or-create Nuage space provisioning.
+
 ## 0.8.0 - 2026-11-06
 
 ### Added

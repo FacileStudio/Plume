@@ -370,7 +370,7 @@ func (s *Service) SubmitSignature(ctx context.Context, token string, req *Submit
 	if pendingCount == 0 {
 		doc.Status = "completed"
 		go s.webhookSvc.Dispatch(doc.OwnerID, webhooks.BuildDocumentEvent(webhooks.EventDocumentCompleted, doc, s.domain))
-		s.publishToNuage(ctx, doc)
+		s.publishToNuage(doc)
 	}
 
 	go s.smtpSvc.SendNotificationEmail(doc.OwnerID, doc.ID, signer.Name, doc.Name, "signed", s.domain)

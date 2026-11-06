@@ -64,7 +64,7 @@ Two parts:
 | `send` | no | Default true: invitations go out in this call. False leaves a draft |
 | `fields` | no | `signer` is the index of the signer in `signers`. `field_type` is `signature`, `text`, `date` or `checkbox`. `page` starts at 1. `x`, `y`, `width`, `height` are percentages of the page (0 to 100). When `fields` is empty, every `signer` and `approver` gets one required signature box on the last page |
 | `external_ref` | no | Your reference. At most 200 characters, printable, no leading or trailing space. Unique per Plume user |
-| `nuage_space_facile_id` | no | `fac_` plus 24 lowercase hex. Nuage space for the signed PDF |
+| `nuage_space_facile_id` | no | `fac_` plus 24 lowercase hex. Accepted and echoed, no longer selects a Nuage space (see section 5) |
 | `nuage_linked_to` | no | Same validation as `external_ref`. Idempotency key for the Nuage upload |
 | `client` | no | `{name, email, company?}`. Files the document under the caller's Plume client with the same email (case-insensitive), and creates that client when there is none. A later request with the same email reuses it and does not rename it. `name` and a valid `email` are required when `client` is sent |
 
@@ -202,17 +202,21 @@ Other events (`document.created`, `document.sent`, `document.declined`, `signer.
 
 ## 5. Where the signed PDF goes in Nuage
 
-When the last signer completes, and only if Plume has `NUAGE_URL` and `NUAGE_API_TOKEN`:
+When the last signer completes, and only if Plume has `NUAGE_URL` and `NUAGE_AUDIENCE`, the PDF
+is stored in the document owner's private Plume folder in Nuage (an app folder: it is not a
+space, never shows in the file tree and counts on the owner's personal plan). Other apps cannot
+read it.
 
-| You set | Nuage space | Idempotency key (`linked_to`) |
-|---|---|---|
-| nothing | Plume space's `facile_id`, else `NUAGE_DEFAULT_SPACE_FACILE_ID`, else nothing is published | `plume:document:<id>` |
-| `nuage_space_facile_id` | that space (Nuage creates it on first use) | `plume:document:<id>` |
-| `nuage_linked_to` | as "nothing" | that key |
-| both | that space | that key |
+| You set | Key in the folder (`linked_to`) |
+|---|---|
+| nothing | `plume:document:<id>` |
+| `nuage_linked_to` | that key |
 
-The two fields work independently. Re-publishing with the same key never stores a second copy.
-The Nuage token Plume uses must be allowed to provision spaces (`provision: true`).
+Storing under the same key replaces the object, so a retry never stores a second copy.
+`nuage_space_facile_id` is still accepted and echoed in webhooks, but it no longer selects
+anything. Plume acts for the owner with a 5-minute token Registre issues by token exchange. If
+the owner has no stored Registre session (a password-only account, or no sign-in since SSO was
+enabled) nothing is published and `nuage_published_at` stays empty.
 
 ## 6. Summary of routes
 
