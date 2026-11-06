@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 const (
@@ -138,13 +140,37 @@ func retryable(err error) bool {
 	return true
 }
 
+const maxNameBytes = 255
+
 func filename(title string) string {
-	title = strings.TrimSpace(strings.NewReplacer("/", "-", "\\", "-", "\"", "").Replace(title))
+	title = strings.Map(func(r rune) rune {
+		switch {
+		case r == '/' || r == '\\':
+			return '-'
+		case r == '"' || unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Zl, unicode.Zp):
+			return -1
+		}
+		return r
+	}, title)
+	title = strings.TrimSpace(title)
 	if title == "" {
 		title = "document"
 	}
 	if !strings.HasSuffix(strings.ToLower(title), ".pdf") {
 		title += ".pdf"
 	}
-	return title
+	return truncateName(title)
+}
+
+func truncateName(name string) string {
+	if len(name) <= maxNameBytes {
+		return name
+	}
+	const suffix = ".pdf"
+	head := name[:len(name)-len(suffix)]
+	head = head[:maxNameBytes-len(suffix)]
+	for !utf8.ValidString(head) {
+		head = head[:len(head)-1]
+	}
+	return strings.TrimSpace(head) + suffix
 }

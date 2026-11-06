@@ -355,7 +355,7 @@ func newNuagePublisher(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) *
 		ClientID:     appEnv.OIDC.ClientID,
 		ClientSecret: appEnv.OIDC.ClientSecret,
 		Audience:     cfg.Audience,
-	}, portepg.New(sqlDB).Identities())
+	}, portepg.New(sqlDB).Identities(), appLogger)
 	appLogger.Info("nuage archiving enabled", slog.String("url", cfg.URL))
 	return nuage.NewPublisher(nuage.NewClient(cfg.URL), delegation, appLogger)
 }

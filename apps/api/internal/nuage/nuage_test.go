@@ -7,9 +7,11 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 func quietLogger() *slog.Logger { return slog.New(slog.NewTextHandler(io.Discard, nil)) }
@@ -166,10 +168,25 @@ func TestObjectKey(t *testing.T) {
 }
 
 func TestFilename(t *testing.T) {
-	cases := map[string]string{"Contract": "Contract.pdf", "a/b.PDF": "a-b.PDF", "  ": "document.pdf"}
+	cases := map[string]string{
+		"Contract":             "Contract.pdf",
+		"a/b.PDF":              "a-b.PDF",
+		"  ":                   "document.pdf",
+		"2026/001":             "2026-001.pdf",
+		"a\x00b\u202ec\u200bd": "abcd.pdf",
+	}
 	for in, want := range cases {
 		if got := filename(in); got != want {
 			t.Errorf("filename(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+func TestFilenameIsCappedAtNuageLimitWithoutSplittingACharacter(t *testing.T) {
+	for _, title := range []string{strings.Repeat("é", 300), strings.Repeat("😀", 100), strings.Repeat("a", 400) + ".pdf"} {
+		name := filename(title)
+		if len(name) > 255 || !utf8.ValidString(name) || !strings.HasSuffix(name, ".pdf") {
+			t.Errorf("filename = %d bytes valid=%v suffix=%v", len(name), utf8.ValidString(name), strings.HasSuffix(name, ".pdf"))
 		}
 	}
 }
