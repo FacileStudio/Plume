@@ -24,9 +24,11 @@
 
 - GDPR deletion: `POST /api/registre/deletions` and a poll of Registre's deletion list erase the
   person's account, personal documents with their files, contacts, webhooks, SMTP settings and
-  memberships. Documents in spaces shared with others stay, with no owner. Idempotent.
+  memberships. Documents the person created in a space others use stay and pass, with the space, to its
+  longest-standing admin, else its longest-standing member, so they stay editable and keep
+  archiving to Nuage. Idempotent.
 - Migrations (idempotent, run at boot): `users.locale`, `porte_login_codes.provider` and `.subject`,
-  table `directory_deletion_state`. `porte_identities` token columns are untouched, so the Nuage
+  tables `directory_deletion_state` and `porte_magic_links` (porte's erase touches it). `porte_identities` token columns are untouched, so the Nuage
   app-folder delegation keeps working.
 - `locale` in `GET /api/auth/me`.
 

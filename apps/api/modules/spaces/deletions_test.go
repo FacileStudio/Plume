@@ -135,8 +135,8 @@ func TestErasePersonDeletesPersonalDataAndKeepsSharedDocuments(t *testing.T) {
 			t.Errorf("documents named %q = %d, want %d", name, got, want)
 		}
 	}
-	if n := count(t, `SELECT count(*) FROM documents WHERE name = 'in-shared' AND owner_id = 0 AND client_id IS NULL`); n != 1 {
-		t.Errorf("the shared document kept its owner or client")
+	if n := count(t, `SELECT count(*) FROM documents WHERE name = 'in-shared' AND owner_id = ? AND client_id IS NULL`, f.other); n != 1 {
+		t.Errorf("the shared document did not pass to the space's member, or kept its client")
 	}
 	if n := count(t, `SELECT count(*) FROM signers`); n != 2 {
 		t.Errorf("signers = %d, want the 2 of the kept documents", n)
@@ -147,8 +147,8 @@ func TestErasePersonDeletesPersonalDataAndKeepsSharedDocuments(t *testing.T) {
 	if n := count(t, `SELECT count(*) FROM spaces WHERE name = 'Solo'`); n != 0 {
 		t.Errorf("a space only the erased person belonged to survived")
 	}
-	if n := count(t, `SELECT count(*) FROM spaces WHERE name = 'Mine' AND owner_id = 0`); n != 1 {
-		t.Errorf("a space shared with others was deleted or kept its owner")
+	if n := count(t, `SELECT count(*) FROM spaces WHERE name = 'Mine' AND owner_id = ?`, f.other); n != 1 {
+		t.Errorf("a space shared with others was deleted or not handed to its member")
 	}
 	if n := count(t, `SELECT count(*) FROM users WHERE id = ?`, f.other); n != 1 {
 		t.Errorf("another account was touched")

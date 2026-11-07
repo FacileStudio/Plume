@@ -61,6 +61,18 @@ const (
 	deleteDocs    = `DELETE FROM documents WHERE id IN @docs`
 )
 
+const successor = `(SELECT m.user_id FROM space_members m WHERE m.space_id = %s AND m.user_id <> @id
+		ORDER BY (m.role IN ('owner', 'admin')) DESC, m.joined_at, m.id LIMIT 1)`
+
+var (
+	transferDocuments = `UPDATE documents d SET owner_id = COALESCE(` + fmt.Sprintf(successor, "d.space_id") + `, 0),
+		external_ref = CASE WHEN d.external_ref <> '' AND EXISTS (
+			SELECT 1 FROM documents x WHERE x.external_ref = d.external_ref
+			AND x.owner_id = COALESCE(` + fmt.Sprintf(successor, "d.space_id") + `, 0)) THEN '' ELSE d.external_ref END
+		WHERE d.owner_id = @id AND d.space_id IS NOT NULL`
+	transferSpaces = `UPDATE spaces s SET owner_id = COALESCE(` + fmt.Sprintf(successor, "s.id") + `, 0) WHERE s.owner_id = @id`
+)
+
 var accountStatements = []string{
 	`DELETE FROM space_members WHERE space_id IN (` + soleOwnedSpaces + `)`,
 	`DELETE FROM spaces WHERE id IN (` + soleOwnedSpaces + `)`,
@@ -68,8 +80,8 @@ var accountStatements = []string{
 	`DELETE FROM clients WHERE owner_id = @id`,
 	`DELETE FROM webhooks WHERE owner_id = @id`,
 	`DELETE FROM smtp_configs WHERE owner_id = @id`,
-	`UPDATE documents SET owner_id = 0 WHERE owner_id = @id`,
-	`UPDATE spaces SET owner_id = 0 WHERE owner_id = @id`,
+	transferDocuments,
+	transferSpaces,
 	`DELETE FROM space_members WHERE user_id = @id`,
 	`DELETE FROM users WHERE id = @id`,
 }
@@ -82,7 +94,10 @@ type erasedDocument struct {
 // ErasePerson deletes the account behind a Registre identity and what it owns:
 // its personal documents with their signers, fields and files, its contacts,
 // webhooks, SMTP settings and memberships, and the spaces only it belonged to.
-// Documents it created in a space others use stay, with no owner. A subject
+// Documents it created in a space others use stay and pass, like the space
+// itself, to the space's longest-standing admin, else its longest-standing
+// member, so they stay editable and their Nuage archiving keeps a live owner;
+// with nobody left they fall to owner 0. A subject
 // that is already gone is a no-op, so a replayed notice changes nothing.
 func (d *Deletions) ErasePerson(ctx context.Context, provider, subject string) error {
 	var account struct{ ID int64 }
