@@ -32,7 +32,6 @@ import (
 
 	"github.com/FacileStudio/Journal/sdk/journal"
 	"github.com/FacileStudio/porte/oidc"
-	portepg "github.com/FacileStudio/porte/pg"
 	"github.com/FacileStudio/porte/session"
 	"github.com/FacileStudio/tronc/apiref"
 	"github.com/FacileStudio/tronc/health"
@@ -189,7 +188,11 @@ func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *s
 	if err != nil {
 		return nil, nil, err
 	}
-	store := portepg.New(sqlDB)
+	store, err := newPorteStore(sqlDB)
+	if err != nil {
+		return nil, nil, err
+	}
+	resealInBackground(ctx, store, appLogger)
 	users := auth.NewUserStore(db)
 	cfg := appEnv.Porte()
 
@@ -328,12 +331,17 @@ func newNuagePublisher(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) *
 		appLogger.Error("nuage archiving disabled", slog.Any("error", err))
 		return nil
 	}
+	store, err := newPorteStore(sqlDB)
+	if err != nil {
+		appLogger.Error("nuage archiving disabled", slog.Any("error", err))
+		return nil
+	}
 	delegation := nuage.NewDelegation(nuage.DelegationConfig{
 		Issuer:       appEnv.OIDC.Issuer,
 		ClientID:     appEnv.OIDC.ClientID,
 		ClientSecret: appEnv.OIDC.ClientSecret,
 		Audience:     cfg.Audience,
-	}, portepg.New(sqlDB).Identities(), appLogger)
+	}, store.Identities(), appLogger)
 	appLogger.Info("nuage archiving enabled", slog.String("url", cfg.URL))
 	return nuage.NewPublisher(nuage.NewClient(cfg.URL), delegation, appLogger)
 }
