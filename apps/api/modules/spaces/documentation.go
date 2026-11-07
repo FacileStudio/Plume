@@ -135,10 +135,20 @@ func leaveSpaceRoute() []documentation.Route {
 	}
 }
 
-// syncRoute returns the POST /registre/sync route entry, mounted only when
-// OIDC is configured.
+// syncRoute returns the POST /registre/sync and POST /registre/deletions route
+// entries, mounted only when OIDC is configured.
 func syncRoute() []documentation.Route {
 	return []documentation.Route{
+		{
+			Method:  "POST",
+			Path:    "/registre/deletions",
+			Summary: "Receive a Registre erasure notice",
+			Description: "Registre posts a signed user.deleted security event here when a person erases their " +
+				"account. The handler verifies the token against the issuer's keys; it takes no session. Plume " +
+				"deletes the person's account and personal data, and answers 202 once handled. Polling Registre's " +
+				"deletion list is the source of truth, this push only makes it faster.",
+			Status: 202,
+		},
 		{
 			Method:  "POST",
 			Path:    "/registre/sync",

@@ -5,7 +5,7 @@ Every HTTP route the Go binary registers, grouped by module, generated from the 
 
 All application routes live under `/api`. Responses are JSON via `httpjson.WriteJSON`, and
 errors share the tronc error shape. Authenticated routes want
-`Authorization: Bearer <token>`; the token comes from login, register, or the OIDC exchange.
+`Authorization: Bearer <token>`; the token comes from the OIDC exchange or from Settings > API.
 
 Plume also serves its own reference at `GET /docs` — a Scalar UI over the OpenAPI 3.1 document
 at `GET /docs/openapi.json` — mounted on the root router through `tronc/apiref`, beside `/api`
@@ -26,18 +26,15 @@ built from, or `dev` when the build carries no stamp.
 | Method | Path | Auth | Notes |
 |---|---|---|---|
 | GET | `/api/auth/config` | no | `{ sso_only, oidc_enabled }`, plus `oidc_issuer` and `oidc_redirect_url` when OIDC is on |
-| POST | `/api/auth/register` | no | `{ email, password }` → `201 { user_id, token }`. Not registered when `SSO_ONLY` |
-| POST | `/api/auth/login` | no | `{ email, password }` → `{ user_id, token }`. Not registered when `SSO_ONLY` |
-| GET | `/api/auth/me` | yes | Profile: `id`, `email`, `name`, `avatar_url`, `avatar_source`, `reminder_interval_days`, `created_at` |
+| GET | `/api/auth/me` | yes | Profile: `id`, `email`, `name`, `avatar_url`, `avatar_source`, `locale`, `reminder_interval_days`, `created_at` |
 | PUT | `/api/auth/me` | yes | `{ name, email, reminder_interval_days? }` |
-| PUT | `/api/auth/password` | yes | `{ current_password, new_password }` → `{ status: "ok" }` |
 | GET | `/api/auth/oidc` | no | Sets the `oidc_state` cookie and redirects to the provider |
 | GET | `/api/auth/oidc/callback` | no | Provider redirect target; ends by redirecting to `OIDC_SUCCESS_URL?code=…` |
 | POST | `/api/auth/oidc/exchange` | no | `{ code }` → `{ user_id, token }`. Code is single-use and expires after 60s |
 | POST | `/api/auth/api-token` | yes | `{ label }` → `201 { id, label, token }`. Long-lived bearer token without expiry, shown once |
 | POST | `/api/auth/sync-profile` | yes | Re-reads the provider's userinfo for the current user |
 
-`/register` and `/login` share a 10-requests-per-minute rate limiter. The four OIDC routes
+The four OIDC routes
 only exist when `OIDC_ISSUER` is set.
 
 ## Files

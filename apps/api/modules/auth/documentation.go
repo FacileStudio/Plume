@@ -28,33 +28,8 @@ func configRoutes() []documentation.Route {
 	}
 }
 
-// credentialRoutes documents the local registration and login routes, which
-// are only mounted when SSO-only mode is disabled.
-func credentialRoutes() []documentation.Route {
-	return []documentation.Route{
-		{
-			Method:       "POST",
-			Path:         "/auth/register",
-			Summary:      "Register a new user",
-			Description:  "Creates a user account and returns an auth token.",
-			Auth:         "",
-			RequestBody:  RegisterRequest{},
-			ResponseBody: AuthResponse{},
-		},
-		{
-			Method:       "POST",
-			Path:         "/auth/login",
-			Summary:      "Authenticate a user",
-			Description:  "Authenticates credentials and returns an auth token.",
-			Auth:         "",
-			RequestBody:  LoginRequest{},
-			ResponseBody: AuthResponse{},
-		},
-	}
-}
-
 // profileRoutes documents the authenticated self-service routes for the
-// current user's profile and password.
+// current user's profile.
 func profileRoutes() []documentation.Route {
 	return []documentation.Route{
 		{
@@ -74,15 +49,6 @@ func profileRoutes() []documentation.Route {
 			RequestBody:  UpdateProfileRequest{},
 			ResponseBody: ProfileResponse{},
 		},
-		{
-			Method:       "PUT",
-			Path:         "/auth/password",
-			Summary:      "Change password",
-			Description:  "Replaces the authenticated user's password after verifying the current one, ends the account's other logins and returns the rotated session token. Omitting current_password adds a first password to an account that has none, and is refused with 400 for an account that already has one.",
-			Auth:         "bearer",
-			RequestBody:  ChangePasswordRequest{},
-			ResponseBody: ChangePasswordResponse{},
-		},
 	}
 }
 
@@ -91,6 +57,6 @@ func Documentation() documentation.Module {
 	return documentation.Module{
 		Name:        "auth",
 		Description: "Authentication routes.",
-		Routes:      append(configRoutes(), append(credentialRoutes(), append(profileRoutes(), apiTokenRoutes()...)...)...),
+		Routes:      append(configRoutes(), append(profileRoutes(), apiTokenRoutes()...)...),
 	}
 }

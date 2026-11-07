@@ -31,7 +31,6 @@ import (
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 
 	"github.com/FacileStudio/Journal/sdk/journal"
-	"github.com/FacileStudio/porte/local"
 	"github.com/FacileStudio/porte/oidc"
 	portepg "github.com/FacileStudio/porte/pg"
 	"github.com/FacileStudio/porte/session"
@@ -99,13 +98,13 @@ func run() error {
 		}
 	}()
 
-	sessions, passwords, kit, err := buildAuth(context.Background(), db, appEnv, appLogger)
+	sessions, kit, err := buildAuth(context.Background(), db, appEnv, appLogger)
 	if err != nil {
 		appLogger.Error("failed to build authentication", slog.Any("error", err))
 		return err
 	}
 
-	svc := newServices(db, appEnv, appLogger, sessions, passwords)
+	svc := newServices(db, appEnv, appLogger, sessions)
 
 	go func() {
 		count, err := svc.documents.BackfillHashes(context.Background())
@@ -118,7 +117,7 @@ func run() error {
 		}
 	}()
 
-	router := buildRouter(svc, sqlDB, appEnv, appLogger, sessions, kit)
+	router := buildRouter(svc, sqlDB, appEnv, appLogger, kit)
 
 	addr := ":" + strconv.Itoa(appEnv.Port)
 	server := &http.Server{
@@ -173,33 +172,22 @@ type services struct {
 	verify    *verify.Service
 	spaces    *spaces.Service
 	registre  *spaces.Registre
+	deletions *spaces.Deletions
 	clients   *clients.Service
 	reminders *reminders.Service
 }
 
-// buildAuth constructs porte: one session manager, shared by the OIDC kit and
-// the local login, over the identity tables.
+// buildAuth constructs porte: one session manager and the OIDC kit over the
+// identity tables. Sign-in goes through Registre only; there is no local
+// password kit. Discovery runs here, so an unreachable or half-configured
+// issuer fails at boot rather than on somebody's first login.
 //
-// One manager and not two: they would each keep their own idea of the clock
-// and of whether the cookie is Secure, and porte refuses a kit whose config
-// disagrees with its manager's for exactly that reason. Discovery runs here,
-// so an unreachable or half-configured issuer fails at boot rather than on
-// somebody's first login — a change from what this app did, where a discovery
-// failure at route-registration time logged an error and left SSO 404ing until
-// the next restart.
-//
-// The CLI login codes move with it. This app kept them in a sync.Map with a
-// goroutine expiring them, which lost every pending login on restart and could
-// not work behind more than one replica; porte stores them in a table and
-// consumes them with a DELETE ... RETURNING, so a replay finds nothing.
-//
-// Plume already required twelve characters, which is porte's default, so the
-// floor is left unset rather than restated. This is the one app in the suite
-// that does not have to be held down to eight.
-func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) (*session.Manager, *local.Kit, *oidc.Kit, error) {
+// The CLI login codes live in a table and are consumed with a DELETE ...
+// RETURNING, so a replay finds nothing and a restart loses no pending login.
+func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) (*session.Manager, *oidc.Kit, error) {
 	sqlDB, err := db.DB()
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	store := portepg.New(sqlDB)
 	users := auth.NewUserStore(db)
@@ -207,7 +195,7 @@ func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *s
 
 	sessions, err := session.New(cfg, session.Deps{Sessions: store.Sessions(), Logger: appLogger})
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	kit, err := oidc.New(ctx, cfg, oidc.Deps{
 		Users:      users,
@@ -227,28 +215,18 @@ func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *s
 		},
 	})
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
-	passwords, err := local.New(local.Config{AllowRegistration: !appEnv.SSOOnly}, local.Deps{
-		Users:      users,
-		Identities: store.Identities(),
-		Sessions:   sessions,
-		Logger:     appLogger,
-		Count:      users.CountUsers,
-	})
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	return sessions, passwords, kit, nil
+	return sessions, kit, nil
 }
 
-func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, sessions *session.Manager, passwords *local.Kit) *services {
+func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, sessions *session.Manager) *services {
 	smtpService := smtp.NewService(db)
 	webhookService := webhooks.NewService(db)
 	docService := documents.NewService(db, smtpService, webhookService, appEnv.Domain, appEnv.UploadDir)
-	spaceService, registre := newSpaces(db, appEnv, appLogger)
+	spaceService, registre, deletions := newSpaces(db, appEnv, appLogger)
 	return &services{
-		auth:      auth.NewService(db, sessions, passwords, appLogger),
+		auth:      auth.NewService(db, sessions, appLogger),
 		smtp:      smtpService,
 		webhooks:  webhookService,
 		documents: docService,
@@ -258,6 +236,7 @@ func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, session
 		verify:    verify.NewService(db, docService),
 		spaces:    spaceService,
 		registre:  registre,
+		deletions: deletions,
 		clients:   clients.NewService(db),
 		reminders: reminders.NewService(db, smtpService, webhookService, appEnv.Domain),
 	}
@@ -293,7 +272,8 @@ func apiReference() apiref.Config {
 // trusted: Traefik replaces the forwarded chain rather than extending it, so
 // the visitor survives in Cf-Connecting-Ip alone. TRUSTED_PROXIES=private,cloudflare
 // fills all three.
-func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slog.Logger, sessions *session.Manager, kit *oidc.Kit) chi.Router {
+func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slog.Logger, kit *oidc.Kit) chi.Router {
+	clientDir := spa.DirFromEnv()
 	router := httpx.NewRouter(httpx.Config{
 		TrustedProxies: appEnv.TrustedProxies,
 		CDNProxies:     appEnv.CDNProxies,
@@ -302,17 +282,15 @@ func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slo
 		CORS: troncmiddleware.CORSConfig{
 			AllowedOrigins: appEnv.CORSAllowedOrigins,
 		},
+		Security: securityConfig(clientDir, appLogger),
 	})
-	router.Use(middleware.SecurityHeaders)
 
 	health.Mount(router, health.DB(sqlDB))
 	registerVersionRoute(router)
 	apiref.Mount(router, apiReference())
 
 	router.Route("/api", func(api chi.Router) {
-		sessions.Mount(api)
-		kit.Mount(api)
-		auth.RegisterRoutes(api, svc.auth, appEnv)
+		auth.RegisterRoutes(api, svc.auth, kit)
 		documents.RegisterRoutes(api, svc.documents, svc.auth,
 			signers.DocumentRoutes(svc.signers),
 			fields.DocumentRoutes(svc.fields),
@@ -325,13 +303,13 @@ func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slo
 		smtp.RegisterRoutes(api, svc.smtp, svc.auth)
 		spaces.RegisterRoutes(api, svc.spaces, svc.auth)
 		spaces.RegisterSyncRoute(api, svc.registre)
+		spaces.RegisterDeletionsRoute(api, svc.deletions)
 		clients.RegisterRoutes(api, svc.clients, svc.auth)
 
 		verifyLimiter := middleware.NewRateLimiter(30, 10).Handler()
 		verify.RegisterRoutes(api, svc.verify, verifyLimiter)
 	})
 
-	clientDir := spa.DirFromEnv()
 	if spa.Available(clientDir) {
 		router.Handle("/*", spa.Handler(spa.Config{Dir: clientDir}))
 		appLogger.Info("serving client", slog.String("dir", clientDir))
@@ -358,4 +336,27 @@ func newNuagePublisher(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) *
 	}, portepg.New(sqlDB).Identities(), appLogger)
 	appLogger.Info("nuage archiving enabled", slog.String("url", cfg.URL))
 	return nuage.NewPublisher(nuage.NewClient(cfg.URL), delegation, appLogger)
+}
+
+// externalConnect lists the origins the built client calls besides itself:
+// Ardoise's public plan catalog, which muse's PricingPlans reads on the
+// landing page.
+var externalConnect = []string{"https://api-ardoise.facile.studio"}
+
+// securityConfig extends tronc's default security headers with what the built
+// client needs: the inline scripts adapter-static writes into its pages, which
+// script-src 'self' would otherwise block, and the external origins above. A
+// client directory that cannot be hashed is logged and leaves the default
+// script policy, which only reports.
+func securityConfig(clientDir string, appLogger *slog.Logger) troncmiddleware.SecurityConfig {
+	sources := map[string][]string{"connect-src": externalConnect}
+	if spa.Available(clientDir) {
+		hashes, err := spa.InlineScriptHashes(clientDir)
+		if err != nil {
+			appLogger.Warn("failed to hash the client's inline scripts", slog.Any("error", err))
+		} else {
+			sources["script-src"] = hashes
+		}
+	}
+	return troncmiddleware.SecurityConfig{CSPSources: sources}
 }

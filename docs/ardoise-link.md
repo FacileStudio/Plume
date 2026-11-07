@@ -7,12 +7,13 @@ Base URL: the Plume host. All routes below live under `/api`.
 
 ## 1. Authentication
 
-Plume authenticates with a bearer token. Mint a long-lived one once, as the Plume user that
-will own the documents:
+Plume authenticates with a bearer token. Sign in to Plume through Facile as the user that
+will own the documents, then mint a long-lived token once in Settings > API, or from a
+signed-in session:
 
 ```
 POST /api/auth/api-token
-Authorization: Bearer <session token from /api/auth/login>
+Authorization: Bearer <that user's session token>
 {"label": "ardoise"}
 
 201 {"id": 12, "label": "ardoise", "token": "<shown once>"}

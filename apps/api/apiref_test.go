@@ -9,8 +9,6 @@ import (
 	"testing"
 
 	"github.com/FacileStudio/Plume/apps/api/internal/env"
-	"github.com/FacileStudio/Plume/apps/api/modules/auth"
-	"github.com/FacileStudio/porte/local"
 	"github.com/FacileStudio/porte/oidc"
 	portepg "github.com/FacileStudio/porte/pg"
 	"github.com/FacileStudio/porte/session"
@@ -40,16 +38,7 @@ func testRouter(t *testing.T) chi.Router {
 	if err != nil {
 		t.Fatalf("oidc.New: %v", err)
 	}
-	passwords, err := local.New(local.Config{}, local.Deps{
-		Users:      auth.NewUserStore(nil),
-		Identities: store.Identities(),
-		Sessions:   sessions,
-		Count:      func(context.Context) (int64, error) { return 0, nil },
-	})
-	if err != nil {
-		t.Fatalf("local.New: %v", err)
-	}
-	return buildRouter(newServices(nil, appEnv, logger, sessions, passwords), nil, appEnv, logger, sessions, kit)
+	return buildRouter(newServices(nil, appEnv, logger, sessions), nil, appEnv, logger, kit)
 }
 
 func TestEveryRouteIsDocumented(t *testing.T) {
@@ -78,6 +67,7 @@ func TestRegistryIsComplete(t *testing.T) {
 		"/spaces/{spaceId}/leave",
 		"/spaces/{spaceId}/members/{memberId}",
 		"/registre/sync",
+		"/registre/deletions",
 		"/clients/{clientId}",
 		"/smtp",
 		"/smtp/test",
@@ -110,9 +100,9 @@ func TestPublicRoutesCarryNoSecurity(t *testing.T) {
 	document := apiref.OpenAPI(apiReference())
 	paths := document["paths"].(map[string]any)
 
-	login := paths["/auth/login"].(map[string]any)["post"].(map[string]any)
-	if _, secured := login["security"]; secured {
-		t.Error("/auth/login is public but the document demands a bearer token")
+	logout := paths["/auth/logout"].(map[string]any)["post"].(map[string]any)
+	if _, secured := logout["security"]; secured {
+		t.Error("/auth/logout is public but the document demands a bearer token")
 	}
 
 	params := paths["/documents/{id}"].(map[string]any)["get"].(map[string]any)["parameters"].([]any)

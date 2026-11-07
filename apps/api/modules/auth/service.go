@@ -3,7 +3,6 @@ package auth
 import (
 	"context"
 	stderrors "errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 	"github.com/FacileStudio/porte"
-	"github.com/FacileStudio/porte/local"
 	"github.com/FacileStudio/porte/session"
 	"github.com/FacileStudio/tronc/errors"
 
@@ -19,20 +17,19 @@ import (
 )
 
 // Service is what is left of Plume's authentication after porte took the
-// credential: the profile lookup the rest of the app reads, and a thin wrapper
-// over porte/local so the register and login routes keep their response shape.
+// credential: the profile lookup the rest of the app reads and the session
+// manager the other modules authenticate through.
 type Service struct {
 	orm        *gorm.DB
 	sessions   *session.Manager
-	passwords  *local.Kit
 	logger     *slog.Logger
 	controller *Controller
 }
 
-// NewService creates a Service wired to the given database, session
-// manager, password kit, and logger.
-func NewService(orm *gorm.DB, sessions *session.Manager, passwords *local.Kit, logger *slog.Logger) *Service {
-	service := &Service{orm: orm, sessions: sessions, passwords: passwords, logger: logger}
+// NewService creates a Service wired to the given database, session manager
+// and logger.
+func NewService(orm *gorm.DB, sessions *session.Manager, logger *slog.Logger) *Service {
+	service := &Service{orm: orm, sessions: sessions, logger: logger}
 	service.controller = newController(service)
 	return service
 }
@@ -70,80 +67,6 @@ func (service *Service) IdentityForUser(ctx context.Context, userID int64) (stri
 		return "", "", errors.Unauthorized("invalid auth token")
 	}
 	return strconv.FormatInt(out.ID, 10), out.Email, nil
-}
-
-// Register creates an account through porte/local and signs it in. The cookie
-// is set on the way out and the token comes back in the body, so one call
-// serves the browser and anything holding the old {user_id, token} shape.
-func (service *Service) Register(ctx context.Context, w http.ResponseWriter, r *http.Request, email, password string) (string, string, error) {
-	userID, token, err := service.passwords.Register(ctx, w, r, email, "", password)
-	if err != nil {
-		return "", "", credentialError(err)
-	}
-	return strconv.FormatInt(userID, 10), token, nil
-}
-
-// Login authenticates email and password through porte/local, setting a
-// session cookie and returning the user id and token.
-func (service *Service) Login(ctx context.Context, w http.ResponseWriter, r *http.Request, email, password string) (string, string, error) {
-	userID, token, err := service.passwords.Login(ctx, w, r, email, password)
-	if err != nil {
-		return "", "", credentialError(err)
-	}
-	return strconv.FormatInt(userID, 10), token, nil
-}
-
-// SetPassword gives a first password to an account that has none. porte
-// refuses with porte.ErrPasswordSet when one is already there; replacing it is
-// ChangePassword.
-func (service *Service) SetPassword(ctx context.Context, userID int64, password string) error {
-	return passwordError(service.passwords.SetPassword(ctx, userID, password))
-}
-
-// weakPassword is the one sentence both password paths give for a password
-// under porte's floor, which is also the floor the controller checks.
-func weakPassword() error {
-	return errors.Invalid(fmt.Sprintf("password must be at least %d characters", local.DefaultMinPasswordLength))
-}
-
-// passwordError replaces porte's sentinel text on the change-password paths
-// with wording this app owns. A sentinel is a package contract, not a user
-// interface: "porte: invalid email or password" names a field this form does
-// not have, and names a dependency to whoever reads it. Each status porte
-// chose is kept, and ErrPasswordSet is passed through because the controller
-// reads it to tell a missing field from a conflict.
-func passwordError(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case stderrors.Is(err, porte.ErrWrongPassword):
-		return errors.Unauthorized("current password is incorrect")
-	case stderrors.Is(err, porte.ErrNoPassword):
-		return errors.Invalid("this account has no password to change")
-	case stderrors.Is(err, porte.ErrWeakPassword):
-		return weakPassword()
-	}
-	return err
-}
-
-// credentialError is the same substitution for register and login, where the
-// email is a field the person filled in and the wording says so.
-func credentialError(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case stderrors.Is(err, porte.ErrWrongPassword):
-		return errors.Unauthorized("invalid email or password")
-	case stderrors.Is(err, porte.ErrEmailTaken):
-		return errors.Conflict("an account with this email already exists")
-	case stderrors.Is(err, porte.ErrInvalidEmail):
-		return errors.Invalid("a valid email is required")
-	case stderrors.Is(err, porte.ErrRegistrationClosed):
-		return errors.Forbidden("registration is closed on this instance")
-	case stderrors.Is(err, porte.ErrWeakPassword):
-		return weakPassword()
-	}
-	return err
 }
 
 // Issue mints a named API token: a porte session with a label and no expiry,
@@ -185,26 +108,7 @@ func (service *Service) AuthenticateRequest(w http.ResponseWriter, r *http.Reque
 // Sessions exposes the manager for the modules that list or revoke tokens.
 func (service *Service) Sessions() *session.Manager { return service.sessions }
 
-// ChangePassword is PUT /auth/password: confirm the current password, replace
-// it, end the account's other logins and rotate the caller's own session. It
-// returns the new session token and how many other logins ended.
-//
-// It takes the request rather than a context because porte writes the rotated
-// cookie itself and reads the caller's session id off r.Context(), so this
-// cannot be reached from a method holding a bare context.
-func (service *Service) ChangePassword(w http.ResponseWriter, r *http.Request, userID int64, current, next string) (string, int64, error) {
-	token, revoked, err := service.passwords.ChangePassword(r.Context(), w, r, userID, current, next)
-	if err != nil {
-		return "", 0, passwordError(err)
-	}
-	return token, revoked, nil
-}
-
 // UpdateProfile changes the name and address.
-//
-// Since porte v0.3.0 a password identity is keyed on the account id, so an
-// address change is this one row and nothing else. The hand-written
-// re-key that used to live here is gone with the key it maintained.
 func (service *Service) UpdateProfile(ctx context.Context, userID int64, name, email string, reminderIntervalDays *int) (*schemas.User, error) {
 	var record schemas.User
 	if err := service.orm.WithContext(ctx).First(&record, userID).Error; err != nil {

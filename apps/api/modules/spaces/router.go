@@ -164,3 +164,14 @@ func RegisterSyncRoute(router chi.Router, registre *Registre) {
 	}
 	router.Method(http.MethodPost, strings.TrimPrefix(directory.SyncPath, "/api"), registre.syncer.Handler())
 }
+
+// RegisterDeletionsRoute mounts Registre's signed user.deleted push at
+// POST /registre/deletions, outside RequireAuth: the handler verifies the
+// notice's signature itself. A nil deletions, a Plume without OIDC, mounts
+// nothing.
+func RegisterDeletionsRoute(router chi.Router, deletions *Deletions) {
+	if deletions == nil {
+		return
+	}
+	router.Method(http.MethodPost, strings.TrimPrefix(directory.DeletionsPath, "/api"), deletions.Handler())
+}

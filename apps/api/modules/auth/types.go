@@ -1,44 +1,10 @@
 package auth
 
-// RegisterRequest is the body of POST /auth/register.
-type RegisterRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-// LoginRequest is the body of POST /auth/login.
-type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-// AuthResponse is returned after a successful registration or login.
-type AuthResponse struct {
-	UserID string `json:"user_id"`
-	Token  string `json:"token"`
-}
-
 // UpdateProfileRequest is the body of PUT /auth/me.
 type UpdateProfileRequest struct {
 	Name                 string `json:"name"`
 	Email                string `json:"email"`
 	ReminderIntervalDays *int   `json:"reminder_interval_days,omitempty"`
-}
-
-// ChangePasswordRequest is the body of PUT /auth/password. current_password is
-// omitted only by an account adding its first password; sending it is what
-// distinguishes a replacement from an addition.
-type ChangePasswordRequest struct {
-	CurrentPassword string `json:"current_password"`
-	NewPassword     string `json:"new_password"`
-}
-
-// ChangePasswordResponse carries the rotated session token, because changing a
-// password ends the caller's old session and this client holds a bearer.
-// Adding a first password rotates nothing and the field is absent.
-type ChangePasswordResponse struct {
-	Status string `json:"status"`
-	Token  string `json:"token,omitempty"`
 }
 
 // ProfileResponse describes a user's profile as returned by /auth/me.
@@ -48,6 +14,7 @@ type ProfileResponse struct {
 	Name                 string `json:"name"`
 	AvatarURL            string `json:"avatar_url,omitempty"`
 	AvatarSource         string `json:"avatar_source,omitempty"`
+	Locale               string `json:"locale"`
 	ReminderIntervalDays int    `json:"reminder_interval_days"`
 	CreatedAt            string `json:"created_at"`
 }

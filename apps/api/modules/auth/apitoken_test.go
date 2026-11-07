@@ -9,7 +9,7 @@ import (
 
 func TestAPITokenAuthenticatesLikeASessionAndNeedsALabel(t *testing.T) {
 	api := newAPI(t)
-	_, session := api.register(t, "ardoise@facile.studio", firstPassword)
+	_, session := api.federated(t, "ardoise@facile.studio")
 
 	decode(t, api.do(t, http.MethodPost, "/auth/api-token", session, map[string]string{"label": " "}), http.StatusBadRequest)
 	decode(t, api.do(t, http.MethodPost, "/auth/api-token", "", map[string]string{"label": "ardoise"}), http.StatusUnauthorized)
@@ -27,8 +27,8 @@ func TestAPITokenAuthenticatesLikeASessionAndNeedsALabel(t *testing.T) {
 
 func TestAPITokenListAndRevokeNeverTouchLoginSessions(t *testing.T) {
 	api := newAPI(t)
-	_, session := api.register(t, "owner@facile.studio", firstPassword)
-	_, other := api.register(t, "other@facile.studio", firstPassword)
+	_, session := api.federated(t, "owner@facile.studio")
+	_, other := api.federated(t, "other@facile.studio")
 
 	created := decode(t, api.do(t, http.MethodPost, "/auth/api-token", session, map[string]string{"label": "ardoise"}), http.StatusCreated)
 	token, _ := created["token"].(string)
