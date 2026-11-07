@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { Button, Field, Input, SettingsRow, SettingsSection, StatusDot, icons, toast } from '@facile/muse';
+	import { Button, Field, Input, NotificationsSection, SettingsRow, StatusDot, icons, toast } from '@facile/muse';
 	import { api } from '$lib';
 	import { userStore } from '$lib/stores/user.svelte';
 	import { t } from '$lib/i18n/index.svelte';
@@ -53,7 +53,7 @@
 <svelte:head><title>{t('notifications.title')}</title></svelte:head>
 
 <div class="flex flex-col gap-10">
-	<SettingsSection title={t('notifications.reminders')} description={t('notifications.remindersText')}>
+	<NotificationsSection title={t('notifications.reminders')} description={t('notifications.remindersText')}>
 		<SettingsRow label={t('common.status')} description={t('notifications.statusText')}>
 			<StatusDot
 				tone={remindersOn ? 'success' : 'neutral'}
@@ -84,5 +84,5 @@
 				{reminderSaving ? t('common.saving') : t('common.save')}
 			</Button>
 		</div>
-	</SettingsSection>
+	</NotificationsSection>
 </div>

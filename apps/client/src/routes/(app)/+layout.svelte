@@ -2,10 +2,11 @@
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { api, currentUser } from '$lib';
+	import { api, currentUser, logout } from '$lib';
 	import { MobileNav, PageTransition, SideBar, SpaceSwitcher, Topbar, icons } from '@facile/muse';
 	import { userStore } from '$lib/stores/user.svelte';
-	import { setSessionLocale, t } from '$lib/i18n/index.svelte';
+	import { rememberLocale, setSessionLocale, t } from '$lib/i18n/index.svelte';
+	import { theme, type ThemePreference } from '$lib/theme.svelte';
 	import { spaceStore } from '$lib/stores/space.svelte';
 
 	let { children } = $props();
@@ -52,12 +53,31 @@
 
 	const pathname = $derived(page.url.pathname);
 	const navPages = $derived(navLinks.map((l) => ({ ...l, active: isActive(l.href) })));
+	/**
+	 * Ends the session on both transports, forgets the cached identity and returns to the login page.
+	 */
+	async function signOut() {
+		await logout();
+		userStore.value = null;
+		setSessionLocale(null);
+		void goto('/login');
+	}
+
+	const userMenu = $derived({
+		helpHref: `${page.url.origin}/docs`,
+		onSignOut: signOut,
+		theme: theme.preference,
+		onThemeChange: (next: ThemePreference) => theme.set(next),
+		onLocaleChange: rememberLocale
+	});
+
 	const settingsActive = $derived(isActive('/settings'));
 
 	const user = $derived(
 		userStore.value
 			? {
 					name: userStore.value.name?.trim() || userStore.value.email,
+					email: userStore.value.email,
 					avatar: userStore.value.avatar_url || undefined
 				}
 			: undefined
@@ -90,6 +110,7 @@
 			{user}
 			userHref="/settings"
 			userActive={settingsActive}
+			{userMenu}
 			class="h-full"
 		/>
 	</div>
@@ -111,5 +132,5 @@
 		</div>
 	</main>
 
-	<MobileNav items={navPages} {user} profileHref="/settings" profileActive={settingsActive} />
+	<MobileNav items={navPages} {user} profileHref="/settings" profileActive={settingsActive} {userMenu} />
 </div>

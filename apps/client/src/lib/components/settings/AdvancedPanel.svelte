@@ -5,6 +5,7 @@
 	import {
 		Button,
 		ConfirmModal,
+	DangerZone,
 		SecretField,
 		SettingsRow,
 		SettingsSection,
@@ -87,13 +88,12 @@
 		</SettingsRow>
 	</SettingsSection>
 
-	<SettingsSection title={t('advanced.danger')} description={t('advanced.dangerText')}>
-		<SettingsRow label={t('advanced.clear')} description={t('advanced.clearText')}>
-			<Button variant="danger" icon={icons.remove} onclick={() => (confirmClear = true)}>
-				{t('advanced.clear')}
-			</Button>
-		</SettingsRow>
-	</SettingsSection>
+	<DangerZone title={t('advanced.danger')} description={t('advanced.dangerText')}>
+		<p class="text-fc-sm text-fc-fg-muted">{t('advanced.clearText')}</p>
+		<Button variant="danger" icon={icons.remove} onclick={() => (confirmClear = true)}>
+			{t('advanced.clear')}
+		</Button>
+	</DangerZone>
 </div>
 
 <ConfirmModal
