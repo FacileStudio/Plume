@@ -31,7 +31,7 @@ Live at [plume.facile.studio](https://plume.facile.studio).
 | API | Go 1.25, Chi v5, GORM, PostgreSQL 16, [tronc](https://github.com/FacileStudio/tronc) v0.6.0 |
 | PDF | `go-pdf/fpdf` for generation, `pdfcpu` for overlaying and flattening |
 | Client | SvelteKit 2 (Svelte 5 runes), Tailwind CSS 4, [muse](https://github.com/FacileStudio/muse), `pdfjs-dist` |
-| Auth | Bearer session tokens, argon2id passwords, optional OIDC via `go-oidc/v3` |
+| Auth | Sign in with Facile (OIDC via porte), bearer API tokens |
 | Deploy | Docker Compose, single distroless container behind Traefik |
 
 ## Quick start
@@ -63,8 +63,7 @@ cd apps/api    && go run .             # API on :8080 unless PORT says otherwise
 | `PORT` | HTTP listen port, `8080` by default, `4000` in Compose |
 | `UPLOAD_DIR` | Where uploaded and generated PDFs live |
 | `CLIENT_DIR` | Directory holding the built SPA the binary serves |
-| `OIDC_ISSUER` | Set it to turn on SSO; three more `OIDC_*` variables become required |
-| `SSO_ONLY` | Removes the local register and login routes entirely |
+| `OIDC_ISSUER` | Registre. Required in production; three more `OIDC_*` variables become required with it |
 
 Full reference: [docs/configuration.md](docs/configuration.md).
 

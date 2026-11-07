@@ -33,7 +33,6 @@ type Config struct {
 	UploadDir string
 	OIDC      *OIDCConfig
 	Nuage     *NuageConfig
-	SSOOnly   bool
 }
 
 // Load reads and validates the application configuration from the
@@ -50,16 +49,10 @@ func Load() (Config, error) {
 		return Config{}, err
 	}
 
-	ssoOnly, err := troncenv.Bool("SSO_ONLY", false)
-	if err != nil {
-		return Config{}, err
-	}
-
 	env := Config{
 		Core:      core,
 		Domain:    troncenv.String("DOMAIN", "http://localhost:5173"),
 		UploadDir: troncenv.String("UPLOAD_DIR", "/data/uploads"),
-		SSOOnly:   ssoOnly,
 	}
 
 	if issuer := troncenv.String("OIDC_ISSUER", ""); issuer != "" {
@@ -76,6 +69,10 @@ func Load() (Config, error) {
 			RedirectURL:  redirectURL,
 			SuccessURL:   troncenv.String("OIDC_SUCCESS_URL", env.Domain),
 		}
+	}
+
+	if env.IsProduction() && env.OIDC == nil {
+		return Config{}, fmt.Errorf("OIDC_ISSUER is required in production: sign-in goes through Registre only")
 	}
 
 	nuage, err := loadNuage(env.OIDC)
@@ -114,16 +111,16 @@ func validateLogLevel(level string) error {
 	}
 }
 
-// Porte is the one configuration porte's session manager, OIDC kit and local
-// login are all built from. They share it because porte refuses at boot a kit
-// whose config disagrees with its manager's — a mismatch would otherwise
-// change silently whether the session cookie is Secure.
+// Porte is the one configuration porte's session manager and OIDC kit are
+// built from. They share it because porte refuses at boot a kit whose config
+// disagrees with its manager's — a mismatch would otherwise change silently
+// whether the session cookie is Secure.
 //
 // AcceptLegacyCookie is on even though this app has always been bearer-only:
 // it costs nothing when no such cookie exists, and porte now sets one, so the
 // setting describes the transport rather than the migration.
 func (c Config) Porte() porte.Config {
-	cfg := porte.Config{SSOOnly: c.SSOOnly, AcceptLegacyCookie: true}
+	cfg := porte.Config{AcceptLegacyCookie: true}
 	if c.OIDC == nil {
 		return cfg
 	}

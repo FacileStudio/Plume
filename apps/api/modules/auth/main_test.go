@@ -5,14 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
-	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
 
 	"github.com/FacileStudio/Plume/apps/api/internal/env"
 	"github.com/FacileStudio/Plume/apps/api/schemas"
-	"github.com/FacileStudio/porte/local"
+	"github.com/FacileStudio/porte/oidc"
 	portepg "github.com/FacileStudio/porte/pg"
 	"github.com/FacileStudio/porte/session"
 	"github.com/FacileStudio/tronc/testdb"
@@ -65,27 +64,19 @@ func newAPI(t *testing.T) *api {
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	store := portepg.New(sqlDB)
-	users := NewUserStore(testDB)
 	appEnv := env.Config{}
 
 	sessions, err := session.New(appEnv.Porte(), session.Deps{Sessions: store.Sessions(), Logger: logger})
 	if err != nil {
 		t.Fatalf("session.New: %v", err)
 	}
-	passwords, err := local.New(local.Config{AllowRegistration: true}, local.Deps{
-		Users:      users,
-		Identities: store.Identities(),
-		Sessions:   sessions,
-		Logger:     logger,
-		Count:      users.CountUsers,
-	})
+	service := NewService(testDB, sessions, logger)
+	kit, err := oidc.New(context.Background(), appEnv.Porte(), oidc.Deps{Sessions: sessions, Logger: logger})
 	if err != nil {
-		t.Fatalf("local.New: %v", err)
+		t.Fatalf("oidc.New: %v", err)
 	}
-
-	service := NewService(testDB, sessions, passwords, logger)
 	router := chi.NewRouter()
-	RegisterRoutes(router, service, appEnv)
+	RegisterRoutes(router, service, kit)
 	return &api{router: router, service: service, db: testDB}
 }
 
@@ -146,25 +137,7 @@ func errorMessage(body map[string]any) string {
 	return message
 }
 
-// register creates an account through the real route and returns its bearer.
-func (a *api) register(t *testing.T, email, password string) (int64, string) {
-	t.Helper()
-	body := decode(t, a.do(t, http.MethodPost, "/auth/register", "", map[string]string{
-		"email": email, "password": password,
-	}), http.StatusCreated)
-	token, _ := body["token"].(string)
-	if token == "" {
-		t.Fatalf("register returned no token: %v", body)
-	}
-	var user schemas.User
-	if err := a.db.Where("email = ?", email).First(&user).Error; err != nil {
-		t.Fatalf("read the registered user: %v", err)
-	}
-	return user.ID, token
-}
-
-// federated creates the account an SSO-only user has: a row in users with no
-// password identity behind it.
+// federated creates the account a Registre user has and a login session for it.
 func (a *api) federated(t *testing.T, email string) (int64, string) {
 	t.Helper()
 	user := schemas.User{Email: email, Name: "Federated"}

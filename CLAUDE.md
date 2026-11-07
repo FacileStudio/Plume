@@ -86,7 +86,6 @@ Read through `tronc/env`. See `.env.example` and `apps/api/.env.example`.
 | `UPLOAD_DIR` | `/data/uploads` | PDF storage directory |
 | `CLIENT_DIR` | `./client` | Directory holding the built SPA the API serves |
 | `OIDC_*` | unset | OIDC/SSO config (all four required if `OIDC_ISSUER` is set) |
-| `SSO_ONLY` | `false` | Disable local email/password auth |
 | `JOURNAL_URL`, `JOURNAL_TOKEN` | unset | Ship logs to Journal. Both must be set or nothing ships |
 | `NUAGE_URL`, `NUAGE_AUDIENCE` | unset | Archive fully signed PDFs in the document owner's private Plume folder in Nuage (app folders, `PUT /api/app/object`). Both must be set, and `OIDC_ISSUER` too, or the API exits 1. `NUAGE_AUDIENCE` is Nuage's Registre client id. Plume refreshes the owner's stored Registre token, exchanges it (RFC 8693, scope `nuage.write`) and sends the 5-minute delegated token (`act.sub` = Plume's client id). Needs Registre `token_exchange` for Plume and Nuage's `NUAGE_APPS` entry. Publishing is async, 5 attempts with backoff; a Nuage outage never fails signing. An owner with no stored Registre refresh token (password-only account, or never signed in since SSO) is skipped and logged |
 

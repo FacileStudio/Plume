@@ -14,6 +14,7 @@ type User struct {
 	OIDCPictureURL       string    `gorm:"column:oidc_picture_url"`
 	OIDCSubject          *string   `gorm:"column:oidc_subject;uniqueIndex"`
 	PasswordHash         string    `gorm:"column:password_hash"`
+	Locale               string    `gorm:"column:locale;not null;default:en"`
 	ReminderIntervalDays int       `gorm:"column:reminder_interval_days;default:3"`
 	OIDCAccessToken      string    `gorm:"column:oidc_access_token"`
 	OIDCRefreshToken     string    `gorm:"column:oidc_refresh_token"`

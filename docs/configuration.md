@@ -28,7 +28,6 @@ These come from `troncenv.LoadCore()`, shared by every Go app in the suite.
 |---|---|---|---|
 | `DOMAIN` | no | `http://localhost:5173` | Public app URL. Used to build signing links in emails, webhook payload URLs, and the default OIDC success redirect |
 | `UPLOAD_DIR` | no | `/data/uploads` | Root for uploaded PDFs, generated certificates, audit trails and avatars. `UPLOAD_DIR/avatars` is created at startup |
-| `SSO_ONLY` | no | `false` | When true, `/api/auth/register` and `/api/auth/login` are never registered. Must parse as a Go boolean |
 | `CLIENT_DIR` | no | `./client` | Directory holding the built SPA. Read by `tronc/spa`. The Dockerfile pins `/client` explicitly, because the distroless base carries its own working directory and a relative path would resolve elsewhere |
 
 The default `DOMAIN` points at the Vite dev server, which is right for `go run .` next to
@@ -36,12 +35,12 @@ The default `DOMAIN` points at the Vite dev server, which is right for `go run .
 
 ## OIDC
 
-OIDC is off until `OIDC_ISSUER` is set. Once it is, three more variables become required and
+`OIDC_ISSUER` is required when `APP_ENV=production`. Once it is set, three more variables become required and
 `env.Load` fails without them, taking startup down with it.
 
 | Variable | Required | Default | What it does |
 |---|---|---|---|
-| `OIDC_ISSUER` | no | — | Discovery URL, e.g. `https://porte.facile.studio/application/o/plume/`. Setting it enables SSO |
+| `OIDC_ISSUER` | in production | — | Registre's issuer URL. Sign-in goes through it only |
 | `OIDC_CLIENT_ID` | with issuer | — | Client ID from the provider |
 | `OIDC_CLIENT_SECRET` | with issuer | — | Client secret |
 | `OIDC_REDIRECT_URL` | with issuer | — | Must point at `<DOMAIN>/api/auth/oidc/callback` |

@@ -29,7 +29,7 @@ and CORS is only relevant when you run the Vite dev server on `:5173`.
 | Package | Responsibility |
 |---|---|
 | `main.go` | Config load, logger, DB open, migrations, service wiring, router, shutdown |
-| `internal/env` | Wraps `troncenv.Core`, adds `DOMAIN`, `UPLOAD_DIR`, `SSO_ONLY`, `OIDC_*` |
+| `internal/env` | Wraps `troncenv.Core`, adds `DOMAIN`, `UPLOAD_DIR`, `OIDC_*` |
 | `internal/middleware` | `RequireAuth`, `SecurityHeaders`, `NoStore`, in-process rate limiter |
 | `internal/authcrypto` | argon2id password hashing, 32-byte URL-safe random tokens |
 | `internal/hashing` | SHA-256 over readers and files, plus a 64-hex validator |
@@ -67,7 +67,7 @@ Ten tables, all `int64` primary keys, migrated by GORM `AutoMigrate` on every st
 
 | Table | Key columns | Relationships |
 |---|---|---|
-| `users` | `email` unique, `password_hash`, `reminder_interval_days` (default 3), `avatar_source`, `oidc_picture_url`, `oidc_access_token`, `oidc_refresh_token`, `profile_synced_at` | owns everything else |
+| `users` | `email` unique, `password_hash` (legacy, unread), `locale` (default `en`), `reminder_interval_days` (default 3), `avatar_source`, `oidc_picture_url`, `oidc_access_token`, `oidc_refresh_token`, `profile_synced_at` | owns everything else |
 | `sessions` | `token` primary key, `user_id`, `expires_at` | belongs to a user |
 | `spaces` | `name`, `description`, `owner_id` | groups documents |
 | `space_members` | `space_id`, `user_id`, `role` (default `member`) | unique on `(space_id, user_id)`, cascades on delete |
@@ -121,15 +121,19 @@ The route group runs behind a 30-requests-per-minute rate limiter and `NoStore`,
 
 ## Authentication
 
-Local auth is email and password. Passwords are argon2id (64 MiB, 3 iterations, parallelism
-2, 16-byte salt, 32-byte key) and compared in constant time. A successful login mints a
-32-byte URL-safe random token stored in `sessions`; the client keeps it in `localStorage`
-and sends it as `Authorization: Bearer`. Register and login are rate-limited to 10 requests
-per minute. Setting `SSO_ONLY=true` does not merely reject local logins — the routes are
-never registered.
+Sign-in goes through Registre only. porte mounts no register, login or password route while
+an issuer is configured, and `OIDC_ISSUER` is required in production. A browser session is a
+porte cookie session; API clients (Ardoise) send an API token, a labelled porte session minted
+from Settings > API, as `Authorization: Bearer`. Signing links (`/api/sign/{token}`) and
+`/api/verify` need no session.
 
-`GET /api/auth/config` tells the client what is available: `sso_only`, `oidc_enabled`, and
-when OIDC is on, the issuer and redirect URL.
+`GET /api/auth/config` tells the client what is available: `oidc_enabled`, and when OIDC is
+on, the issuer and redirect URL.
+
+Registre erases people on request. `POST /api/registre/deletions` (a signed `user.deleted`
+push, no session) and a poll of Registre's deletion list both call `spaces.Deletions`, which
+deletes the account and its personal documents, files, contacts, webhooks, SMTP settings and
+memberships, and keeps documents other people use in a shared space with no owner.
 
 ### The OIDC flow, and why Plume's differs
 
