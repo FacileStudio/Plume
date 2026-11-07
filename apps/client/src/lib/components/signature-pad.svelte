@@ -233,7 +233,7 @@
 
 	<div class="flex items-center gap-2">
 		<Button
-			variant="outline"
+			variant="secondary"
 			size="sm"
 			icon="solar:undo-left-linear"
 			onclick={undo}

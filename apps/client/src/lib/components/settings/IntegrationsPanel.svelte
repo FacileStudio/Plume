@@ -221,7 +221,7 @@
 	<SettingsSection title={t('smtp.title')} description={t('smtp.text')}>
 		{#snippet actions()}
 			{#if smtpConfigured}
-				<Button variant="outline" icon={icons.mail} disabled={smtpTesting} onclick={testSmtp}>
+				<Button variant="secondary" icon={icons.mail} disabled={smtpTesting} onclick={testSmtp}>
 					{smtpTesting ? t('common.sending') : t('smtp.sendTest')}
 				</Button>
 			{/if}
@@ -302,7 +302,7 @@
 
 	<SettingsSection title={t('webhooks.title')} description={t('webhooks.text')}>
 		{#snippet actions()}
-			<Button variant="outline" icon={icons.plus} onclick={() => openWebhookDrawer()}>
+			<Button variant="secondary" icon={icons.plus} onclick={() => openWebhookDrawer()}>
 				{t('webhooks.add')}
 			</Button>
 		{/snippet}
@@ -403,7 +403,7 @@
 		<Button icon={icons.check} disabled={webhookSaving || !webhookUrl} onclick={saveWebhook}>
 			{webhookSaving ? t('common.saving') : editingWebhookId ? t('common.update') : t('common.create')}
 		</Button>
-		<Button variant="outline" onclick={() => (webhookDrawer = false)}>{t('common.cancel')}</Button>
+		<Button variant="secondary" onclick={() => (webhookDrawer = false)}>{t('common.cancel')}</Button>
 	{/snippet}
 </Drawer>
 

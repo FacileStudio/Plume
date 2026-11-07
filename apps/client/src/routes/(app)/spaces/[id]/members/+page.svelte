@@ -126,7 +126,7 @@
 				{space.registre_url ? t('members.managedInRegistre') : t('members.ownersStay')}
 			</p>
 			{#if space.registre_url}
-				<Button href={space.registre_url} variant="outline" icon={icons.space} class="w-fit">
+				<Button href={space.registre_url} variant="secondary" icon={icons.space} class="w-fit">
 					{t('common.manageInRegistre')}
 				</Button>
 			{/if}

@@ -63,7 +63,7 @@
 		</SettingsRow>
 
 		<SettingsRow label={t('api.openapi')} description={t('api.openapiText')}>
-			<Button variant="outline" href="/docs/openapi.json" target="_blank" rel="noopener" icon={icons.download}>
+			<Button variant="secondary" href="/docs/openapi.json" target="_blank" rel="noopener" icon={icons.download}>
 				openapi.json
 			</Button>
 		</SettingsRow>

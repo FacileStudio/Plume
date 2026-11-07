@@ -82,7 +82,7 @@
 		</SettingsRow>
 
 		<SettingsRow label={t('advanced.resync')} description={t('advanced.resyncText')}>
-			<Button variant="outline" icon={icons.refresh} onclick={syncProfile}>
+			<Button variant="secondary" icon={icons.refresh} onclick={syncProfile}>
 				{t('advanced.syncNow')}
 			</Button>
 		</SettingsRow>

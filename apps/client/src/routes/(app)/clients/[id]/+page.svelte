@@ -132,7 +132,7 @@
 				</div>
 				<div class="flex shrink-0 items-center gap-2">
 					{#if !editing}
-						<Button variant="outline" icon={icons.edit} onclick={startEdit}>{t('common.edit')}</Button>
+						<Button variant="secondary" icon={icons.edit} onclick={startEdit}>{t('common.edit')}</Button>
 					{/if}
 					<Button
 						variant="ghost-danger"

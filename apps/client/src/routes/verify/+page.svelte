@@ -172,7 +172,7 @@
 						{/if}
 					</Button>
 					{#if file || result || error}
-						<Button variant="outline" size="lg" icon={icons.refresh} onclick={reset} disabled={loading}>
+						<Button variant="secondary" size="lg" icon={icons.refresh} onclick={reset} disabled={loading}>
 							{t('common.reset')}
 						</Button>
 					{/if}
