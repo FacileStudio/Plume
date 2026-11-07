@@ -11,89 +11,14 @@ export const settings = {
 	],
 	'settings.sections': ['Settings sections', 'Sections des paramètres', 'Secciones de ajustes', 'Einstellungsbereiche'],
 	'settings.tab.profile': ['Profile', 'Profil', 'Perfil', 'Profil'],
-	'settings.tab.appearance': ['Appearance', 'Apparence', 'Apariencia', 'Darstellung'],
+	'settings.tab.preferences': ['Preferences', 'Préférences', 'Preferencias', 'Einstellungen'],
 	'settings.tab.notifications': ['Notifications', 'Notifications', 'Notificaciones', 'Benachrichtigungen'],
-	'settings.tab.api': ['API', 'API', 'API', 'API'],
+	'settings.tab.tokens': ['API tokens', 'Jetons d’API', 'Tokens de API', 'API-Tokens'],
 	'settings.tab.integrations': ['Integrations', 'Intégrations', 'Integraciones', 'Integrationen'],
 	'settings.tab.advanced': ['Advanced', 'Avancé', 'Avanzado', 'Erweitert'],
 	'profile.title': ['Profile — Plume', 'Profil — Plume', 'Perfil — Plume', 'Profil — Plume'],
 	'profile.account': ['Account', 'Compte', 'Cuenta', 'Konto'],
 	'profile.memberSince': ['Member since', 'Membre depuis', 'Miembro desde', 'Mitglied seit'],
-	'profile.photo': ['Photo', 'Photo', 'Foto', 'Foto'],
-	'profile.photoSso': ['Facile account', 'Compte Facile', 'Cuenta de Facile', 'Facile-Konto'],
-	'profile.photoNone': ['None yet', 'Aucune pour l’instant', 'Ninguna por ahora', 'Noch keines'],
-	'profile.avatarSso': [
-		'Your photo comes from your Facile account. Change it there and it shows here on your next page load.',
-		'Votre photo vient de votre compte Facile. Modifiez-la là-bas et elle s’affichera ici au prochain chargement de page.',
-		'Tu foto viene de tu cuenta de Facile. Cámbiala allí y se mostrará aquí al cargar la página de nuevo.',
-		'Dein Foto stammt aus deinem Facile-Konto. Ändere es dort, dann erscheint es hier beim nächsten Laden der Seite.'
-	],
-	'profile.avatarNone': [
-		'No photo on your Facile account yet — add one there and it appears here.',
-		'Pas encore de photo sur votre compte Facile : ajoutez-en une là-bas et elle apparaîtra ici.',
-		'Tu cuenta de Facile aún no tiene foto: añade una allí y aparecerá aquí.',
-		'Dein Facile-Konto hat noch kein Foto — füge dort eines hinzu, dann erscheint es hier.'
-	],
-	'profile.loadFailed': [
-		'Failed to load profile',
-		'Impossible de charger le profil',
-		'No se pudo cargar el perfil',
-		'Das Profil konnte nicht geladen werden'
-	],
-	'profile.updated': ['Profile updated.', 'Profil mis à jour.', 'Perfil actualizado.', 'Profil aktualisiert.'],
-	'profile.updateFailed': [
-		'Failed to update profile',
-		'Impossible de mettre à jour le profil',
-		'No se pudo actualizar el perfil',
-		'Das Profil konnte nicht aktualisiert werden'
-	],
-	'profile.identity': ['Identity', 'Identité', 'Identidad', 'Identität'],
-	'profile.nameText': [
-		'Shown on the documents you send and in the signing emails.',
-		'Affiché sur les documents que vous envoyez et dans les emails de signature.',
-		'Se muestra en los documentos que envías y en los correos de firma.',
-		'Wird auf den Dokumenten, die du sendest, und in den Signatur-E-Mails angezeigt.'
-	],
-	'profile.namePlaceholder': ['Your name', 'Votre nom', 'Tu nombre', 'Dein Name'],
-	'profile.emailText': [
-		'Where signing notifications and test emails are delivered.',
-		'Là où arrivent les notifications de signature et les emails de test.',
-		'Donde llegan las notificaciones de firma y los correos de prueba.',
-		'Hierhin werden Signaturbenachrichtigungen und Test-E-Mails zugestellt.'
-	],
-	'profile.emailPlaceholder': ['you@example.com', 'vous@exemple.fr', 'tu@ejemplo.es', 'du@beispiel.de'],
-	'profile.session': ['Session', 'Session', 'Sesión', 'Sitzung'],
-	'profile.sessionText': [
-		'Sessions are per browser. Signing out here leaves your other devices alone.',
-		'Les sessions sont propres à chaque navigateur. Se déconnecter ici n’affecte pas vos autres appareils.',
-		'Las sesiones son por navegador. Cerrar sesión aquí no afecta a tus otros dispositivos.',
-		'Sitzungen gelten pro Browser. Die Abmeldung hier lässt deine anderen Geräte unberührt.'
-	],
-	'profile.logout': ['Sign out', 'Se déconnecter', 'Cerrar sesión', 'Abmelden'],
-	'profile.logoutText': [
-		'Ends this session and returns you to the sign-in page. Documents already sent keep collecting signatures.',
-		'Termine cette session et vous ramène à la page de connexion. Les documents déjà envoyés continuent de recueillir des signatures.',
-		'Termina esta sesión y te lleva a la página de inicio de sesión. Los documentos ya enviados siguen recogiendo firmas.',
-		'Beendet diese Sitzung und führt dich zur Anmeldeseite. Bereits gesendete Dokumente sammeln weiter Unterschriften.'
-	],
-	'appearance.title': ['Appearance — Plume', 'Apparence — Plume', 'Apariencia — Plume', 'Darstellung — Plume'],
-	'appearance.theme': ['Theme', 'Thème', 'Tema', 'Design'],
-	'appearance.themeText': [
-		'Applied to this browser. Every device you sign in from keeps its own choice.',
-		'Appliqué à ce navigateur. Chaque appareil depuis lequel vous vous connectez garde son propre choix.',
-		'Se aplica a este navegador. Cada dispositivo desde el que inicias sesión conserva su propia elección.',
-		'Gilt für diesen Browser. Jedes Gerät, mit dem du dich anmeldest, behält seine eigene Wahl.'
-	],
-	'appearance.scheme': ['Colour scheme', 'Jeu de couleurs', 'Esquema de color', 'Farbschema'],
-	'appearance.schemeText': [
-		'System follows your operating system setting and changes with it.',
-		'« Système » suit le réglage de votre système d’exploitation et change avec lui.',
-		'«Sistema» sigue el ajuste de tu sistema operativo y cambia con él.',
-		'„System“ folgt der Einstellung deines Betriebssystems und ändert sich mit ihr.'
-	],
-	'appearance.system': ['System', 'Système', 'Sistema', 'System'],
-	'appearance.light': ['Light', 'Clair', 'Claro', 'Hell'],
-	'appearance.dark': ['Dark', 'Sombre', 'Oscuro', 'Dunkel'],
 	'notifications.title': ['Notifications — Plume', 'Notifications — Plume', 'Notificaciones — Plume', 'Benachrichtigungen — Plume'],
 	'notifications.reminders': ['Reminders', 'Rappels', 'Recordatorios', 'Erinnerungen'],
 	'notifications.remindersText': [
@@ -181,12 +106,6 @@ export const settings = {
 		'Das maschinenlesbare Schema hinter der Referenz — übergib es an einen Client-Generator.'
 	],
 	'api.auth': ['Authentication', 'Authentification', 'Autenticación', 'Authentifizierung'],
-	'api.authText': [
-		'How a request proves who it is.',
-		'Comment une requête prouve son identité.',
-		'Cómo demuestra una petición quién es.',
-		'Wie sich eine Anfrage ausweist.'
-	],
 	'api.scheme': ['Scheme', 'Schéma', 'Esquema', 'Schema'],
 	'api.schemeText': [
 		'Send the token as Authorization: Bearer <token>. Browser sessions and API tokens are accepted the same way.',
@@ -194,27 +113,8 @@ export const settings = {
 		'Envía el token como Authorization: Bearer <token>. Las sesiones del navegador y los tokens de API se aceptan igual.',
 		'Sende das Token als Authorization: Bearer <token>. Browsersitzungen und API-Tokens werden gleich behandelt.'
 	],
-	'api.tokens': ['API tokens', 'Jetons d’API', 'Tokens de API', 'API-Tokens'],
-	'api.tokensText': [
-		'Named machine credentials for other apps and scripts, such as Ardoise. A token acts as your account, has no expiry and survives a sign-out.',
-		'Identifiants machine nommés pour d’autres apps et scripts, comme Ardoise. Un jeton agit comme votre compte, n’expire pas et survit à une déconnexion.',
-		'Credenciales de máquina con nombre para otras apps y scripts, como Ardoise. Un token actúa como tu cuenta, no caduca y sobrevive al cierre de sesión.',
-		'Benannte Maschinenzugänge für andere Apps und Skripte, etwa Ardoise. Ein Token handelt als dein Konto, läuft nie ab und übersteht eine Abmeldung.'
-	],
 	'api.generate': ['Generate a token', 'Générer un jeton', 'Generar un token', 'Token erzeugen'],
-	'api.col.name': ['Name', 'Nom', 'Nombre', 'Name'],
-	'api.col.created': ['Created', 'Création', 'Creado', 'Erstellt'],
-	'api.col.lastUsed': ['Last used', 'Dernière utilisation', 'Último uso', 'Zuletzt verwendet'],
-	'api.col.action': ['Action', 'Action', 'Acción', 'Aktion'],
 	'api.revoke': ['Revoke', 'Révoquer', 'Revocar', 'Widerrufen'],
-	'api.noToken': ['No token', 'Aucun jeton', 'Ningún token', 'Kein Token'],
-	'api.noTokenText': [
-		'A token is shown once, when you create it. Plume stores only a hash and cannot show it again.',
-		'Un jeton n’est affiché qu’une fois, à sa création. Plume ne conserve qu’une empreinte et ne peut pas le réafficher.',
-		'Un token se muestra una sola vez, al crearlo. Plume solo guarda un hash y no puede mostrarlo de nuevo.',
-		'Ein Token wird nur einmal angezeigt, beim Erstellen. Plume speichert nur einen Hash und kann ihn nicht erneut zeigen.'
-	],
-	'api.noneGenerated': ['None generated', 'Aucun généré', 'Ninguno generado', 'Keines erzeugt'],
 	'api.loadFailed': [
 		'Failed to load tokens',
 		'Impossible de charger les jetons',
@@ -222,62 +122,7 @@ export const settings = {
 		'Die Tokens konnten nicht geladen werden'
 	],
 	'api.generated': ['Token generated', 'Jeton généré', 'Token generado', 'Token erzeugt'],
-	'api.generateFailed': [
-		'Failed to generate the token',
-		'Impossible de générer le jeton',
-		'No se pudo generar el token',
-		'Das Token konnte nicht erzeugt werden'
-	],
 	'api.revoked': ['Token revoked', 'Jeton révoqué', 'Token revocado', 'Token widerrufen'],
-	'api.revokeFailed': [
-		'Failed to revoke the token',
-		'Impossible de révoquer le jeton',
-		'No se pudo revocar el token',
-		'Das Token konnte nicht widerrufen werden'
-	],
-	'api.drawer.title': [
-		'Generate an API token',
-		'Générer un jeton d’API',
-		'Generar un token de API',
-		'API-Token erzeugen'
-	],
-	'api.drawer.text': [
-		'Name it after the app or machine that will use it. The name is the only way to know later what you are revoking.',
-		'Nommez-le d’après l’app ou la machine qui l’utilisera. Le nom est le seul moyen de savoir plus tard ce que vous révoquez.',
-		'Ponle el nombre de la app o la máquina que lo usará. El nombre es la única forma de saber luego qué estás revocando.',
-		'Benenne es nach der App oder dem Rechner, der es nutzt. Nur am Namen erkennst du später, was du widerrufst.'
-	],
-	'api.copyNow': ['Copy it now', 'Copiez-le maintenant', 'Cópialo ahora', 'Jetzt kopieren'],
-	'api.copyNowText': [
-		'This token is never shown again. Plume keeps only a hash, so once this drawer closes you will have to generate another.',
-		'Ce jeton ne sera plus jamais affiché. Plume n’en garde qu’une empreinte : une fois ce panneau fermé, vous devrez en générer un autre.',
-		'Este token no se volverá a mostrar. Plume solo guarda un hash, así que al cerrar este panel tendrás que generar otro.',
-		'Dieses Token wird nie wieder angezeigt. Plume speichert nur einen Hash, nach dem Schließen musst du ein neues erzeugen.'
-	],
-	'api.tokenLabel': ['Token', 'Jeton', 'Token', 'Token'],
-	'api.tokenName': ['Token name', 'Nom du jeton', 'Nombre del token', 'Tokenname'],
-	'api.tokenNamePlaceholder': [
-		'ardoise, ci, laptop',
-		'ardoise, ci, portable',
-		'ardoise, ci, portátil',
-		'ardoise, ci, Laptop'
-	],
-	'api.tokenWarning': [
-		'A token carries everything your account can do and has no scope or expiry. Revoke it as soon as the app that uses it is gone.',
-		'Un jeton porte tout ce que votre compte peut faire et n’a ni portée ni expiration. Révoquez-le dès que l’app qui l’utilise disparaît.',
-		'Un token lleva todo lo que puede hacer tu cuenta y no tiene alcance ni caducidad. Revócalo en cuanto desaparezca la app que lo usa.',
-		'Ein Token kann alles, was dein Konto kann, und hat weder Geltungsbereich noch Ablauf. Widerrufe es, sobald die nutzende App wegfällt.'
-	],
-	'api.generateShort': ['Generate', 'Générer', 'Generar', 'Erzeugen'],
-	'api.generating': ['Generating…', 'Génération…', 'Generando…', 'Wird erzeugt…'],
-	'api.confirm.title': ['Revoke this token?', 'Révoquer ce jeton ?', '¿Revocar este token?', 'Dieses Token widerrufen?'],
-	'api.confirm.text': [
-		'Every app or script using {name} stops working at once, and a revoked token cannot be restored. You will have to generate a new one and paste it into each place that used the old one.',
-		'Toute app ou tout script qui utilise {name} cesse de fonctionner immédiatement, et un jeton révoqué ne peut pas être rétabli. Il faudra en générer un nouveau et le coller partout où l’ancien servait.',
-		'Toda app o script que use {name} deja de funcionar al instante, y un token revocado no se puede restaurar. Tendrás que generar uno nuevo y pegarlo en cada lugar donde se usaba el anterior.',
-		'Jede App und jedes Skript, die {name} verwenden, funktionieren sofort nicht mehr, und ein widerrufenes Token lässt sich nicht wiederherstellen. Du musst ein neues erzeugen und überall dort einfügen, wo das alte verwendet wurde.'
-	],
-	'api.confirm.it': ['it', 'lui', 'él', 'es'],
 	'integrations.title': ['Integrations — Plume', 'Intégrations — Plume', 'Integraciones — Plume', 'Integrationen — Plume'],
 	'smtp.title': ['Email (SMTP)', 'Email (SMTP)', 'Correo (SMTP)', 'E-Mail (SMTP)'],
 	'smtp.text': [

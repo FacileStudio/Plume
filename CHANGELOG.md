@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- One user menu and one settings shell (`@facile/muse` v0.13.0 to v0.14.1). The sidebar card and the
+  mobile avatar open the muse `UserMenu`: account, settings, language, theme, help and sign out.
+  The cog link is gone. Settings use `SettingsLayout` in the canonical order: Profile, Preferences,
+  Notifications, Integrations, API tokens, Advanced. Profile is read-only and links to Facile, so
+  the name and email form and the in-settings sign-out are removed. The clear-local-data action
+  sits in a `DangerZone`.
+- The API tokens section is muse `TokensSection`. The API calls and token semantics are
+  unchanged (a token is created from a label, bearer auth, no expiry, so the expiry choice in the
+  drawer is not sent). The API reference rows stay in that section.
+- `appearance` is now `preferences` and `api` is now `tokens`; the old addresses redirect.
+  `/settings` shows the section list on a phone.
+- A language picked in the menu is stored in the `fc_locale` cookie and wins over the Registre
+  profile locale on the next visit.
+
 ## 0.10.0 - 2026-11-07
 
 ### Changed
