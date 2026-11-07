@@ -1,5 +1,40 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Libraries: porte v0.5.2 to v0.12.0, porte/directory v0.1.0 to v0.3.0, tronc v0.16.0 to v0.17.1,
+  `@facile/muse` v0.11.0 to v0.13.0.
+- Sign-in goes through Registre only. With an issuer configured porte mounts no password route, and
+  `OIDC_ISSUER` is now required when `APP_ENV=production`. The login page is muse `AuthScreen`, and
+  the landing page uses `LandingHeader`, `LandingFooter` and `SignInWithFacile`.
+- `UserStore.UpsertFromOIDC` links an existing account only by a verified email and refuses when the
+  account already holds another subject of the same issuer (porte v0.10.0 rules). It stores the
+  `locale` claim.
+- The UI is available in fr, en, es and de. The locale comes from the Registre profile, then the
+  `fc_locale` cookie, then the browser. Dates and numbers use `Intl`. es and de need native review.
+- tronc security headers replace the local middleware. The client's inline scripts are hashed into
+  `script-src`, and `connect-src` allows Ardoise's plan catalog. The full CSP stays report-only.
+- `APP_VERSION` build arg, when set, is the version `/version` reports; otherwise the commit.
+- The mise Go version and CI use `go.mod`'s Go 1.26. CI now runs build, tests against Postgres, the
+  message check, `svelte-check` and filet.
+
+### Added
+
+- GDPR deletion: `POST /api/registre/deletions` and a poll of Registre's deletion list erase the
+  person's account, personal documents with their files, contacts, webhooks, SMTP settings and
+  memberships. Documents in spaces shared with others stay, with no owner. Idempotent.
+- Migrations (idempotent, run at boot): `users.locale`, `porte_login_codes.provider` and `.subject`,
+  table `directory_deletion_state`. `porte_identities` token columns are untouched, so the Nuage
+  app-folder delegation keeps working.
+- `locale` in `GET /api/auth/me`.
+
+### Removed
+
+- `POST /api/auth/register`, `POST /api/auth/login`, `PUT /api/auth/password`, the register and
+  password UI, and `SSO_ONLY`. API tokens, signing links and webhooks are unchanged.
+
 ## 0.9.0 - 2026-11-07
 
 ### Changed

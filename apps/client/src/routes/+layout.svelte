@@ -1,12 +1,16 @@
 <script lang="ts">
 	import '../app.css';
-	import { Toaster } from '@facile/muse';
+	import { Toaster, provideLocale } from '@facile/muse';
 	import { browser } from '$app/environment';
+	import { bindLocale, localeSource } from '$lib/i18n/index.svelte';
 	import { theme } from '$lib/theme.svelte';
 	import mdi from '$lib/icons/mdi.json';
 	import solar from '$lib/icons/solar.json';
 
 	let { children } = $props();
+
+	const i18n = provideLocale(localeSource);
+	bindLocale(() => i18n.locale);
 
 	if (browser) {
 		theme.restore();

@@ -15,6 +15,8 @@
 		icons
 	} from '@facile/muse';
 	import { spaceStore } from '$lib/stores/space.svelte';
+	import { formatMonth, formatShortDate } from '$lib/i18n/format';
+	import { t } from '$lib/i18n/index.svelte';
 
 	let documents = $state<Document[]>([]);
 	let stats = $state<DocumentStats>({ total: 0, pending: 0, completed: 0 });
@@ -27,20 +29,13 @@
 		declined: 'danger'
 	} as const;
 
-	const statusLabel = {
-		draft: 'Draft',
-		pending: 'Pending',
-		completed: 'Completed',
-		declined: 'Declined'
-	} as const;
-
 	const STATUS_ORDER = ['draft', 'pending', 'completed', 'declined'] as const;
 
 	const recent = $derived(documents.slice(0, 10));
 
 	const byStatus = $derived(
 		STATUS_ORDER.map((status) => ({
-			label: statusLabel[status],
+			label: t(`status.${status}`),
 			value: documents.filter((d) => d.status === status).length
 		})).filter((slice) => slice.value > 0)
 	);
@@ -49,7 +44,7 @@
 		const now = new Date();
 		return Array.from({ length: 6 }, (_, i) => {
 			const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-			return { key: `${d.getFullYear()}-${d.getMonth()}`, label: d.toLocaleDateString('en-US', { month: 'short' }) };
+			return { key: `${d.getFullYear()}-${d.getMonth()}`, label: formatMonth(d) };
 		});
 	});
 
@@ -62,14 +57,6 @@
 				}).length
 		)
 	);
-
-	function formatDate(iso: string): string {
-		return new Date(iso).toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric'
-		});
-	}
 
 	let mounted = $state(false);
 
@@ -95,17 +82,17 @@
 	});
 </script>
 
-<svelte:head><title>Dashboard — Plume</title></svelte:head>
+<svelte:head><title>{t('dashboard.title')}</title></svelte:head>
 
 <div class="flex flex-col gap-10">
 	<div class="flex flex-wrap items-start justify-between gap-4">
 		<div class="flex min-w-0 flex-col gap-1">
-			<h1 class="text-fc-2xl font-semibold text-fc-fg">Dashboard</h1>
-			<p class="text-fc-sm text-fc-fg-muted">Everything waiting on a signature, at a glance.</p>
+			<h1 class="text-fc-2xl font-semibold text-fc-fg">{t('dashboard.heading')}</h1>
+			<p class="text-fc-sm text-fc-fg-muted">{t('dashboard.subtitle')}</p>
 		</div>
 		<div class="flex flex-wrap items-center gap-2">
-			<Button variant="outline" href="/verify" icon={icons.shield}>Verify a document</Button>
-			<Button href="/documents/new" icon={icons.plus}>New document</Button>
+			<Button variant="outline" href="/verify" icon={icons.shield}>{t('dashboard.verify')}</Button>
+			<Button href="/documents/new" icon={icons.plus}>{t('dashboard.newDocument')}</Button>
 		</div>
 	</div>
 
@@ -124,27 +111,27 @@
 		</div>
 	{:else}
 		<section class="grid gap-4 sm:grid-cols-3">
-			<StatCard label="Total documents" value={stats.total} />
-			<StatCard label="Pending signatures" value={stats.pending} />
-			<StatCard label="Completed" value={stats.completed} />
+			<StatCard label={t('dashboard.stat.total')} value={stats.total} />
+			<StatCard label={t('dashboard.stat.pending')} value={stats.pending} />
+			<StatCard label={t('dashboard.stat.completed')} value={stats.completed} />
 		</section>
 
 		{#if documents.length > 0}
 			<section class="grid gap-4 lg:grid-cols-2">
 				<Card class="flex flex-col gap-4">
-					<p class="text-fc-sm font-medium text-fc-fg">Documents created</p>
+					<p class="text-fc-sm font-medium text-fc-fg">{t('dashboard.chart.created')}</p>
 					<BarChart
-						series={[{ name: 'Documents', data: perMonth }]}
+						series={[{ name: t('dashboard.chart.series'), data: perMonth }]}
 						labels={months.map((m) => m.label)}
 						height={220}
 						yFormat={(n) => `${n}`}
 					/>
 				</Card>
 				<Card class="flex flex-col gap-4">
-					<p class="text-fc-sm font-medium text-fc-fg">By status</p>
+					<p class="text-fc-sm font-medium text-fc-fg">{t('dashboard.chart.byStatus')}</p>
 					<DonutChart
 						data={byStatus}
-						centerLabel="documents"
+						centerLabel={t('dashboard.chart.center')}
 						centerValue={documents.length}
 						valueFormat={(n) => `${n}`}
 						class="flex-1"
@@ -156,12 +143,12 @@
 		<section class="flex flex-col gap-4">
 			<div class="flex flex-wrap items-end justify-between gap-4">
 				<div class="flex min-w-0 flex-col gap-1">
-					<h2 class="text-fc-lg font-semibold text-fc-fg">Recent documents</h2>
-					<p class="text-fc-sm text-fc-fg-muted">The ten most recent in this space.</p>
+					<h2 class="text-fc-lg font-semibold text-fc-fg">{t('dashboard.recent')}</h2>
+					<p class="text-fc-sm text-fc-fg-muted">{t('dashboard.recentHint')}</p>
 				</div>
 				{#if documents.length > recent.length}
 					<Button variant="outline" href="/documents" iconRight={icons.arrow}>
-						View all documents
+						{t('dashboard.viewAll')}
 					</Button>
 				{/if}
 			</div>
@@ -169,20 +156,20 @@
 			{#if recent.length === 0}
 				<EmptyState
 					icon={icons.folder}
-					title="No documents yet"
-					description="Upload a PDF, drop a few fields on it, and send it out for signature."
+					title={t('documents.empty.title')}
+					description={t('documents.empty.dashboardText')}
 				>
-					<Button href="/documents/new" icon={icons.plus}>New document</Button>
+					<Button href="/documents/new" icon={icons.plus}>{t('dashboard.newDocument')}</Button>
 				</EmptyState>
 			{:else}
 				<div class="hidden md:block">
 					<Table>
 						<thead>
 							<tr>
-								<th scope="col">Document</th>
-								<th scope="col">Created</th>
-								<th scope="col">Signers</th>
-								<th scope="col">Status</th>
+								<th scope="col">{t('documents.col.document')}</th>
+								<th scope="col">{t('common.created')}</th>
+								<th scope="col">{t('documents.col.signers')}</th>
+								<th scope="col">{t('common.status')}</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -196,11 +183,11 @@
 											{doc.name}
 										</a>
 									</td>
-									<td class="whitespace-nowrap text-fc-fg-muted">{formatDate(doc.created_at)}</td>
+									<td class="whitespace-nowrap text-fc-fg-muted">{formatShortDate(doc.created_at)}</td>
 									<td class="tabular-nums text-fc-fg-muted">
 										{doc.signer_count ?? 0}
 									</td>
-									<td><Badge tone={statusTone[doc.status]}>{statusLabel[doc.status]}</Badge></td>
+									<td><Badge tone={statusTone[doc.status]}>{t(`status.${doc.status}`)}</Badge></td>
 								</tr>
 							{/each}
 						</tbody>
@@ -213,13 +200,13 @@
 							<div class="min-w-0">
 								<p class="truncate text-fc-sm font-medium text-fc-fg">{doc.name}</p>
 								<p class="truncate text-fc-xs text-fc-fg-muted">
-									{formatDate(doc.created_at)}
+									{formatShortDate(doc.created_at)}
 									{#if doc.signer_count !== undefined}
-										· {doc.signer_count} signer{doc.signer_count === 1 ? '' : 's'}
+										· {t('documents.signerCount', { count: doc.signer_count })}
 									{/if}
 								</p>
 							</div>
-							<Badge tone={statusTone[doc.status]}>{statusLabel[doc.status]}</Badge>
+							<Badge tone={statusTone[doc.status]}>{t(`status.${doc.status}`)}</Badge>
 						</Card>
 					{/each}
 				</div>

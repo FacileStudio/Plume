@@ -14,6 +14,8 @@
 		StatCard,
 		icons
 	} from '@facile/muse';
+	import { formatShortDate } from '$lib/i18n/format';
+	import { t } from '$lib/i18n/index.svelte';
 
 	let space = $state<Space | null>(null);
 	let members = $state<SpaceMember[]>([]);
@@ -24,14 +26,6 @@
 	const preview = $derived(members.slice(0, 5));
 
 	const roleTone = { owner: 'owner', admin: 'admin', member: 'neutral' } as const;
-
-	function formatDate(iso: string): string {
-		return new Date(iso).toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric'
-		});
-	}
 
 	onMount(async () => {
 		try {
@@ -49,11 +43,13 @@
 	});
 </script>
 
-<svelte:head><title>{space?.name ?? 'Space'} — Plume</title></svelte:head>
+<svelte:head><title>{space?.name ?? t('space.titleFallback')} — Plume</title></svelte:head>
 
 {#snippet membersAction()}
 	{#if members.length > 5}
-		<Button variant="outline" size="sm" href="/spaces/{spaceId}/members">View all members</Button>
+		<Button variant="outline" size="sm" href="/spaces/{spaceId}/members">
+			{t('space.viewAllMembers')}
+		</Button>
 	{/if}
 {/snippet}
 
@@ -65,29 +61,29 @@
 	<div class="flex flex-col gap-10">
 		<div class="flex flex-col gap-4">
 			<Button href="/spaces" variant="ghost" size="sm" icon={icons.chevronLeft} class="w-fit -ml-3">
-				Spaces
+				{t('spaces.heading')}
 			</Button>
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div class="flex min-w-0 flex-col gap-2">
 					<div class="flex min-w-0 flex-wrap items-center gap-3">
 						<h1 class="truncate text-fc-2xl font-semibold text-fc-fg">{space.name}</h1>
-						<Badge tone={roleTone[space.role]}>{space.role}</Badge>
+						<Badge tone={roleTone[space.role]}>{t(`role.${space.role}`)}</Badge>
 					</div>
 					<p class="text-fc-sm text-fc-fg-muted">
-						{space.description || 'No description yet.'}
+						{space.description || t('space.noDescription')}
 					</p>
 				</div>
 				<div class="flex shrink-0 items-center gap-2">
 					<Button variant="outline" icon={icons.usersGroup} href="/spaces/{spaceId}/members">
-						Members ({members.length})
+						{t('space.membersCount', { count: members.length })}
 					</Button>
 					{#if space.registre_url}
 						<Button variant="outline" icon={icons.space} href={space.registre_url}>
-							Manage in Registre
+							{t('common.manageInRegistre')}
 						</Button>
 					{:else if isAdminOrOwner}
 						<Button variant="outline" icon={icons.settings} href="/spaces/{spaceId}/settings">
-							Settings
+							{t('space.settings')}
 						</Button>
 					{/if}
 				</div>
@@ -95,26 +91,26 @@
 		</div>
 
 		<section class="grid gap-4 sm:grid-cols-2">
-			<StatCard label="Members" value={members.length} />
-			<StatCard label="Created" value={formatDate(space.created_at)} />
+			<StatCard label={t('common.members')} value={members.length} />
+			<StatCard label={t('common.created')} value={formatShortDate(space.created_at)} />
 		</section>
 
 		<SettingsSection
-			title="Members"
-			description="The people who can see everything in this space."
+			title={t('common.members')}
+			description={t('space.membersText')}
 			bare={members.length === 0}
 			actions={membersAction}
 		>
 			{#if members.length === 0}
 				<EmptyState
 					icon={icons.usersGroup}
-					title="No one here yet"
-					description="Invite a teammate and they will see this space as soon as they accept."
+					title={t('space.noMembers')}
+					description={t('space.noMembersText')}
 				/>
 			{:else}
 				{#each preview as member (member.id)}
 					<div
-						class="flex flex-col gap-3 border-t border-fc-border py-4 first:border-t-0 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+						class="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
 					>
 						<div class="flex min-w-0 items-center gap-3">
 							<Avatar src={member.avatar_url || undefined} name={member.name || member.email} size="sm" />
@@ -124,7 +120,7 @@
 							</div>
 						</div>
 						<div class="flex items-center gap-2 sm:shrink-0 sm:justify-end">
-							<Badge tone={roleTone[member.role]}>{member.role}</Badge>
+							<Badge tone={roleTone[member.role]}>{t(`role.${member.role}`)}</Badge>
 						</div>
 					</div>
 				{/each}

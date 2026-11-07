@@ -22,6 +22,8 @@
 		toast
 	} from '@facile/muse';
 	import FieldEditor from '$lib/components/field-editor.svelte';
+	import { formatRelative, formatShortDate } from '$lib/i18n/format';
+	import { t } from '$lib/i18n/index.svelte';
 
 	const statusTone = {
 		draft: 'neutral',
@@ -30,7 +32,7 @@
 		declined: 'danger'
 	} as const;
 
-	type Stage = { label: string; tone: 'neutral' | 'accent' | 'info' | 'success' | 'warning' | 'danger' };
+	type Stage = { label: () => string; tone: 'neutral' | 'accent' | 'info' | 'success' | 'warning' | 'danger' };
 
 	const openedSpaceId = spaceStore.activeId;
 	let pageMounted = $state(false);
@@ -94,7 +96,7 @@
 		try {
 			fields = await api.fields.list(doc.id);
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to reload the fields');
+			toast.danger(e instanceof Error ? e.message : t('doc.fieldsReloadFailed'));
 		}
 	}
 
@@ -111,13 +113,13 @@
 	}
 
 	function signerStage(signer: Signer, waiting: boolean): Stage {
-		if (signer.status === 'signed') return { label: 'signed', tone: 'success' };
-		if (signer.status === 'declined') return { label: 'declined', tone: 'danger' };
-		if (doc?.status === 'draft') return { label: 'not sent', tone: 'neutral' };
-		if (waiting) return { label: 'waiting', tone: 'neutral' };
-		if (signer.viewed_at) return { label: 'opened document', tone: 'info' };
-		if (signer.email_opened_at) return { label: 'opened email', tone: 'warning' };
-		return { label: 'sent', tone: 'accent' };
+		if (signer.status === 'signed') return { label: () => t('doc.stage.signed'), tone: 'success' };
+		if (signer.status === 'declined') return { label: () => t('doc.stage.declined'), tone: 'danger' };
+		if (doc?.status === 'draft') return { label: () => t('doc.stage.notSent'), tone: 'neutral' };
+		if (waiting) return { label: () => t('doc.stage.waiting'), tone: 'neutral' };
+		if (signer.viewed_at) return { label: () => t('doc.stage.openedDocument'), tone: 'info' };
+		if (signer.email_opened_at) return { label: () => t('doc.stage.openedEmail'), tone: 'warning' };
+		return { label: () => t('doc.stage.sent'), tone: 'accent' };
 	}
 
 	function openAddSigner() {
@@ -133,7 +135,7 @@
 		const name = newSignerName.trim();
 		const email = newSignerEmail.trim();
 		if (!name || !email) {
-			newSignerError = 'Name and email are required';
+			newSignerError = t('doc.addSigner.required');
 			return;
 		}
 		addingSigner = true;
@@ -142,9 +144,9 @@
 			const created = await api.signers.add(doc.id, name, email);
 			signers = [...signers, created];
 			showAddSigner = false;
-			toast.success('Signer added');
+			toast.success(t('doc.addSigner.added'));
 		} catch (e) {
-			newSignerError = e instanceof Error ? e.message : 'Failed to add the signer';
+			newSignerError = e instanceof Error ? e.message : t('doc.addSigner.failed');
 		}
 		addingSigner = false;
 	}
@@ -159,7 +161,7 @@
 			sequential = doc.sequential;
 		} catch (e) {
 			sequential = previous;
-			toast.danger(e instanceof Error ? e.message : 'Failed to change the signing order');
+			toast.danger(e instanceof Error ? e.message : t('doc.order.failed'));
 		}
 		togglingSequential = false;
 	}
@@ -174,7 +176,7 @@
 			clientChoice = doc.client_id ? String(doc.client_id) : '';
 		} catch (e) {
 			clientChoice = previous;
-			toast.danger(e instanceof Error ? e.message : 'Failed to update client');
+			toast.danger(e instanceof Error ? e.message : t('doc.clientFailed'));
 		}
 		updatingClient = false;
 	}
@@ -194,7 +196,7 @@
 			copiedId = signer.id;
 			setTimeout(() => (copiedId = null), 2000);
 		} catch {
-			toast.danger('Copy failed');
+			toast.danger(t('doc.signers.copyFailed'));
 		}
 	}
 
@@ -206,33 +208,13 @@
 			signers = signers.map((s) =>
 				s.id === signer.id ? { ...s, last_reminded_at: res.reminded_at } : s
 			);
-			toast.success('Reminder sent');
+			toast.success(t('doc.signers.reminded'));
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to send reminder');
+			toast.danger(e instanceof Error ? e.message : t('doc.signers.remindFailed'));
 		}
 		setTimeout(() => {
 			if (remindingId === signer.id) remindingId = null;
 		}, 1500);
-	}
-
-	function formatRelative(iso: string): string {
-		const then = new Date(iso).getTime();
-		const diff = Date.now() - then;
-		if (diff < 60_000) return 'just now';
-		const minutes = Math.floor(diff / 60_000);
-		if (minutes < 60) return `${minutes}m ago`;
-		const hours = Math.floor(minutes / 60);
-		if (hours < 24) return `${hours}h ago`;
-		const days = Math.floor(hours / 24);
-		return `${days}d ago`;
-	}
-
-	function formatDate(iso: string): string {
-		return new Date(iso).toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric'
-		});
 	}
 
 	async function downloadFile(urlPath: string, filename: string, setLoading: (v: boolean) => void) {
@@ -247,7 +229,7 @@
 				headers: token ? { Authorization: `Bearer ${token}` } : {},
 				credentials: 'same-origin'
 			});
-			if (!res.ok) throw new Error('Download failed');
+			if (!res.ok) throw new Error(t('doc.downloadFailed'));
 			const blob = await res.blob();
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement('a');
@@ -256,7 +238,7 @@
 			a.click();
 			URL.revokeObjectURL(url);
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Download failed');
+			toast.danger(e instanceof Error ? e.message : t('doc.downloadFailed'));
 		}
 		setLoading(false);
 	}
@@ -287,9 +269,9 @@
 		try {
 			doc = await api.documents.send(doc.id);
 			signers = await api.signers.list(doc.id);
-			toast.success('Document sent');
+			toast.success(t('doc.sent'));
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to send the document');
+			toast.danger(e instanceof Error ? e.message : t('doc.sendFailed'));
 		}
 		sending = false;
 	}
@@ -310,14 +292,14 @@
 			sequential = d.sequential;
 			clientChoice = d.client_id ? String(d.client_id) : '';
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to load the document');
+			toast.danger(e instanceof Error ? e.message : t('doc.loadFailed'));
 		}
 		loading = false;
 		pageMounted = true;
 	});
 </script>
 
-<svelte:head><title>{doc ? `${doc.name} — Plume` : 'Plume'}</title></svelte:head>
+<svelte:head><title>{doc ? `${doc.name} — Plume` : t('doc.titleFallback')}</title></svelte:head>
 
 {#if showFieldEditor && doc}
 	<FieldEditor documentId={doc.id} {signers} onclose={closeFieldEditor} />
@@ -330,7 +312,7 @@
 			icon={icons.chevronLeft}
 			class="self-start px-2"
 		>
-			Back to documents
+			{t('common.backToDocuments')}
 		</Button>
 
 		{#if loading}
@@ -342,34 +324,34 @@
 				<div class="flex min-w-0 flex-col gap-3">
 					<div class="flex flex-wrap items-center gap-x-3 gap-y-2">
 						<h1 class="min-w-0 text-fc-2xl font-semibold break-words text-fc-fg">{doc.name}</h1>
-						<Badge tone={statusTone[doc.status]}>{doc.status}</Badge>
+						<Badge tone={statusTone[doc.status]}>{t(`status.${doc.status}`)}</Badge>
 						{#if doc.status === 'draft'}
 							<Badge tone={fields.length > 0 ? 'success' : 'neutral'}>
 								{fields.length > 0
-									? `${fields.length} field${fields.length === 1 ? '' : 's'} prepared`
-									: 'No fields prepared yet'}
+									? t('doc.fieldsPrepared', { count: fields.length })
+									: t('doc.noFieldsPrepared')}
 							</Badge>
 						{/if}
 					</div>
 
 					<div class="flex flex-col gap-1 text-fc-sm text-fc-fg-muted">
-						<span>Created {formatDate(doc.created_at)}</span>
+						<span>{t('doc.createdOn', { date: formatShortDate(doc.created_at) })}</span>
 						{#if doc.file_name}
 							<span class="truncate">{doc.file_name}</span>
 						{/if}
 					</div>
 
 					<div class="flex flex-wrap items-center gap-2">
-						<span class="text-fc-sm text-fc-fg-muted">Client</span>
+						<span class="text-fc-sm text-fc-fg-muted">{t('doc.client')}</span>
 						{#if doc.status === 'draft'}
 							<Select
 								value={clientChoice}
 								disabled={updatingClient}
 								class="w-full sm:w-56"
-								aria-label="Linked client"
+								aria-label={t('doc.linkedClient')}
 								onchange={(e) => selectClient(e.currentTarget.value)}
 							>
-								<option value="">No client</option>
+								<option value="">{t('doc.noClient')}</option>
 								{#each clients as client (client.id)}
 									<option value={String(client.id)}>{client.name}</option>
 								{/each}
@@ -382,7 +364,7 @@
 								{linkedClient.name}
 							</a>
 						{:else}
-							<span class="text-fc-sm text-fc-fg-muted">No client</span>
+							<span class="text-fc-sm text-fc-fg-muted">{t('doc.noClient')}</span>
 						{/if}
 					</div>
 				</div>
@@ -395,7 +377,7 @@
 							onclick={downloadDocument}
 							disabled={downloadingDoc}
 						>
-							{downloadingDoc ? 'Downloading…' : 'Download document'}
+							{downloadingDoc ? t('common.downloading') : t('common.download')}
 						</Button>
 						<Button
 							variant="outline"
@@ -403,7 +385,7 @@
 							onclick={downloadCertificate}
 							disabled={downloading}
 						>
-							{downloading ? 'Downloading…' : 'Download certificate'}
+							{downloading ? t('common.downloading') : t('doc.downloadCertificate')}
 						</Button>
 						<Button
 							variant="outline"
@@ -411,7 +393,7 @@
 							onclick={downloadAuditTrail}
 							disabled={downloadingAudit}
 						>
-							{downloadingAudit ? 'Downloading…' : 'Download audit'}
+							{downloadingAudit ? t('common.downloading') : t('doc.downloadAudit')}
 						</Button>
 					{/if}
 
@@ -422,49 +404,46 @@
 							onclick={() => (showFieldEditor = true)}
 							disabled={signers.length === 0}
 						>
-							{fields.length > 0 ? `Edit fields (${fields.length})` : 'Prepare fields'}
+							{fields.length > 0 ? t('doc.editFields', { count: fields.length }) : t('doc.prepareFields')}
 						</Button>
 						<Button
 							icon="solar:plain-linear"
 							onclick={sendForSigning}
 							disabled={sending || signers.length === 0}
 						>
-							{sending ? 'Sending…' : 'Send for signing'}
+							{sending ? t('common.sending') : t('doc.send')}
 						</Button>
 					{/if}
 				</div>
 			</div>
 
 			<SettingsSection
-				title="Signing order"
+				title={t('doc.order.title')}
 				description={doc.status === 'draft'
-					? 'Choose how signers are invited to sign this document.'
+					? t('doc.order.draft')
 					: doc.sequential
-						? 'Signers are invited one at a time in order.'
-						: 'All signers were invited simultaneously.'}
+						? t('doc.order.sequentialOn')
+						: t('doc.order.sequentialOff')}
 			>
-				<SettingsRow
-					label="Sequential signing"
-					description="Signers are invited one at a time in order. Signer N+1 is invited only after signer N completes."
-				>
+				<SettingsRow label={t('doc.order.label')} description={t('doc.order.labelText')}>
 					{#if doc.status === 'draft'}
 						<Switch
 							checked={sequential}
 							disabled={togglingSequential}
-							aria-label="Sequential signing"
+							aria-label={t('doc.order.label')}
 							onchange={(e) => toggleSequential(e.currentTarget.checked)}
 						/>
 					{:else}
 						<Badge tone={doc.sequential ? 'accent' : 'neutral'}>
-							{doc.sequential ? 'On' : 'Off'}
+							{doc.sequential ? t('common.on') : t('common.off')}
 						</Badge>
 					{/if}
 				</SettingsRow>
 			</SettingsSection>
 
 			<SettingsSection
-				title="Signers"
-				description="{signers.length} signer{signers.length === 1 ? '' : 's'} on this document."
+				title={t('doc.signers.title')}
+				description={t('doc.signers.count', { count: signers.length })}
 			>
 				{#snippet actions()}
 					{#if doc && doc.status !== 'completed' && doc.status !== 'declined'}
@@ -474,11 +453,9 @@
 							icon={icons.plus}
 							onclick={openAddSigner}
 							disabled={doc.status !== 'draft'}
-							title={doc.status !== 'draft'
-								? 'Signers can only be added before signing starts'
-								: undefined}
+							title={doc.status !== 'draft' ? t('doc.signers.addDisabled') : undefined}
 						>
-							Add signer
+							{t('docNew.addSigner')}
 						</Button>
 					{/if}
 				{/snippet}
@@ -487,17 +464,15 @@
 					<EmptyState
 						bare
 						icon={icons.usersGroup}
-						title="No signers yet"
-						description="Add at least one signer before this document can be sent."
+						title={t('doc.signers.emptyTitle')}
+						description={t('doc.signers.emptyText')}
 					/>
 				{:else}
 					{#each sortedSigners as signer (signer.id)}
 						{@const waiting = isWaitingSigner(signer)}
 						{@const stage = signerStage(signer, waiting)}
 						{@const assigned = fieldsBySigner.get(signer.id) ?? 0}
-						<div
-							class="flex flex-col gap-3 border-t border-fc-border pt-4 first:border-t-0 first:pt-0 sm:flex-row sm:items-start sm:justify-between"
-						>
+						<div class="flex flex-col gap-3 pt-4 first:pt-0 sm:flex-row sm:items-start sm:justify-between">
 							<div class="flex min-w-0 flex-col gap-2">
 								<div class="flex min-w-0 items-center gap-3">
 									<Avatar src={signer.avatar_url || undefined} name={signer.name || signer.email} size="sm" />
@@ -510,8 +485,8 @@
 								{#if doc?.status === 'draft'}
 									<p class="text-fc-xs {assigned > 0 ? 'text-fc-success' : 'text-fc-fg-muted'}">
 										{assigned > 0
-											? `${assigned} field${assigned === 1 ? '' : 's'} assigned`
-											: 'No fields assigned'}
+											? t('doc.signers.fieldsAssigned', { count: assigned })
+											: t('doc.signers.noFieldsAssigned')}
 									</p>
 								{:else if doc?.status === 'pending' && signer.token && signer.status === 'pending' && !waiting}
 									<div class="flex flex-wrap items-center gap-2">
@@ -521,7 +496,7 @@
 											icon={copiedId === signer.id ? icons.check : icons.copy}
 											onclick={() => copySigningLink(signer)}
 										>
-											{copiedId === signer.id ? 'Copied!' : 'Copy link'}
+											{copiedId === signer.id ? t('doc.signers.copied') : t('doc.signers.copyLink')}
 										</Button>
 										<Button
 											variant="outline"
@@ -530,35 +505,35 @@
 											onclick={() => remindSigner(signer)}
 											disabled={remindingId === signer.id}
 										>
-											{remindingId === signer.id ? 'Sending…' : 'Resend email'}
+											{remindingId === signer.id ? t('common.sending') : t('doc.signers.resend')}
 										</Button>
 										{#if signer.last_reminded_at}
 											<span class="text-fc-xs text-fc-fg-muted">
-												Sent {formatRelative(signer.last_reminded_at)}
+												{t('doc.signers.sentAgo', { when: formatRelative(signer.last_reminded_at) })}
 											</span>
 										{/if}
 									</div>
 									{#if signer.viewed_at}
 										<p class="text-fc-xs text-fc-fg-muted">
-											Opened the document {formatRelative(signer.viewed_at)}
+											{t('doc.signers.openedDocument', { when: formatRelative(signer.viewed_at) })}
 										</p>
 									{:else if signer.email_opened_at}
 										<p class="text-fc-xs text-fc-fg-muted">
-											Opened the email {formatRelative(signer.email_opened_at)}
+											{t('doc.signers.openedEmail', { when: formatRelative(signer.email_opened_at) })}
 										</p>
 									{/if}
 								{:else if waiting}
-									<p class="text-fc-xs text-fc-fg-muted">Waiting for previous signer</p>
+									<p class="text-fc-xs text-fc-fg-muted">{t('doc.signers.waiting')}</p>
 								{/if}
 							</div>
 
 							<div class="flex shrink-0 flex-wrap items-center gap-3">
 								{#if signer.signed_at}
 									<span class="text-fc-xs text-fc-fg-muted">
-										Signed {formatDate(signer.signed_at)}
+										{t('doc.signers.signedOn', { date: formatShortDate(signer.signed_at) })}
 									</span>
 								{/if}
-								<Badge tone={stage.tone}>{stage.label}</Badge>
+								<Badge tone={stage.tone}>{stage.label()}</Badge>
 							</div>
 						</div>
 					{/each}
@@ -567,34 +542,34 @@
 		{:else}
 			<EmptyState
 				icon={icons.error}
-				title="Document not found"
-				description="It may have been deleted, or it belongs to another space."
+				title={t('doc.notFound.title')}
+				description={t('doc.notFound.text')}
 			>
 				<Button href="/documents" variant="outline" icon={icons.chevronLeft}>
-					Back to documents
+					{t('common.backToDocuments')}
 				</Button>
 			</EmptyState>
 		{/if}
 	</div>
 {/if}
 
-<Modal bind:open={showAddSigner} title="Add signer" showClose>
+<Modal bind:open={showAddSigner} title={t('doc.addSigner.title')} showClose>
 	<div class="flex flex-col gap-4">
 		{#if clients.length > 0}
-			<Field label="Fill from client" helper="Copies the client's name and email into the fields below.">
+			<Field label={t('doc.addSigner.fill')} helper={t('doc.addSigner.fillHelp')}>
 				<Select value={fillChoice} onchange={(e) => fillSignerFromClient(e.currentTarget.value)}>
-					<option value="">Pick a client…</option>
+					<option value="">{t('doc.addSigner.pick')}</option>
 					{#each clients as client (client.id)}
 						<option value={String(client.id)}>{client.name}</option>
 					{/each}
 				</Select>
 			</Field>
 		{/if}
-		<Field label="Name">
-			<Input bind:value={newSignerName} placeholder="Jane Doe" />
+		<Field label={t('common.name')}>
+			<Input bind:value={newSignerName} placeholder={t('docNew.signerNamePlaceholder')} />
 		</Field>
-		<Field label="Email" error={newSignerError}>
-			<Input bind:value={newSignerEmail} type="email" placeholder="jane@example.com" />
+		<Field label={t('common.email')} error={newSignerError}>
+			<Input bind:value={newSignerEmail} type="email" placeholder={t('docNew.signerEmailPlaceholder')} />
 		</Field>
 	</div>
 	{#snippet footer()}
@@ -605,7 +580,7 @@
 				disabled={addingSigner}
 				onclick={() => (showAddSigner = false)}
 			>
-				Cancel
+				{t('common.cancel')}
 			</Button>
 			<Button
 				icon={icons.plus}
@@ -613,7 +588,7 @@
 				disabled={addingSigner}
 				onclick={addSignerToDoc}
 			>
-				{addingSigner ? 'Adding…' : 'Add signer'}
+				{addingSigner ? t('common.adding') : t('docNew.addSigner')}
 			</Button>
 		</div>
 	{/snippet}

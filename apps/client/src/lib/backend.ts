@@ -12,10 +12,6 @@ export function getToken(): string | null {
 	return legacy;
 }
 
-export function setToken(token: string) {
-	localStorage.setItem(TOKEN_KEY, token);
-}
-
 export function clearToken() {
 	localStorage.removeItem(TOKEN_KEY);
 	localStorage.removeItem(LEGACY_TOKEN_KEY);
@@ -163,21 +159,9 @@ export interface ApiTokenCreated {
 
 export const api = {
 	auth: {
-		register: (email: string, password: string) =>
-			request<{ user_id: string; token: string }>('POST', '/auth/register', { email, password }),
-		login: (email: string, password: string) =>
-			request<{ user_id: string; token: string }>('POST', '/auth/login', { email, password }),
 		me: () => request<UserProfile>('GET', '/auth/me'),
 		updateProfile: (data: { name: string; email: string; reminder_interval_days?: number }) =>
 			request<UserProfile>('PUT', '/auth/me', data),
-		changePassword: async (currentPassword: string, newPassword: string) => {
-			const result = await request<{ status: string; token?: string }>('PUT', '/auth/password', {
-				current_password: currentPassword,
-				new_password: newPassword
-			});
-			if (result.token) setToken(result.token);
-			return result;
-		},
 		syncProfile: () => request<{ status: string }>('POST', '/auth/sync-profile'),
 		apiTokens: () => request<ApiToken[]>('GET', '/auth/api-tokens'),
 		createApiToken: (label: string) =>
@@ -311,6 +295,7 @@ export interface UserProfile {
 	name: string;
 	avatar_url: string;
 	avatar_source?: string;
+	locale: string;
 	reminder_interval_days: number;
 	created_at: string;
 }

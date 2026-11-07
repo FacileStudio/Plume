@@ -14,6 +14,8 @@
 		toast
 	} from '@facile/muse';
 	import { spaceStore } from '$lib/stores/space.svelte';
+	import { formatShortDate } from '$lib/i18n/format';
+	import { t } from '$lib/i18n/index.svelte';
 
 	let spaces = $state<Space[]>([]);
 	let loading = $state(true);
@@ -22,14 +24,6 @@
 	let registreUrl = $state('');
 
 	const roleTone = { owner: 'owner', admin: 'admin', member: 'neutral' } as const;
-
-	function formatDate(iso: string): string {
-		return new Date(iso).toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric'
-		});
-	}
 
 	function askLeave(space: Space) {
 		pendingLeave = space;
@@ -42,7 +36,7 @@
 		try {
 			await api.spaces.leave(target.id);
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to leave space');
+			toast.danger(e instanceof Error ? e.message : t('spaces.leaveFailed'));
 			throw e;
 		}
 		spaces = spaces.filter((s) => s.id !== target.id);
@@ -51,7 +45,7 @@
 			spaceStore.activeId = null;
 		}
 		pendingLeave = null;
-		toast.success('You left the space');
+		toast.success(t('spaces.left'));
 	}
 
 	onMount(async () => {
@@ -68,21 +62,21 @@
 	});
 </script>
 
-<svelte:head><title>Spaces — Plume</title></svelte:head>
+<svelte:head><title>{t('spaces.title')}</title></svelte:head>
 
 <div class="flex flex-col gap-10">
 	<div class="flex flex-wrap items-start justify-between gap-4">
 		<div class="flex min-w-0 flex-col gap-2">
-			<h1 class="text-fc-2xl font-semibold text-fc-fg">Spaces</h1>
+			<h1 class="text-fc-2xl font-semibold text-fc-fg">{t('spaces.heading')}</h1>
 			<p class="text-fc-sm text-fc-fg-muted">
-				Shared workspaces. Everyone in a space sees its documents and clients.
-				{#if registreUrl}Spaces and their members are managed in Registre, for every Facile app at once.{/if}
+				{t('spaces.subtitle')}
+				{#if registreUrl}{t('spaces.subtitleRegistre')}{/if}
 			</p>
 		</div>
 		{#if registreUrl}
-			<Button href={registreUrl} icon={icons.space}>Manage in Registre</Button>
+			<Button href={registreUrl} icon={icons.space}>{t('common.manageInRegistre')}</Button>
 		{:else}
-			<Button href="/spaces/new" icon={icons.plus}>New space</Button>
+			<Button href="/spaces/new" icon={icons.plus}>{t('spaces.new')}</Button>
 		{/if}
 	</div>
 
@@ -93,15 +87,15 @@
 	{:else if spaces.length === 0}
 		<EmptyState
 			icon={icons.space}
-			title="No spaces yet"
-			description={registreUrl
-				? 'Create one in Registre and it shows up here within seconds.'
-				: 'Create one to collaborate with your team on the same documents.'}
+			title={t('spaces.empty.title')}
+			description={registreUrl ? t('spaces.empty.registre') : t('spaces.empty.local')}
 		>
 			{#if registreUrl}
-				<Button href={registreUrl} variant="outline" icon={icons.space}>Manage in Registre</Button>
+				<Button href={registreUrl} variant="outline" icon={icons.space}>
+					{t('common.manageInRegistre')}
+				</Button>
 			{:else}
-				<Button href="/spaces/new" variant="outline" icon={icons.plus}>New space</Button>
+				<Button href="/spaces/new" variant="outline" icon={icons.plus}>{t('spaces.new')}</Button>
 			{/if}
 		</EmptyState>
 	{:else}
@@ -109,10 +103,10 @@
 			<Table>
 				<thead>
 					<tr>
-						<th scope="col">Space</th>
-						<th scope="col">Your role</th>
-						<th scope="col">Created</th>
-						<th aria-label="Actions"></th>
+						<th scope="col">{t('spaces.col.space')}</th>
+						<th scope="col">{t('spaces.col.role')}</th>
+						<th scope="col">{t('common.created')}</th>
+						<th aria-label={t('common.actions')}></th>
 					</tr>
 				</thead>
 				<tbody>
@@ -129,18 +123,18 @@
 									{/if}
 								</a>
 							</td>
-							<td><Badge tone={roleTone[space.role]}>{space.role}</Badge></td>
-							<td class="whitespace-nowrap text-fc-fg-muted">{formatDate(space.created_at)}</td>
+							<td><Badge tone={roleTone[space.role]}>{t(`role.${space.role}`)}</Badge></td>
+							<td class="whitespace-nowrap text-fc-fg-muted">{formatShortDate(space.created_at)}</td>
 							<td class="text-right">
 								{#if !space.registre_url}
 									<Button
 										variant="ghost-danger"
 										size="sm"
 										icon={icons.logout}
-										aria-label="Leave {space.name}"
+										aria-label={t('spaces.leaveAria', { name: space.name })}
 										onclick={() => askLeave(space)}
 									>
-										Leave
+										{t('spaces.leave')}
 									</Button>
 								{/if}
 							</td>
@@ -159,9 +153,9 @@
 							class="flex min-w-0 flex-col rounded-fc-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fc-ring"
 						>
 							<span class="truncate text-fc-sm font-medium text-fc-fg">{space.name}</span>
-							<span class="text-fc-xs text-fc-fg-muted">{formatDate(space.created_at)}</span>
+							<span class="text-fc-xs text-fc-fg-muted">{formatShortDate(space.created_at)}</span>
 						</a>
-						<Badge tone={roleTone[space.role]}>{space.role}</Badge>
+						<Badge tone={roleTone[space.role]}>{t(`role.${space.role}`)}</Badge>
 					</div>
 					{#if !space.registre_url}
 						<div class="flex items-center justify-end">
@@ -169,10 +163,10 @@
 								variant="ghost-danger"
 								size="lg"
 								icon={icons.logout}
-								aria-label="Leave {space.name}"
+								aria-label={t('spaces.leaveAria', { name: space.name })}
 								onclick={() => askLeave(space)}
 							>
-								Leave
+								{t('spaces.leave')}
 							</Button>
 						</div>
 					{/if}
@@ -185,10 +179,10 @@
 <ConfirmModal
 	bind:open={confirmLeave}
 	tone="danger"
-	title="Leave {pendingLeave?.name ?? 'this space'}?"
-	description="You lose access to every document in this space. An owner can invite you back."
-	confirmLabel="Leave space"
-	cancelLabel="Stay"
+	title={t('spaces.confirm.title', { name: pendingLeave?.name ?? t('spaces.confirm.thisSpace') })}
+	description={t('spaces.confirm.text')}
+	confirmLabel={t('spaces.confirm.label')}
+	cancelLabel={t('spaces.confirm.cancel')}
 	onConfirm={runLeave}
 	onCancel={() => (pendingLeave = null)}
 />
