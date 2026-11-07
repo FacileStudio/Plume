@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- `@facile/muse` v0.14.2 to v0.14.4: the language chosen in the user menu re-renders the whole UI without a reload, and a single 100% slice in the dashboard donut is drawn as a clean ring.
+- The user menu's Subscription row drops its empty `plan` placeholder and shows only its label.
+
 ## 0.10.3 - 2026-11-07
 
 ### Security
