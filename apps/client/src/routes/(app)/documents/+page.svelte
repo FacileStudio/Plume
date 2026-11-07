@@ -14,6 +14,8 @@
 		toast
 	} from '@facile/muse';
 	import { spaceStore } from '$lib/stores/space.svelte';
+	import { formatShortDate } from '$lib/i18n/format';
+	import { t } from '$lib/i18n/index.svelte';
 
 	const statusTone = {
 		draft: 'neutral',
@@ -28,18 +30,6 @@
 	let confirmDelete = $state(false);
 	let pendingDelete = $state<Document | null>(null);
 
-	function formatDate(iso: string): string {
-		return new Date(iso).toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric'
-		});
-	}
-
-	function signerLabel(count: number): string {
-		return `${count} signer${count === 1 ? '' : 's'}`;
-	}
-
 	function askDelete(doc: Document) {
 		pendingDelete = doc;
 		confirmDelete = true;
@@ -52,9 +42,9 @@
 			await api.documents.delete(target.id);
 			documents = documents.filter((d) => d.id !== target.id);
 			pendingDelete = null;
-			toast.success('Document deleted');
+			toast.success(t('documents.deleted'));
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to delete the document');
+			toast.danger(e instanceof Error ? e.message : t('documents.deleteFailed'));
 			throw e;
 		}
 	}
@@ -64,7 +54,7 @@
 		try {
 			documents = await api.documents.list(spaceStore.activeId);
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to load documents');
+			toast.danger(e instanceof Error ? e.message : t('documents.loadFailed'));
 		}
 		loading = false;
 	}
@@ -80,17 +70,15 @@
 	});
 </script>
 
-<svelte:head><title>Documents — Plume</title></svelte:head>
+<svelte:head><title>{t('documents.title')}</title></svelte:head>
 
 <div class="flex flex-col gap-10">
 	<div class="flex flex-wrap items-start justify-between gap-4">
 		<div class="flex min-w-0 flex-col gap-1">
-			<h1 class="text-fc-2xl font-semibold text-fc-fg">Documents</h1>
-			<p class="text-fc-sm text-fc-fg-muted">
-				Everything you have sent out for signature, and everything still in draft.
-			</p>
+			<h1 class="text-fc-2xl font-semibold text-fc-fg">{t('documents.heading')}</h1>
+			<p class="text-fc-sm text-fc-fg-muted">{t('documents.subtitle')}</p>
 		</div>
-		<Button href="/documents/new" icon={icons.plus}>New document</Button>
+		<Button href="/documents/new" icon={icons.plus}>{t('dashboard.newDocument')}</Button>
 	</div>
 
 	<section class="flex flex-col gap-4">
@@ -103,21 +91,21 @@
 		{:else if documents.length === 0}
 			<EmptyState
 				icon="solar:document-text-linear"
-				title="No documents yet"
-				description="Upload a PDF, place the fields, and send it out for signature."
+				title={t('documents.empty.title')}
+				description={t('documents.empty.text')}
 			>
-				<Button href="/documents/new" icon={icons.plus}>New document</Button>
+				<Button href="/documents/new" icon={icons.plus}>{t('dashboard.newDocument')}</Button>
 			</EmptyState>
 		{:else}
 			<div class="hidden md:block">
 				<Table>
 					<thead>
 						<tr>
-							<th scope="col">Document</th>
-							<th scope="col">Created</th>
-							<th scope="col">Signers</th>
-							<th scope="col">Status</th>
-							<th aria-label="Actions"></th>
+							<th scope="col">{t('documents.col.document')}</th>
+							<th scope="col">{t('common.created')}</th>
+							<th scope="col">{t('documents.col.signers')}</th>
+							<th scope="col">{t('common.status')}</th>
+							<th aria-label={t('common.actions')}></th>
 						</tr>
 					</thead>
 					<tbody>
@@ -137,21 +125,21 @@
 										<span class="truncate font-medium">{doc.name}</span>
 									</a>
 								</td>
-								<td class="whitespace-nowrap text-fc-fg-muted">{formatDate(doc.created_at)}</td>
+								<td class="whitespace-nowrap text-fc-fg-muted">{formatShortDate(doc.created_at)}</td>
 								<td class="whitespace-nowrap text-fc-fg-muted">
-									{doc.signer_count === undefined ? '—' : signerLabel(doc.signer_count)}
+									{doc.signer_count === undefined ? '—' : t('documents.signerCount', { count: doc.signer_count })}
 								</td>
-								<td><Badge tone={statusTone[doc.status]}>{doc.status}</Badge></td>
+								<td><Badge tone={statusTone[doc.status]}>{t(`status.${doc.status}`)}</Badge></td>
 								<td>
 									<div class="flex justify-end">
 										<Button
 											variant="ghost-danger"
 											size="sm"
 											icon={icons.remove}
-											aria-label="Delete {doc.name}"
+											aria-label={t('documents.deleteAria', { name: doc.name })}
 											onclick={() => askDelete(doc)}
 										>
-											Delete
+											{t('common.delete')}
 										</Button>
 									</div>
 								</td>
@@ -168,23 +156,23 @@
 							<a href="/documents/{doc.id}" class="flex min-w-0 flex-col gap-1">
 								<span class="truncate text-fc-sm font-medium text-fc-fg">{doc.name}</span>
 								<span class="text-fc-xs text-fc-fg-muted">
-									{formatDate(doc.created_at)}
+									{formatShortDate(doc.created_at)}
 									{#if doc.signer_count !== undefined}
-										· {signerLabel(doc.signer_count)}
+										· {t('documents.signerCount', { count: doc.signer_count })}
 									{/if}
 								</span>
 							</a>
-							<Badge tone={statusTone[doc.status]}>{doc.status}</Badge>
+							<Badge tone={statusTone[doc.status]}>{t(`status.${doc.status}`)}</Badge>
 						</div>
 						<div class="flex justify-end">
 							<Button
 								variant="ghost-danger"
 								size="lg"
 								icon={icons.remove}
-								aria-label="Delete {doc.name}"
+								aria-label={t('documents.deleteAria', { name: doc.name })}
 								onclick={() => askDelete(doc)}
 							>
-								Delete
+								{t('common.delete')}
 							</Button>
 						</div>
 					</Card>
@@ -197,9 +185,9 @@
 <ConfirmModal
 	bind:open={confirmDelete}
 	tone="danger"
-	title="Delete {pendingDelete?.name ?? 'this document'}?"
-	description="The document, its signers and every field placed on it are removed permanently. This cannot be undone."
-	confirmLabel="Delete document"
+	title={t('documents.confirm.title', { name: pendingDelete?.name ?? t('documents.confirm.thisDocument') })}
+	description={t('documents.confirm.text')}
+	confirmLabel={t('documents.confirm.label')}
 	onConfirm={runDelete}
 	onCancel={() => (pendingDelete = null)}
 />

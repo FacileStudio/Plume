@@ -14,11 +14,14 @@
 		EmptyState,
 		Field,
 		Input,
+		LocaleSwitch,
 		Spinner,
 		icons,
 		toast
 	} from '@facile/muse';
 	import SignaturePad from '$lib/components/signature-pad.svelte';
+	import { formatDateTime } from '$lib/i18n/format';
+	import { rememberLocale, t } from '$lib/i18n/index.svelte';
 
 	let payload = $state<SigningPayload | null>(null);
 	let loading = $state(true);
@@ -58,12 +61,20 @@
 	function formatDate(value: string | null): string {
 		if (!value) return '';
 		try {
-			return new Date(value).toLocaleString(undefined, {
-				dateStyle: 'medium',
-				timeStyle: 'short'
-			});
+			return formatDateTime(value);
 		} catch {
 			return value;
+		}
+	}
+
+	function roleName(role: string): string {
+		switch (role) {
+			case 'signer':
+			case 'viewer':
+			case 'approver':
+				return t(`role.${role}`);
+			default:
+				return role;
 		}
 	}
 
@@ -72,16 +83,18 @@
 			return {
 				icon: icons.check,
 				tone: 'text-fc-success',
-				label: entry.signed_at ? `Signed · ${formatDate(entry.signed_at)}` : 'Signed'
+				label: entry.signed_at
+					? t('sign.roster.signedOn', { date: formatDate(entry.signed_at) })
+					: t('sign.roster.signed')
 			};
 		}
 		if (entry.status === 'declined') {
-			return { icon: icons.error, tone: 'text-fc-danger', label: 'Declined' };
+			return { icon: icons.error, tone: 'text-fc-danger', label: t('sign.roster.declined') };
 		}
 		if (entry.role === 'viewer') {
-			return { icon: icons.eye, tone: 'text-fc-fg-muted', label: 'Viewer' };
+			return { icon: icons.eye, tone: 'text-fc-fg-muted', label: t('sign.roster.viewer') };
 		}
-		return { icon: icons.clock, tone: 'text-fc-fg-muted', label: 'Waiting for signature' };
+		return { icon: icons.clock, tone: 'text-fc-fg-muted', label: t('sign.roster.waiting') };
 	}
 
 	let pdfContainer = $state<HTMLDivElement>(undefined!);
@@ -120,11 +133,13 @@
 
 	function fieldLabel(f: SigningField): string {
 		switch (f.field_type) {
-			case 'signature': return 'Signature';
-			case 'text': return 'Text';
-			case 'date': return 'Date';
-			case 'checkbox': return 'Checkbox';
-			default: return 'Field';
+			case 'signature':
+			case 'text':
+			case 'date':
+			case 'checkbox':
+				return t(`field.type.${f.field_type}`);
+			default:
+				return t('field.type.other');
 		}
 	}
 
@@ -167,9 +182,7 @@
 		if (missing.length > 0) {
 			error = '';
 			toast.danger(
-				missing.length === 1
-					? 'One required field is still empty.'
-					: `${missing.length} required fields are still empty.`
+				missing.length === 1 ? t('sign.missing.one') : t('sign.missing.many', { count: missing.length })
 			);
 			focusField(missing[0].id);
 			return;
@@ -195,7 +208,7 @@
 			declined = true;
 			await loadStatus(token);
 		} catch (e: any) {
-			declineError = e?.message ?? 'Could not decline this document.';
+			declineError = e?.message ?? t('sign.declineFailed');
 			throw e;
 		} finally {
 			submitting = false;
@@ -256,7 +269,11 @@
 	});
 </script>
 
-<svelte:head><title>{payload ? `Sign — ${payload.document.name}` : 'Sign Document'} — Plume</title></svelte:head>
+<svelte:head>
+	<title>
+		{payload ? t('sign.title', { name: payload.document.name }) : t('sign.titleFallback')}
+	</title>
+</svelte:head>
 
 {#snippet progressAndRoster()}
 	{#if signingStatus && signingStatus.signers.length > 0}
@@ -264,8 +281,10 @@
 			{#if totalSigners > 0}
 				<div class="flex flex-col gap-2">
 					<div class="flex items-center justify-between gap-3 text-fc-sm">
-						<span class="font-medium text-fc-fg">Signing progress</span>
-						<span class="text-fc-fg-muted">{signedCount} of {totalSigners} signed</span>
+						<span class="font-medium text-fc-fg">{t('sign.progress')}</span>
+						<span class="text-fc-fg-muted">
+							{t('sign.progressCount', { signed: signedCount, total: totalSigners })}
+						</span>
 					</div>
 					<div
 						class="h-2 w-full overflow-hidden rounded-fc-pill bg-fc-surface"
@@ -273,7 +292,7 @@
 						aria-valuemin={0}
 						aria-valuemax={totalSigners}
 						aria-valuenow={signedCount}
-						aria-label="Signing progress"
+						aria-label={t('sign.progress')}
 					>
 						<div
 							class="h-full rounded-fc-pill bg-fc-success transition-all duration-500 motion-reduce:transition-none"
@@ -295,10 +314,10 @@
 							<div class="flex flex-wrap items-center gap-1.5">
 								<span class="truncate text-fc-sm font-medium text-fc-fg">{entry.name}</span>
 								{#if entry.is_you}
-									<Badge tone="accent">You</Badge>
+									<Badge tone="accent">{t('sign.you')}</Badge>
 								{/if}
 								{#if entry.role !== 'signer'}
-									<Badge tone="neutral" class="capitalize">{entry.role}</Badge>
+									<Badge tone="neutral">{roleName(entry.role)}</Badge>
 								{/if}
 							</div>
 							<p class="text-fc-xs text-fc-fg-muted">{meta.label}</p>
@@ -308,21 +327,24 @@
 			</ul>
 
 			{#if isComplete}
-				<Alert tone="success">Everyone has signed. This document is finalized.</Alert>
+				<Alert tone="success">{t('sign.finalized')}</Alert>
 			{:else if someoneDeclined}
-				<Alert tone="danger">The signing process was stopped because a signer declined.</Alert>
+				<Alert tone="danger">{t('sign.stopped')}</Alert>
 			{:else if pendingNames.length > 0}
-				<Alert tone="neutral">Waiting on {pendingNames.join(', ')} to finalize the document.</Alert>
+				<Alert tone="neutral">{t('sign.waitingOn', { names: pendingNames.join(', ') })}</Alert>
 			{/if}
 		</Card>
 	{/if}
 {/snippet}
 
 <div class="flex min-h-[100dvh] flex-col bg-fc-page text-fc-fg">
-	<header class="flex items-center gap-2 border-b border-fc-border px-4 py-4 sm:px-6">
-		<iconify-icon icon="solar:pen-new-square-bold-duotone" width="24" height="24" class="block"
-		></iconify-icon>
-		<span class="text-fc-lg font-semibold tracking-tight">Plume</span>
+	<header class="flex items-center justify-between gap-2 px-4 py-4 sm:px-6">
+		<div class="flex items-center gap-2">
+			<iconify-icon icon="solar:pen-new-square-bold-duotone" width="24" height="24" class="block"
+			></iconify-icon>
+			<span class="text-fc-lg font-semibold tracking-tight">Plume</span>
+		</div>
+		<LocaleSwitch onChange={rememberLocale} />
 	</header>
 
 	<main
@@ -331,27 +353,27 @@
 			: 'items-start'}"
 	>
 		{#if loading}
-			<Spinner size="lg" label="Loading document" />
+			<Spinner size="lg" label={t('common.loadingDocument')} />
 		{:else if notFound}
 			<div class="w-full max-w-md">
 				<EmptyState
 					icon={icons.eyeClosed}
-					title="Link not found"
-					description="This signing link may be invalid, already used, or expired. Ask the sender for a fresh one."
+					title={t('sign.notFound.title')}
+					description={t('sign.notFound.text')}
 				/>
 			</div>
 		{:else if signed}
 			<div class="flex w-full max-w-md flex-col gap-4">
 				<Alert
 					tone="success"
-					title={isComplete ? 'Document completed' : 'Document signed successfully'}
+					title={isComplete ? t('sign.done.completed') : t('sign.done.signed')}
 				>
 					{#if isComplete}
-						All parties have signed. The document is complete.
+						{t('sign.done.allSigned')}
 					{:else if totalSigners > 1}
-						Your signature is recorded. Waiting for the remaining signers to complete it.
+						{t('sign.done.waiting')}
 					{:else}
-						Your signature is recorded. You can close this page.
+						{t('sign.done.close')}
 					{/if}
 				</Alert>
 
@@ -365,14 +387,12 @@
 					icon={icons.download}
 					class="w-full"
 				>
-					Download document
+					{t('common.download')}
 				</Button>
 			</div>
 		{:else if declined}
 			<div class="flex w-full max-w-md flex-col gap-4">
-				<Alert tone="danger" title="Document declined">
-					You have declined to sign this document.
-				</Alert>
+				<Alert tone="danger" title={t('sign.declined.title')}>{t('sign.declined.text')}</Alert>
 
 				{@render progressAndRoster()}
 			</div>
@@ -385,13 +405,12 @@
 					{#if pdfLoading}
 						<div class="flex items-center justify-center gap-3 py-12 text-fc-sm text-fc-fg-muted">
 							<Spinner size="sm" />
-							Loading preview…
+							{t('sign.loadingPreview')}
 						</div>
 					{:else if pdfFailed}
 						<div class="py-8">
-							<Alert tone="warning" title="Preview unavailable">
-								The document could not be rendered in the browser. You can still download it, review
-								it, and fill the fields on the right.
+							<Alert tone="warning" title={t('sign.previewUnavailable')}>
+								{t('sign.previewUnavailableText')}
 							</Alert>
 						</div>
 					{:else}
@@ -415,7 +434,7 @@
 										>
 											{#if val && field.field_type === 'signature'}
 												{#if val.startsWith('data:image/')}
-													<img src={val} alt="Signature" class="h-full w-full object-contain p-0.5" />
+													<img src={val} alt={t('sign.signatureAlt')} class="h-full w-full object-contain p-0.5" />
 												{:else}
 													<span class="truncate px-1 font-serif italic">{val}</span>
 												{/if}
@@ -440,7 +459,7 @@
 												{#if cf.value.startsWith('data:image/')}
 													<img
 														src={cf.value}
-														alt="Signature by {cf.signer_name}"
+														alt={t('sign.signatureBy', { name: cf.signer_name })}
 														class="h-full w-full object-contain p-0.5 opacity-60"
 													/>
 												{:else}
@@ -464,7 +483,7 @@
 						<div class="flex flex-col gap-1">
 							<h1 class="text-fc-lg font-semibold text-fc-fg">{payload.document.name}</h1>
 							<p class="text-fc-sm text-fc-fg-muted">
-								Signing as <span class="font-medium text-fc-fg">{payload.signer.name}</span>
+								{t('sign.signingAs', { name: payload.signer.name })}
 							</p>
 						</div>
 
@@ -476,7 +495,7 @@
 							icon={icons.download}
 							class="w-full"
 						>
-							Download document
+							{t('common.download')}
 						</Button>
 
 						{#if payload.fields.length > 0}
@@ -498,13 +517,13 @@
 												<SignaturePad bind:value={fieldValues[String(field.id)]} />
 											</div>
 											{#if isMissing}
-												<span class="text-fc-xs text-fc-danger">A signature is required.</span>
+												<span class="text-fc-xs text-fc-danger">{t('sign.signatureRequired')}</span>
 											{/if}
 										</div>
 									{:else if field.field_type === 'date'}
 										<Field
 											label={labelFor(field)}
-											error={isMissing ? 'This field is required.' : undefined}
+											error={isMissing ? t('sign.fieldRequired') : undefined}
 											data-field-control={field.id}
 										>
 											<div class="flex items-center gap-2">
@@ -518,13 +537,13 @@
 													variant="outline"
 													size="lg"
 													icon={icons.calendar}
-													aria-label="Use today's date"
+													aria-label={t('sign.useToday')}
 													onclick={() => {
 														fieldValues[String(field.id)] = new Date().toISOString().split('T')[0];
 														scrollToField(field.id);
 													}}
 												>
-													Today
+													{t('sign.today')}
 												</Button>
 											</div>
 										</Field>
@@ -544,18 +563,18 @@
 												class="min-h-11"
 											/>
 											{#if isMissing}
-												<span class="text-fc-xs text-fc-danger">This box has to be ticked.</span>
+												<span class="text-fc-xs text-fc-danger">{t('sign.checkboxRequired')}</span>
 											{/if}
 										</div>
 									{:else}
 										<Field
 											label={labelFor(field)}
-											error={isMissing ? 'This field is required.' : undefined}
+											error={isMissing ? t('sign.fieldRequired') : undefined}
 											data-field-control={field.id}
 										>
 											<Input
 												bind:value={fieldValues[String(field.id)]}
-												placeholder="Enter text"
+												placeholder={t('sign.enterText')}
 												onfocus={() => scrollToField(field.id)}
 											/>
 										</Field>
@@ -565,13 +584,15 @@
 						{/if}
 
 						{#if missingFields.length > 0}
-							<Alert tone="danger" title="Fill the required fields first">
-								Still empty: {missingFields.map((f) => f.label || fieldLabel(f)).join(', ')}.
+							<Alert tone="danger" title={t('sign.missing.title')}>
+								{t('sign.missing.list', {
+									names: missingFields.map((f) => f.label || fieldLabel(f)).join(', ')
+								})}
 							</Alert>
 						{/if}
 
 						{#if error}
-							<Alert tone="danger" title="Could not sign">{error}</Alert>
+							<Alert tone="danger" title={t('sign.error.title')}>{error}</Alert>
 						{/if}
 
 						<Divider />
@@ -585,9 +606,9 @@
 								class="flex-1"
 							>
 								{#if submitting}
-									<Spinner size="sm" class="border-current/30 border-t-current" />
+									<Spinner size="sm" />
 								{/if}
-								Sign &amp; complete
+								{t('sign.submit')}
 							</Button>
 							<Button
 								variant="outline"
@@ -595,7 +616,7 @@
 								onclick={() => (confirmDecline = true)}
 								disabled={submitting}
 							>
-								Decline
+								{t('sign.decline')}
 							</Button>
 						</div>
 					</Card>
@@ -605,11 +626,11 @@
 	</main>
 
 	<footer
-		class="flex items-center justify-center gap-1.5 border-t border-fc-border px-4 py-4 text-fc-xs text-fc-fg-muted sm:px-6"
+		class="flex items-center justify-center gap-1.5 px-4 py-4 text-fc-xs text-fc-fg-muted sm:px-6"
 	>
 		<iconify-icon icon="solar:pen-new-square-bold-duotone" width="16" height="16" class="block"
 		></iconify-icon>
-		Powered by
+		{t('common.footer.poweredBy')}
 		<a href="/" class="font-medium text-fc-fg hover:opacity-80">Plume</a>
 	</footer>
 </div>
@@ -617,10 +638,10 @@
 <ConfirmModal
 	bind:open={confirmDecline}
 	tone="danger"
-	title="Decline to sign?"
-	description="The sender is notified and the signing process stops here. This cannot be undone."
-	confirmLabel="Decline"
-	cancelLabel="Keep reviewing"
+	title={t('sign.confirm.title')}
+	description={t('sign.confirm.text')}
+	confirmLabel={t('sign.confirm.label')}
+	cancelLabel={t('sign.confirm.cancel')}
 	onConfirm={declineDocument}
 	onCancel={() => (declineError = '')}
 >

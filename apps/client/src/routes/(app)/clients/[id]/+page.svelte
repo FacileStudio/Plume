@@ -20,6 +20,8 @@
 		icons,
 		toast
 	} from '@facile/muse';
+	import { formatShortDate } from '$lib/i18n/format';
+	import { t } from '$lib/i18n/index.svelte';
 
 	let client = $state<Client | null>(null);
 	let documents = $state<Document[]>([]);
@@ -44,14 +46,6 @@
 		declined: 'danger'
 	} as const;
 
-	function formatDate(iso: string): string {
-		return new Date(iso).toLocaleDateString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			year: 'numeric'
-		});
-	}
-
 	function startEdit() {
 		if (!client) return;
 		editName = client.name;
@@ -66,7 +60,7 @@
 		event.preventDefault();
 		if (!client) return;
 		if (!editName.trim()) {
-			toast.danger('Client name is required');
+			toast.danger(t('client.nameRequired'));
 			return;
 		}
 		saving = true;
@@ -79,9 +73,9 @@
 				notes: editNotes.trim()
 			});
 			editing = false;
-			toast.success('Client updated');
+			toast.success(t('client.updated'));
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to update client');
+			toast.danger(e instanceof Error ? e.message : t('client.updateFailed'));
 		}
 		saving = false;
 	}
@@ -91,10 +85,10 @@
 		try {
 			await api.clients.delete(client.id);
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to delete client');
+			toast.danger(e instanceof Error ? e.message : t('clients.deleteFailed'));
 			throw e;
 		}
-		toast.success('Client deleted');
+		toast.success(t('clients.deleted'));
 		goto('/clients');
 	}
 
@@ -114,7 +108,7 @@
 	});
 </script>
 
-<svelte:head><title>{client?.name ?? 'Client'} — Plume</title></svelte:head>
+<svelte:head><title>{client?.name ?? t('client.titleFallback')} — Plume</title></svelte:head>
 
 {#if loading}
 	<div class="flex min-h-[40dvh] items-center justify-center">
@@ -124,7 +118,7 @@
 	<div class="flex flex-col gap-10">
 		<div class="flex flex-col gap-4">
 			<Button href="/clients" variant="ghost" size="sm" icon={icons.chevronLeft} class="w-fit -ml-3">
-				Clients
+				{t('client.back')}
 			</Button>
 			<div class="flex flex-wrap items-start justify-between gap-4">
 				<div class="flex min-w-0 items-center gap-3">
@@ -138,14 +132,14 @@
 				</div>
 				<div class="flex shrink-0 items-center gap-2">
 					{#if !editing}
-						<Button variant="outline" icon={icons.edit} onclick={startEdit}>Edit</Button>
+						<Button variant="outline" icon={icons.edit} onclick={startEdit}>{t('common.edit')}</Button>
 					{/if}
 					<Button
 						variant="ghost-danger"
 						icon={icons.remove}
 						onclick={() => (confirmDelete = true)}
 					>
-						Delete
+						{t('common.delete')}
 					</Button>
 				</div>
 			</div>
@@ -153,24 +147,24 @@
 
 		{#if editing}
 			<form onsubmit={saveEdit} class="flex flex-col gap-4">
-				<SettingsSection title="Details" description="Contact information and notes.">
-					<Field label="Name">
-						<Input bind:value={editName} placeholder="Jane Doe" />
+				<SettingsSection title={t('client.details')} description={t('client.detailsText')}>
+					<Field label={t('common.name')}>
+						<Input bind:value={editName} placeholder={t('clientNew.namePlaceholder')} />
 					</Field>
-					<Field label="Email">
-						<Input bind:value={editEmail} type="email" placeholder="jane@example.com" />
+					<Field label={t('common.email')}>
+						<Input bind:value={editEmail} type="email" placeholder={t('clientNew.emailPlaceholder')} />
 					</Field>
-					<Field label="Company">
-						<Input bind:value={editCompany} placeholder="Acme Inc." />
+					<Field label={t('common.company')}>
+						<Input bind:value={editCompany} placeholder={t('clientNew.companyPlaceholder')} />
 					</Field>
-					<Field label="Phone">
-						<Input bind:value={editPhone} type="tel" placeholder="+1 555 000 0000" />
+					<Field label={t('common.phone')}>
+						<Input bind:value={editPhone} type="tel" placeholder={t('clientNew.phonePlaceholder')} />
 					</Field>
-					<Field label="Notes">
+					<Field label={t('common.notes')}>
 						<Textarea
 							bind:value={editNotes}
 							rows={4}
-							placeholder="Anything worth remembering about this client…"
+							placeholder={t('client.notesPlaceholder')}
 						/>
 					</Field>
 				</SettingsSection>
@@ -181,25 +175,25 @@
 						class="w-full sm:w-auto"
 						onclick={() => (editing = false)}
 					>
-						Cancel
+						{t('common.cancel')}
 					</Button>
 					<Button type="submit" icon={icons.check} disabled={saving} class="w-full sm:w-auto">
-						{saving ? 'Saving…' : 'Save'}
+						{saving ? t('common.saving') : t('common.save')}
 					</Button>
 				</div>
 			</form>
 		{:else}
-			<SettingsSection title="Details" description="Contact information and notes.">
-				<SettingsRow label="Email">
+			<SettingsSection title={t('client.details')} description={t('client.detailsText')}>
+				<SettingsRow label={t('common.email')}>
 					<span class="text-fc-sm text-fc-fg">{client.email || '—'}</span>
 				</SettingsRow>
-				<SettingsRow label="Company">
+				<SettingsRow label={t('common.company')}>
 					<span class="text-fc-sm text-fc-fg">{client.company || '—'}</span>
 				</SettingsRow>
-				<SettingsRow label="Phone">
+				<SettingsRow label={t('common.phone')}>
 					<span class="text-fc-sm text-fc-fg">{client.phone || '—'}</span>
 				</SettingsRow>
-				<SettingsRow label="Notes" stacked>
+				<SettingsRow label={t('common.notes')} stacked>
 					<span class="whitespace-pre-wrap text-fc-sm text-fc-fg">{client.notes || '—'}</span>
 				</SettingsRow>
 			</SettingsSection>
@@ -207,17 +201,15 @@
 
 		<section class="flex flex-col gap-4">
 			<div class="flex min-w-0 flex-col gap-1">
-				<h2 class="text-fc-lg font-semibold text-fc-fg">Documents</h2>
-				<p class="text-fc-sm text-fc-fg-muted">
-					{documents.length} document{documents.length === 1 ? '' : 's'} linked to this client.
-				</p>
+				<h2 class="text-fc-lg font-semibold text-fc-fg">{t('client.documents')}</h2>
+				<p class="text-fc-sm text-fc-fg-muted">{t('client.documentCount', { count: documents.length })}</p>
 			</div>
 
 			{#if documents.length === 0}
 				<EmptyState
 					icon={icons.folder}
-					title="No documents linked yet"
-					description="Pick this client when you create a document and it will appear here."
+					title={t('client.noDocuments')}
+					description={t('client.noDocumentsText')}
 				/>
 			{:else}
 				<div class="flex flex-col gap-2">
@@ -225,9 +217,9 @@
 						<Card href="/documents/{doc.id}" class="flex items-center justify-between gap-3">
 							<div class="flex min-w-0 flex-col gap-1">
 								<span class="truncate text-fc-sm font-medium text-fc-fg">{doc.name}</span>
-								<span class="text-fc-xs text-fc-fg-muted">{formatDate(doc.created_at)}</span>
+								<span class="text-fc-xs text-fc-fg-muted">{formatShortDate(doc.created_at)}</span>
 							</div>
-							<Badge tone={statusTone[doc.status]}>{doc.status}</Badge>
+							<Badge tone={statusTone[doc.status]}>{t(`status.${doc.status}`)}</Badge>
 						</Card>
 					{/each}
 				</div>
@@ -239,9 +231,9 @@
 <ConfirmModal
 	bind:open={confirmDelete}
 	tone="danger"
-	title="Delete {client?.name ?? 'this client'}?"
-	description="This cannot be undone. Documents linked to this client are kept, but unlinked."
-	confirmLabel="Delete client"
-	cancelLabel="Keep client"
+	title={t('clients.confirm.title', { name: client?.name ?? t('clients.confirm.thisClient') })}
+	description={t('clients.confirm.text')}
+	confirmLabel={t('clients.confirm.label')}
+	cancelLabel={t('clients.confirm.cancel')}
 	onConfirm={runDelete}
 />

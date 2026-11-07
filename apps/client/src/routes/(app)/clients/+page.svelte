@@ -12,6 +12,7 @@
 		icons,
 		toast
 	} from '@facile/muse';
+	import { t } from '$lib/i18n/index.svelte';
 
 	let clients = $state<Client[]>([]);
 	let loading = $state(true);
@@ -29,12 +30,12 @@
 		try {
 			await api.clients.delete(target.id);
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to delete client');
+			toast.danger(e instanceof Error ? e.message : t('clients.deleteFailed'));
 			throw e;
 		}
 		clients = clients.filter((c) => c.id !== target.id);
 		pendingDelete = null;
-		toast.success('Client deleted');
+		toast.success(t('clients.deleted'));
 	}
 
 	onMount(async () => {
@@ -45,17 +46,15 @@
 	});
 </script>
 
-<svelte:head><title>Clients — Plume</title></svelte:head>
+<svelte:head><title>{t('clients.title')}</title></svelte:head>
 
 <div class="flex flex-col gap-10">
 	<div class="flex flex-wrap items-start justify-between gap-4">
 		<div class="flex min-w-0 flex-col gap-2">
-			<h1 class="text-fc-2xl font-semibold text-fc-fg">Clients</h1>
-			<p class="text-fc-sm text-fc-fg-muted">
-				The people and companies you send documents to.
-			</p>
+			<h1 class="text-fc-2xl font-semibold text-fc-fg">{t('clients.heading')}</h1>
+			<p class="text-fc-sm text-fc-fg-muted">{t('clients.subtitle')}</p>
 		</div>
-		<Button href="/clients/new" icon={icons.plus}>New client</Button>
+		<Button href="/clients/new" icon={icons.plus}>{t('clients.new')}</Button>
 	</div>
 
 	{#if loading}
@@ -65,20 +64,20 @@
 	{:else if clients.length === 0}
 		<EmptyState
 			icon={icons.usersGroup}
-			title="No clients yet"
-			description="Add your first one and it will show up here, along with every document linked to it."
+			title={t('clients.empty.title')}
+			description={t('clients.empty.text')}
 		>
-			<Button href="/clients/new" variant="outline" icon={icons.plus}>New client</Button>
+			<Button href="/clients/new" variant="outline" icon={icons.plus}>{t('clients.new')}</Button>
 		</EmptyState>
 	{:else}
 		<div class="hidden md:block">
 			<Table>
 				<thead>
 					<tr>
-						<th scope="col">Client</th>
-						<th scope="col">Company</th>
-						<th scope="col">Phone</th>
-						<th aria-label="Actions"></th>
+						<th scope="col">{t('clients.col.client')}</th>
+						<th scope="col">{t('common.company')}</th>
+						<th scope="col">{t('common.phone')}</th>
+						<th aria-label={t('common.actions')}></th>
 					</tr>
 				</thead>
 				<tbody>
@@ -91,7 +90,7 @@
 								>
 									<span class="truncate font-medium text-fc-fg">{client.name}</span>
 									<span class="truncate text-fc-xs text-fc-fg-muted">
-										{client.email || 'No email'}
+										{client.email || t('clients.noEmail')}
 									</span>
 								</a>
 							</td>
@@ -102,10 +101,10 @@
 									variant="ghost-danger"
 									size="sm"
 									icon={icons.remove}
-									aria-label="Delete {client.name}"
+									aria-label={t('documents.deleteAria', { name: client.name })}
 									onclick={() => askDelete(client)}
 								>
-									Delete
+									{t('common.delete')}
 								</Button>
 							</td>
 						</tr>
@@ -123,7 +122,7 @@
 					>
 						<span class="truncate text-fc-sm font-medium text-fc-fg">{client.name}</span>
 						<span class="truncate text-fc-xs text-fc-fg-muted">
-							{client.email || client.company || 'No contact details'}
+							{client.email || client.company || t('clients.noContact')}
 						</span>
 					</a>
 					<div class="flex items-center justify-end">
@@ -131,10 +130,10 @@
 							variant="ghost-danger"
 							size="lg"
 							icon={icons.remove}
-							aria-label="Delete {client.name}"
+							aria-label={t('documents.deleteAria', { name: client.name })}
 							onclick={() => askDelete(client)}
 						>
-							Delete
+							{t('common.delete')}
 						</Button>
 					</div>
 				</Card>
@@ -146,10 +145,10 @@
 <ConfirmModal
 	bind:open={confirmDelete}
 	tone="danger"
-	title="Delete {pendingDelete?.name ?? 'this client'}?"
-	description="This cannot be undone. Documents linked to this client are kept, but unlinked."
-	confirmLabel="Delete client"
-	cancelLabel="Keep client"
+	title={t('clients.confirm.title', { name: pendingDelete?.name ?? t('clients.confirm.thisClient') })}
+	description={t('clients.confirm.text')}
+	confirmLabel={t('clients.confirm.label')}
+	cancelLabel={t('clients.confirm.cancel')}
 	onConfirm={runDelete}
 	onCancel={() => (pendingDelete = null)}
 />

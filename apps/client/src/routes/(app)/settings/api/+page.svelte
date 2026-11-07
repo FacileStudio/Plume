@@ -15,6 +15,8 @@
 		toast
 	} from '@facile/muse';
 	import { api, type ApiToken } from '$lib/backend';
+	import { formatDate } from '$lib/i18n/format';
+	import { t } from '$lib/i18n/index.svelte';
 
 	let tokens = $state<ApiToken[]>([]);
 	let busy = $state(false);
@@ -30,7 +32,7 @@
 		try {
 			tokens = await api.auth.apiTokens();
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to load tokens');
+			toast.danger(e instanceof Error ? e.message : t('api.loadFailed'));
 		}
 	}
 
@@ -45,10 +47,10 @@
 		try {
 			const created = await api.auth.createApiToken(label.trim());
 			issued = created.token;
-			toast.success('Token generated');
+			toast.success(t('api.generated'));
 			await load();
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to generate the token');
+			toast.danger(e instanceof Error ? e.message : t('api.generateFailed'));
 		} finally {
 			busy = false;
 		}
@@ -60,76 +62,56 @@
 		busy = true;
 		try {
 			await api.auth.revokeApiToken(target.id);
-			toast.success('Token revoked');
+			toast.success(t('api.revoked'));
 			await load();
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to revoke the token');
+			toast.danger(e instanceof Error ? e.message : t('api.revokeFailed'));
 		} finally {
 			busy = false;
 		}
 	}
-
-	function formatDate(value: string) {
-		return new Date(value).toLocaleDateString();
-	}
 </script>
 
-<svelte:head><title>API — Plume</title></svelte:head>
+<svelte:head><title>{t('api.title')}</title></svelte:head>
 
 <div class="flex flex-col gap-10">
-	<SettingsSection
-		title="Reference"
-		description="Every route this instance serves, generated from the handlers themselves rather than kept by hand."
-	>
+	<SettingsSection title={t('api.reference')} description={t('api.referenceText')}>
 		{#snippet actions()}
-			<Button href="/docs" target="_blank" rel="noopener" icon={icons.code}>Open the reference</Button>
+			<Button href="/docs" target="_blank" rel="noopener" icon={icons.code}>
+				{t('api.openReference')}
+			</Button>
 		{/snippet}
 
-		<SettingsRow
-			label="Base path"
-			description="Every endpoint is scoped under it, on this same origin."
-		>
+		<SettingsRow label={t('api.basePath')} description={t('api.basePathText')}>
 			<span class="font-fc-mono text-fc-sm text-fc-fg">/api</span>
 		</SettingsRow>
 
-		<SettingsRow
-			label="OpenAPI document"
-			description="The machine-readable schema behind the reference — feed it to a client generator."
-		>
+		<SettingsRow label={t('api.openapi')} description={t('api.openapiText')}>
 			<Button variant="outline" href="/docs/openapi.json" target="_blank" rel="noopener" icon={icons.download}>
 				openapi.json
 			</Button>
 		</SettingsRow>
 	</SettingsSection>
 
-	<SettingsSection
-		title="Authentication"
-		description="How a request proves who it is."
-	>
-		<SettingsRow
-			label="Scheme"
-			description="Send the token as Authorization: Bearer <token>. Browser logins and API tokens are accepted the same way."
-		>
+	<SettingsSection title={t('api.auth')} description={t('api.authText')}>
+		<SettingsRow label={t('api.scheme')} description={t('api.schemeText')}>
 			<span class="font-fc-mono text-fc-sm text-fc-fg">Bearer</span>
 		</SettingsRow>
 	</SettingsSection>
 
-	<SettingsSection
-		title="API tokens"
-		description="Named machine credentials for other apps and scripts, such as Ardoise. A token acts as your account, has no expiry and survives a sign-out."
-	>
+	<SettingsSection title={t('api.tokens')} description={t('api.tokensText')}>
 		{#snippet actions()}
-			<Button icon={icons.plus} onclick={openCreate}>Generate a token</Button>
+			<Button icon={icons.plus} onclick={openCreate}>{t('api.generate')}</Button>
 		{/snippet}
 
 		{#if tokens.length}
 			<Table>
 				<thead>
 					<tr>
-						<th>Name</th>
-						<th>Created</th>
-						<th>Last used</th>
-						<th class="text-right">Action</th>
+						<th>{t('api.col.name')}</th>
+						<th>{t('api.col.created')}</th>
+						<th>{t('api.col.lastUsed')}</th>
+						<th class="text-right">{t('api.col.action')}</th>
 					</tr>
 				</thead>
 				<tbody>
@@ -149,7 +131,7 @@
 										revokeOpen = true;
 									}}
 								>
-									Revoke
+									{t('api.revoke')}
 								</Button>
 							</td>
 						</tr>
@@ -157,11 +139,8 @@
 				</tbody>
 			</Table>
 		{:else}
-			<SettingsRow
-				label="No token"
-				description="A token is shown once, when you create it. Plume stores only a hash and cannot show it again."
-			>
-				<StatusDot tone="neutral" label="None generated" />
+			<SettingsRow label={t('api.noToken')} description={t('api.noTokenText')}>
+				<StatusDot tone="neutral" label={t('api.noneGenerated')} />
 			</SettingsRow>
 		{/if}
 	</SettingsSection>
@@ -169,36 +148,30 @@
 
 <Drawer
 	bind:open={createOpen}
-	title="Generate an API token"
-	description="Name it after the app or machine that will use it. The name is the only way to know later what you are revoking."
+	title={t('api.drawer.title')}
+	description={t('api.drawer.text')}
 	onClose={() => (issued = '')}
 >
 	{#if issued}
 		<div class="flex flex-col gap-4">
-			<Alert tone="warning" title="Copy it now">
-				This token is never shown again. Plume keeps only a hash, so once this drawer closes you
-				will have to generate another.
-			</Alert>
-			<SecretField value={issued} label="Token" visible autoHideMs={0} />
+			<Alert tone="warning" title={t('api.copyNow')}>{t('api.copyNowText')}</Alert>
+			<SecretField value={issued} label={t('api.tokenLabel')} visible autoHideMs={0} />
 		</div>
 	{:else}
 		<div class="flex flex-col gap-2">
-			<label for="token-label" class="text-fc-sm font-medium text-fc-fg">Token name</label>
-			<Input id="token-label" bind:value={label} placeholder="ardoise, ci, laptop" />
-			<p class="text-fc-xs text-fc-fg-muted">
-				A token carries everything your account can do and has no scope or expiry. Revoke it as
-				soon as the app that uses it is gone.
-			</p>
+			<label for="token-label" class="text-fc-sm font-medium text-fc-fg">{t('api.tokenName')}</label>
+			<Input id="token-label" bind:value={label} placeholder={t('api.tokenNamePlaceholder')} />
+			<p class="text-fc-xs text-fc-fg-muted">{t('api.tokenWarning')}</p>
 		</div>
 	{/if}
 
 	{#snippet footer()}
 		{#if issued}
-			<Button variant="outline" onclick={() => (createOpen = false)}>Close</Button>
+			<Button variant="outline" onclick={() => (createOpen = false)}>{t('common.close')}</Button>
 		{:else}
-			<Button variant="outline" onclick={() => (createOpen = false)}>Cancel</Button>
+			<Button variant="outline" onclick={() => (createOpen = false)}>{t('common.cancel')}</Button>
 			<Button icon={icons.key} disabled={busy || !label.trim()} onclick={generate}>
-				{busy ? 'Generating…' : 'Generate'}
+				{busy ? t('api.generating') : t('api.generateShort')}
 			</Button>
 		{/if}
 	{/snippet}
@@ -206,10 +179,9 @@
 
 <ConfirmModal
 	bind:open={revokeOpen}
-	title="Revoke this token?"
-	description="Every app or script using {revoking?.label ?? 'it'} stops working at once, and a revoked token cannot be restored. You will have to generate a new one and paste it into each place that used the old one."
-	confirmLabel="Revoke"
-	cancelLabel="Cancel"
+	title={t('api.confirm.title')}
+	description={t('api.confirm.text', { name: revoking?.label ?? t('api.confirm.it') })}
+	confirmLabel={t('api.revoke')}
 	tone="danger"
 	icon={icons.revoke}
 	onConfirm={revoke}

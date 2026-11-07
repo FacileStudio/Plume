@@ -13,6 +13,7 @@
 		toast
 	} from '@facile/muse';
 	import { spaceStore } from '$lib/stores/space.svelte';
+	import { t } from '$lib/i18n/index.svelte';
 
 	const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
@@ -60,16 +61,19 @@
 		const first = rejections[0];
 		if (!first) return;
 		if (first.reason === 'type') {
-			toast.danger('Only PDF files are accepted');
+			toast.danger(t('docNew.onlyPdf'));
 			return;
 		}
 		if (first.reason === 'size') {
 			toast.danger(
-				`${first.file.name} is too large (${(first.file.size / 1024 / 1024).toFixed(1)} MB). Maximum size is 10 MB.`
+				t('docNew.tooLarge', {
+					name: first.file.name,
+					size: (first.file.size / 1024 / 1024).toFixed(1)
+				})
 			);
 			return;
 		}
-		toast.danger('Only one PDF can be attached to a document');
+		toast.danger(t('docNew.onlyOne'));
 	}
 
 	function acceptFiles() {
@@ -82,11 +86,11 @@
 		nameError = '';
 
 		if (!name.trim()) {
-			nameError = 'Document name is required';
+			nameError = t('docNew.nameRequired');
 			return;
 		}
 		if (!file) {
-			toast.danger('Please upload a PDF file');
+			toast.danger(t('docNew.uploadAPdf'));
 			return;
 		}
 
@@ -103,7 +107,7 @@
 
 			goto(`/documents/${doc.id}`);
 		} catch (e) {
-			const message = e instanceof Error ? e.message : 'Failed to create the document';
+			const message = e instanceof Error ? e.message : t('docNew.createFailed');
 			uploadStatus = 'error';
 			uploadError = message;
 			toast.danger(message);
@@ -112,7 +116,7 @@
 	}
 </script>
 
-<svelte:head><title>New Document — Plume</title></svelte:head>
+<svelte:head><title>{t('docNew.title')}</title></svelte:head>
 
 <div class="flex max-w-2xl flex-col gap-10">
 	<div class="flex flex-col gap-3">
@@ -123,33 +127,31 @@
 			icon={icons.chevronLeft}
 			class="self-start px-2"
 		>
-			Back to documents
+			{t('common.backToDocuments')}
 		</Button>
 		<div class="flex flex-col gap-1">
-			<h1 class="text-fc-2xl font-semibold text-fc-fg">New document</h1>
-			<p class="text-fc-sm text-fc-fg-muted">
-				Upload the PDF and list who has to sign it. Fields are placed on the next screen.
-			</p>
+			<h1 class="text-fc-2xl font-semibold text-fc-fg">{t('docNew.heading')}</h1>
+			<p class="text-fc-sm text-fc-fg-muted">{t('docNew.subtitle')}</p>
 		</div>
 	</div>
 
 	<form onsubmit={submit} class="flex flex-col gap-10">
-		<SettingsSection title="Document" description="The PDF your signers will receive.">
-			<Field label="Document name" error={nameError}>
-				<Input bind:value={name} placeholder="Contract, NDA, Agreement…" required />
+		<SettingsSection title={t('docNew.section.document')} description={t('docNew.section.documentText')}>
+			<Field label={t('docNew.name')} error={nameError}>
+				<Input bind:value={name} placeholder={t('docNew.namePlaceholder')} required />
 			</Field>
 
 			<div class="flex flex-col gap-2">
-				<span class="text-fc-sm text-fc-fg">PDF file</span>
+				<span class="text-fc-sm text-fc-fg">{t('docNew.pdfFile')}</span>
 				<Dropzone
 					bind:files
 					accept=".pdf,application/pdf"
 					maxSize={MAX_FILE_SIZE}
 					disabled={submitting}
-					label="Drop a PDF here"
-					browseLabel="Browse"
-					dropAnnouncement="Release to add the PDF"
-					hint="PDF only · 10 MB maximum"
+					label={t('docNew.dropLabel')}
+					browseLabel={t('docNew.browse')}
+					dropAnnouncement={t('docNew.dropAnnouncement')}
+					hint={t('docNew.hint')}
 					onFiles={acceptFiles}
 					onReject={rejectFiles}
 				/>
@@ -159,30 +161,31 @@
 			</div>
 		</SettingsSection>
 
-		<SettingsSection
-			title="Signers"
-			description="Everyone who has to sign. You can add more later, while the document is still a draft."
-		>
+		<SettingsSection title={t('docNew.section.signers')} description={t('docNew.section.signersText')}>
 			{#snippet actions()}
-				<Button variant="outline" size="sm" icon={icons.plus} onclick={addSigner}>Add signer</Button>
+				<Button variant="outline" size="sm" icon={icons.plus} onclick={addSigner}>
+					{t('docNew.addSigner')}
+				</Button>
 			{/snippet}
 
 			{#each signers as signer, i (i)}
-				<div
-					class="flex items-end gap-3 border-t border-fc-border pt-4 first:border-t-0 first:pt-0"
-				>
+				<div class="flex items-end gap-3 pt-4 first:pt-0">
 					<div class="grid min-w-0 flex-1 gap-3 sm:grid-cols-2">
-						<Field label="Name">
-							<Input bind:value={signer.name} placeholder="Jane Doe" />
+						<Field label={t('common.name')}>
+							<Input bind:value={signer.name} placeholder={t('docNew.signerNamePlaceholder')} />
 						</Field>
-						<Field label="Email">
-							<Input bind:value={signer.email} type="email" placeholder="jane@example.com" />
+						<Field label={t('common.email')}>
+							<Input
+								bind:value={signer.email}
+								type="email"
+								placeholder={t('docNew.signerEmailPlaceholder')}
+							/>
 						</Field>
 					</div>
 					{#if signers.length > 1}
 						<IconButton
 							variant="danger"
-							aria-label="Remove signer {i + 1}"
+							aria-label={t('docNew.removeSigner', { number: i + 1 })}
 							onclick={() => removeSigner(i)}
 						>
 							<iconify-icon icon={icons.remove} width="18" height="18" class="block"
@@ -194,7 +197,7 @@
 		</SettingsSection>
 
 		<Button type="submit" size="lg" icon={icons.plus} disabled={submitting} class="w-full">
-			{submitting ? 'Creating…' : 'Create document'}
+			{submitting ? t('common.creating') : t('docNew.submit')}
 		</Button>
 	</form>
 </div>

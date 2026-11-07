@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { Button } from '@facile/muse';
+	import { t } from '$lib/i18n/index.svelte';
 
 	let {
 		value = $bindable(''),
@@ -223,7 +224,7 @@
 
 		{#if !hasStrokes && !drawing}
 			<div class="pointer-events-none absolute inset-0 flex items-center justify-center">
-				<span class="signature-hint text-fc-sm">Draw your signature here</span>
+				<span class="signature-hint text-fc-sm">{t('pad.hint')}</span>
 			</div>
 		{/if}
 
@@ -238,7 +239,7 @@
 			onclick={undo}
 			disabled={!hasStrokes}
 		>
-			Undo
+			{t('pad.undo')}
 		</Button>
 		<Button
 			variant="ghost-danger"
@@ -247,7 +248,7 @@
 			onclick={clear}
 			disabled={!hasStrokes}
 		>
-			Clear
+			{t('pad.clear')}
 		</Button>
 	</div>
 </div>

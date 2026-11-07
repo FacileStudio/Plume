@@ -15,6 +15,7 @@
 		icons,
 		toast
 	} from '@facile/muse';
+	import { t } from '$lib/i18n/index.svelte';
 
 	let { documentId, signers, onclose }: {
 		documentId: number;
@@ -29,12 +30,24 @@
 		checkbox: { width: 30, height: 30 }
 	};
 
-	const FIELD_TYPES: { type: string; label: string; icon: string }[] = [
-		{ type: 'signature', label: 'Signature', icon: 'solar:pen-new-round-linear' },
-		{ type: 'text', label: 'Text', icon: 'solar:text-linear' },
-		{ type: 'date', label: 'Date', icon: icons.calendar },
-		{ type: 'checkbox', label: 'Checkbox', icon: 'solar:check-square-linear' }
-	];
+	const FIELD_TYPES = [
+		{ type: 'signature', icon: 'solar:pen-new-round-linear' },
+		{ type: 'text', icon: 'solar:text-linear' },
+		{ type: 'date', icon: icons.calendar },
+		{ type: 'checkbox', icon: 'solar:check-square-linear' }
+	] as const;
+
+	function typeName(type: string): string {
+		switch (type) {
+			case 'signature':
+			case 'text':
+			case 'date':
+			case 'checkbox':
+				return t(`field.type.${type}`);
+			default:
+				return type;
+		}
+	}
 
 	let fields = $state<Field[]>([]);
 	let selectedSignerId = $state<number>(0);
@@ -80,7 +93,7 @@
 	}
 
 	function signerName(signerId: number): string {
-		return signers.find((s) => s.id === signerId)?.name ?? 'Unknown';
+		return signers.find((s) => s.id === signerId)?.name ?? t('editor.unknownSigner');
 	}
 
 	function fieldsForPage(pageNum: number): Field[] {
@@ -146,7 +159,7 @@
 			fields = [...fields, created];
 			selectedFieldId = created.id;
 		} catch {
-			toast.danger('Could not add the field');
+			toast.danger(t('editor.addFailed'));
 		}
 	}
 
@@ -164,7 +177,7 @@
 			if (selectedFieldId === fieldId) selectedFieldId = null;
 			pendingDeleteId = null;
 		} catch {
-			toast.danger('Could not delete the field');
+			toast.danger(t('editor.deleteFailed'));
 			throw new Error('delete failed');
 		}
 	}
@@ -351,7 +364,7 @@
 
 			await loadFields();
 		} catch {
-			pdfError = 'Failed to load document';
+			pdfError = t('editor.loadFailed');
 		}
 		loading = false;
 
@@ -366,14 +379,14 @@
 <svelte:window onpointermove={handlePointerMove} onpointerup={handlePointerUp} />
 
 <div class="fixed inset-0 z-50 flex h-dvh flex-col bg-fc-page">
-	<div class="flex items-center justify-between gap-3 border-b border-fc-border px-4 py-3">
+	<div class="flex items-center justify-between gap-3 px-4 py-3">
 		<div class="flex min-w-0 items-center gap-3">
-			<h2 class="truncate text-fc-lg font-semibold text-fc-fg">Prepare fields</h2>
+			<h2 class="truncate text-fc-lg font-semibold text-fc-fg">{t('editor.title')}</h2>
 			{#if pages.length > 1}
-				<Badge tone="neutral">Page {currentPage} / {pages.length}</Badge>
+				<Badge tone="neutral">{t('editor.pageOf', { page: currentPage, total: pages.length })}</Badge>
 			{/if}
 		</div>
-		<Button icon={icons.check} onclick={onclose}>Save &amp; close</Button>
+		<Button icon={icons.check} onclick={onclose}>{t('editor.saveClose')}</Button>
 	</div>
 
 	{#if loading}
@@ -425,13 +438,13 @@
 									onpointerdown={(e) => handlePointerDown(e, field, 'move')}
 								>
 									<span class="pointer-events-none truncate px-1">
-										{field.label || field.field_type} &middot; {signerName(field.signer_id)}
+										{field.label || typeName(field.field_type)} &middot; {signerName(field.signer_id)}
 									</span>
 
 									{#if isSelected}
 										<button
 											type="button"
-											aria-label="Delete field"
+											aria-label={t('editor.deleteField')}
 											class="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-fc-pill bg-fc-danger text-fc-danger-fg transition-transform hover:scale-110"
 											onpointerdown={(e: PointerEvent) => {
 												e.preventDefault();
@@ -460,10 +473,10 @@
 			</div>
 
 			<div
-				class="flex w-full shrink-0 flex-col gap-6 overflow-y-auto border-b border-fc-border p-4 md:w-72 md:border-b-0 md:border-l"
+				class="flex w-full shrink-0 flex-col gap-6 overflow-y-auto p-4 md:w-72"
 			>
 				<div class="flex flex-col gap-2">
-					<p class="text-fc-sm font-medium text-fc-fg">Signer</p>
+					<p class="text-fc-sm font-medium text-fc-fg">{t('editor.signer')}</p>
 					<div class="flex flex-col gap-1">
 						{#each signers as signer, i}
 							{@const color = USER_COLORS[i % USER_COLORS.length]}
@@ -486,7 +499,7 @@
 				</div>
 
 				<div class="flex flex-col gap-2">
-					<p class="text-fc-sm font-medium text-fc-fg">Add field</p>
+					<p class="text-fc-sm font-medium text-fc-fg">{t('editor.addField')}</p>
 					{#each FIELD_TYPES as ft}
 						<Button
 							variant="outline"
@@ -494,14 +507,14 @@
 							class="justify-start"
 							onclick={() => addField(ft.type)}
 						>
-							{ft.label}
+							{typeName(ft.type)}
 						</Button>
 					{/each}
 				</div>
 
 				{#if fields.length > 0}
 					<div class="flex flex-col gap-2">
-						<p class="text-fc-sm font-medium text-fc-fg">Placed fields ({fields.length})</p>
+						<p class="text-fc-sm font-medium text-fc-fg">{t('editor.placed', { count: fields.length })}</p>
 						<div class="flex flex-col gap-1">
 							{#each fields as field}
 								{@const color = signerColor(field.signer_id)}
@@ -516,8 +529,8 @@
 									{#if isActive}
 										<Input
 											value={field.label ?? ''}
-											placeholder={field.field_type}
-											aria-label="Field label"
+											placeholder={typeName(field.field_type)}
+											aria-label={t('editor.fieldLabel')}
 											class="min-w-0 flex-1"
 											onchange={(e) => renameField(field, (e.currentTarget as HTMLInputElement).value)}
 										/>
@@ -527,13 +540,15 @@
 											class="min-w-0 flex-1 truncate text-left text-fc-sm text-fc-fg"
 											onclick={() => (selectedFieldId = field.id)}
 										>
-											{field.label || field.field_type}
+											{field.label || typeName(field.field_type)}
 										</button>
 									{/if}
-									<span class="shrink-0 text-fc-xs text-fc-fg-muted">p{field.page}</span>
+									<span class="shrink-0 text-fc-xs text-fc-fg-muted">
+										{t('editor.pageShort', { page: field.page })}
+									</span>
 									<IconButton
 										variant="danger"
-										aria-label="Delete field"
+										aria-label={t('editor.deleteField')}
 										onclick={() => askDelete(field.id)}
 									>
 										<iconify-icon icon={icons.remove} width="16" height="16" class="block"></iconify-icon>
@@ -551,9 +566,9 @@
 <ConfirmModal
 	bind:open={confirmDelete}
 	tone="danger"
-	title="Delete this field?"
-	description="The field is removed from the document. Signers will no longer be asked to fill it."
-	confirmLabel="Delete"
+	title={t('editor.confirm.title')}
+	description={t('editor.confirm.text')}
+	confirmLabel={t('common.delete')}
 	onConfirm={deleteField}
 	onCancel={() => (pendingDeleteId = null)}
 />

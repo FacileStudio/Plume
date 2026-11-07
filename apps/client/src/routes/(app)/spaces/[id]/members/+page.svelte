@@ -18,6 +18,7 @@
 		icons,
 		toast
 	} from '@facile/muse';
+	import { t } from '$lib/i18n/index.svelte';
 
 	let space = $state<Space | null>(null);
 	let members = $state<SpaceMember[]>([]);
@@ -49,9 +50,9 @@
 			members = [...members, member];
 			addEmail = '';
 			addRole = 'member';
-			toast.success('Member added');
+			toast.success(t('members.added'));
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to add member');
+			toast.danger(e instanceof Error ? e.message : t('members.addFailed'));
 		}
 		adding = false;
 	}
@@ -60,9 +61,9 @@
 		try {
 			const updated = await api.spaces.members.updateRole(spaceId, member.id, newRole);
 			members = members.map((m) => (m.id === updated.id ? updated : m));
-			toast.success('Role updated');
+			toast.success(t('members.roleUpdated'));
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to update role');
+			toast.danger(e instanceof Error ? e.message : t('members.roleFailed'));
 		}
 	}
 
@@ -77,12 +78,12 @@
 		try {
 			await api.spaces.members.remove(spaceId, target.id);
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to remove member');
+			toast.danger(e instanceof Error ? e.message : t('members.removeFailed'));
 			throw e;
 		}
 		members = members.filter((m) => m.id !== target.id);
 		pendingRemove = null;
-		toast.success('Member removed');
+		toast.success(t('members.removed'));
 	}
 
 	onMount(async () => {
@@ -101,7 +102,7 @@
 	});
 </script>
 
-<svelte:head><title>Members — {space?.name ?? 'Space'} — Plume</title></svelte:head>
+<svelte:head><title>{t('members.title', { space: space?.name ?? t('space.titleFallback') })}</title></svelte:head>
 
 {#if loading}
 	<div class="flex min-h-[40dvh] items-center justify-center">
@@ -119,38 +120,33 @@
 			>
 				{space.name}
 			</Button>
-			<h1 class="text-fc-2xl font-semibold text-fc-fg">Members</h1>
+			<h1 class="text-fc-2xl font-semibold text-fc-fg">{t('common.members')}</h1>
 			<p class="text-fc-sm text-fc-fg-muted">
-				{members.length} member{members.length === 1 ? '' : 's'} in this space.
-				{space.registre_url
-					? 'Members and roles are managed in Registre, for every Facile app at once.'
-					: 'Owners cannot be removed.'}
+				{t('members.count', { count: members.length })}
+				{space.registre_url ? t('members.managedInRegistre') : t('members.ownersStay')}
 			</p>
 			{#if space.registre_url}
 				<Button href={space.registre_url} variant="outline" icon={icons.space} class="w-fit">
-					Manage in Registre
+					{t('common.manageInRegistre')}
 				</Button>
 			{/if}
 		</div>
 
 		{#if canManage}
-			<SettingsSection
-				title="Add a member"
-				description="They get access to every document in this space straight away."
-			>
+			<SettingsSection title={t('members.addTitle')} description={t('members.addText')}>
 				<form onsubmit={addMember} class="flex flex-col gap-3 sm:flex-row sm:items-end">
-					<Field label="Email" class="min-w-0 flex-1">
+					<Field label={t('common.email')} class="min-w-0 flex-1">
 						<Input
 							bind:value={addEmail}
 							type="email"
-							placeholder="colleague@example.com"
+							placeholder={t('members.emailPlaceholder')}
 							required
 						/>
 					</Field>
-					<Field label="Role" class="sm:w-40">
+					<Field label={t('members.role')} class="sm:w-40">
 						<Select bind:value={addRole}>
-							<option value="member">Member</option>
-							<option value="admin">Admin</option>
+							<option value="member">{t('role.member')}</option>
+							<option value="admin">{t('role.admin')}</option>
 						</Select>
 					</Field>
 					<Button
@@ -160,29 +156,27 @@
 						size="lg"
 						class="sm:shrink-0"
 					>
-						{adding ? 'Adding…' : 'Add'}
+						{adding ? t('common.adding') : t('common.add')}
 					</Button>
 				</form>
 			</SettingsSection>
 		{/if}
 
 		<SettingsSection
-			title="People"
-			description={canManage ? 'Change a role or revoke access.' : 'Everyone with access to this space.'}
+			title={t('members.people')}
+			description={canManage ? t('members.peopleManage') : t('members.peopleView')}
 			bare={members.length === 0}
 		>
 			{#if members.length === 0}
 				<EmptyState
 					icon={icons.usersGroup}
-					title="No one here yet"
-					description={canManage
-						? 'Add a teammate above and they will show up in this list.'
-						: 'People added in Registre show up here within seconds.'}
+					title={t('space.noMembers')}
+					description={canManage ? t('members.emptyManage') : t('members.emptyView')}
 				/>
 			{:else}
 				{#each members as member (member.id)}
 					<div
-						class="flex flex-col gap-3 border-t border-fc-border py-4 first:border-t-0 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
+						class="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between sm:gap-6"
 					>
 						<div class="flex min-w-0 items-center gap-3">
 							<Avatar src={member.avatar_url || undefined} name={member.name || member.email} size="sm" />
@@ -195,23 +189,23 @@
 							{#if canManage && member.role !== 'owner'}
 								<Select
 									value={member.role}
-									aria-label="Role for {member.name || member.email}"
+									aria-label={t('members.roleFor', { name: member.name || member.email })}
 									class="h-9 w-36 text-fc-sm"
 									onchange={(e) => updateRole(member, e.currentTarget.value)}
 								>
-									<option value="member">Member</option>
-									<option value="admin">Admin</option>
+									<option value="member">{t('role.member')}</option>
+									<option value="admin">{t('role.admin')}</option>
 								</Select>
 								<Button
 									variant="ghost-danger"
 									icon={icons.remove}
-									aria-label="Remove {member.name || member.email}"
+									aria-label={t('members.removeAria', { name: member.name || member.email })}
 									onclick={() => askRemove(member)}
 								>
-									Remove
+									{t('common.remove')}
 								</Button>
 							{:else}
-								<Badge tone={roleTone[member.role]}>{member.role}</Badge>
+								<Badge tone={roleTone[member.role]}>{t(`role.${member.role}`)}</Badge>
 							{/if}
 						</div>
 					</div>
@@ -224,10 +218,12 @@
 <ConfirmModal
 	bind:open={confirmRemove}
 	tone="danger"
-	title="Remove {pendingRemove?.name || pendingRemove?.email || 'this member'}?"
-	description="They lose access to every document in this space immediately."
-	confirmLabel="Remove member"
-	cancelLabel="Keep access"
+	title={t('members.confirm.title', {
+		name: pendingRemove?.name || pendingRemove?.email || t('members.thisMember')
+	})}
+	description={t('members.confirm.text')}
+	confirmLabel={t('members.confirm.label')}
+	cancelLabel={t('members.confirm.cancel')}
 	onConfirm={runRemove}
 	onCancel={() => (pendingRemove = null)}
 />

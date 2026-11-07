@@ -5,6 +5,7 @@
 	import { api, currentUser } from '$lib';
 	import { MobileNav, PageTransition, SideBar, SpaceSwitcher, Topbar, icons } from '@facile/muse';
 	import { userStore } from '$lib/stores/user.svelte';
+	import { setSessionLocale, t } from '$lib/i18n/index.svelte';
 	import { spaceStore } from '$lib/stores/space.svelte';
 
 	let { children } = $props();
@@ -13,10 +14,6 @@
 	let scroller: HTMLElement | null = $state(null);
 
 	onMount(async () => {
-		/* The API is the only thing that knows whether this browser has a session:
-		   a local login leaves a bearer token, an SSO login leaves a cookie the
-		   client cannot read. A thrown error is a bad round-trip, not a logout —
-		   bouncing to /login on one would sign people out on a hiccup. */
 		let me;
 		try {
 			me = await currentUser();
@@ -28,25 +25,26 @@
 			return;
 		}
 		userStore.value = me;
+		setSessionLocale(me.locale);
 		try {
 			spaceStore.spaces = await api.spaces.list();
 		} catch {}
-		/*
-		 * The sync endpoint is only mounted when OIDC is configured, so firing it blind put a
-		 * 404 in the log of every local-auth install on every session.
-		 */
-		try {
-			const config = await fetch('/api/auth/config').then((response) => response.json());
-			if (config?.oidc_enabled) api.auth.syncProfile().catch(() => {});
-		} catch {}
+		api.auth
+			.syncProfile()
+			.then(() => api.auth.me())
+			.then((fresh) => {
+				userStore.value = fresh;
+				setSessionLocale(fresh.locale);
+			})
+			.catch(() => {});
 	});
 
-	const navLinks = [
-		{ href: '/dashboard', label: 'Dashboard', icon: icons.dashboard },
-		{ href: '/documents', label: 'Documents', icon: 'solar:document-linear' },
-		{ href: '/clients', label: 'Clients', icon: 'solar:users-group-two-rounded-linear' },
-		{ href: '/spaces', label: 'Spaces', icon: icons.space }
-	];
+	const navLinks = $derived([
+		{ href: '/dashboard', label: t('nav.dashboard'), icon: icons.dashboard },
+		{ href: '/documents', label: t('nav.documents'), icon: 'solar:document-linear' },
+		{ href: '/clients', label: t('nav.clients'), icon: 'solar:users-group-two-rounded-linear' },
+		{ href: '/spaces', label: t('nav.spaces'), icon: icons.space }
+	]);
 
 	function isActive(href: string) {
 		return page.url.pathname === href || page.url.pathname.startsWith(href + '/');

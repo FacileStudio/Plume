@@ -14,12 +14,14 @@
 	import { api, clearToken } from '$lib';
 	import type { UserProfile } from '$lib';
 	import { userStore } from '$lib/stores/user.svelte';
+	import { formatDateTime } from '$lib/i18n/format';
+	import { setSessionLocale, t } from '$lib/i18n/index.svelte';
 
 	let profile = $state<UserProfile | null>(userStore.value);
 	let confirmClear = $state(false);
 
 	const memberSince = $derived(
-		profile?.created_at ? new Date(profile.created_at).toLocaleString() : '—'
+		profile?.created_at ? formatDateTime(profile.created_at) : '—'
 	);
 
 	onMount(async () => {
@@ -34,9 +36,9 @@
 			await api.auth.syncProfile();
 			profile = await api.auth.me();
 			userStore.value = profile;
-			toast.success('Profile re-read from single sign-on');
+			toast.success(t('advanced.synced'));
 		} catch (e) {
-			toast.danger(e instanceof Error ? e.message : 'Failed to sync profile');
+			toast.danger(e instanceof Error ? e.message : t('advanced.syncFailed'));
 		}
 	}
 
@@ -46,55 +48,49 @@
 		}
 		clearToken();
 		userStore.value = null;
-		toast.success('Local data cleared.');
+		setSessionLocale(null);
+		toast.success(t('advanced.cleared'));
 		goto('/login');
 	}
 </script>
 
-<svelte:head><title>Advanced — Plume</title></svelte:head>
+<svelte:head><title>{t('advanced.title')}</title></svelte:head>
 
 <div class="flex flex-col gap-10">
-	<SettingsSection title="Instance" description="What this browser is talking to.">
+	<SettingsSection title={t('advanced.instance')} description={t('advanced.instanceText')}>
 		<SettingsRow stacked>
-			<SecretField label="Instance URL" value={page.url.origin} sensitive={false} class="w-full" />
+			<SecretField label={t('advanced.instanceUrl')} value={page.url.origin} sensitive={false} class="w-full" />
 		</SettingsRow>
 
-		<SettingsRow label="API base path" description="Every request is scoped under it.">
+		<SettingsRow label={t('api.basePath')} description={t('advanced.basePathText')}>
 			<span class="font-fc-mono text-fc-sm text-fc-fg">/api</span>
 		</SettingsRow>
 	</SettingsSection>
 
-	<SettingsSection title="Account" description="Facts an operator may ask you for.">
+	<SettingsSection title={t('advanced.account')} description={t('advanced.accountText')}>
 		<SettingsRow stacked>
-			<SecretField label="User ID" value={profile?.id ?? ''} sensitive={false} class="w-full" />
+			<SecretField label={t('advanced.userId')} value={profile?.id ?? ''} sensitive={false} class="w-full" />
 		</SettingsRow>
 
-		<SettingsRow label="Avatar source" description="Where your profile picture comes from.">
-			<span class="font-fc-mono text-fc-sm text-fc-fg">{profile?.avatar_source || 'local'}</span>
+		<SettingsRow label={t('advanced.avatarSource')} description={t('advanced.avatarSourceText')}>
+			<span class="font-fc-mono text-fc-sm text-fc-fg">{profile?.avatar_source || t('advanced.avatarLocal')}</span>
 		</SettingsRow>
 
-		<SettingsRow label="Member since" description="When this account was created.">
+		<SettingsRow label={t('profile.memberSince')} description={t('advanced.memberSinceText')}>
 			<span class="text-fc-sm text-fc-fg-muted">{memberSince}</span>
 		</SettingsRow>
 
-		<SettingsRow
-			label="Re-read single sign-on"
-			description="Pulls your name and photo from the identity provider again instead of waiting for the next automatic sync."
-		>
-			<Button variant="outline" icon={icons.refresh} onclick={syncProfile}>Sync now</Button>
+		<SettingsRow label={t('advanced.resync')} description={t('advanced.resyncText')}>
+			<Button variant="outline" icon={icons.refresh} onclick={syncProfile}>
+				{t('advanced.syncNow')}
+			</Button>
 		</SettingsRow>
 	</SettingsSection>
 
-	<SettingsSection
-		title="Danger zone"
-		description="Irreversible from this browser. Your account, documents and signatures are untouched."
-	>
-		<SettingsRow
-			label="Clear local data"
-			description="Removes the stored session and the theme preference, then signs you out. Plume has no self-service account deletion — an administrator has to remove the account server-side."
-		>
+	<SettingsSection title={t('advanced.danger')} description={t('advanced.dangerText')}>
+		<SettingsRow label={t('advanced.clear')} description={t('advanced.clearText')}>
 			<Button variant="danger" icon={icons.remove} onclick={() => (confirmClear = true)}>
-				Clear local data
+				{t('advanced.clear')}
 			</Button>
 		</SettingsRow>
 	</SettingsSection>
@@ -103,8 +99,8 @@
 <ConfirmModal
 	bind:open={confirmClear}
 	tone="danger"
-	title="Clear local data?"
-	description="Every Plume preference stored in this browser is deleted and you are signed out — there is no undo. Your account, documents and signatures stay on the server."
-	confirmLabel="Clear and sign out"
+	title={t('advanced.confirm.title')}
+	description={t('advanced.confirm.text')}
+	confirmLabel={t('advanced.confirm.label')}
 	onConfirm={clearLocalData}
 />
