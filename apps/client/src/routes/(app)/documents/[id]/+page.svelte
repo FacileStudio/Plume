@@ -372,7 +372,7 @@
 				<div class="flex shrink-0 flex-wrap items-center gap-2">
 					{#if doc.status === 'completed'}
 						<Button
-							variant="outline"
+							variant="secondary"
 							icon={icons.download}
 							onclick={downloadDocument}
 							disabled={downloadingDoc}
@@ -380,7 +380,7 @@
 							{downloadingDoc ? t('common.downloading') : t('common.download')}
 						</Button>
 						<Button
-							variant="outline"
+							variant="secondary"
 							icon="solar:document-linear"
 							onclick={downloadCertificate}
 							disabled={downloading}
@@ -388,7 +388,7 @@
 							{downloading ? t('common.downloading') : t('doc.downloadCertificate')}
 						</Button>
 						<Button
-							variant="outline"
+							variant="secondary"
 							icon={icons.shield}
 							onclick={downloadAuditTrail}
 							disabled={downloadingAudit}
@@ -399,7 +399,7 @@
 
 					{#if doc.status === 'draft'}
 						<Button
-							variant="outline"
+							variant="secondary"
 							icon="solar:layers-linear"
 							onclick={() => (showFieldEditor = true)}
 							disabled={signers.length === 0}
@@ -448,7 +448,7 @@
 				{#snippet actions()}
 					{#if doc && doc.status !== 'completed' && doc.status !== 'declined'}
 						<Button
-							variant="outline"
+							variant="secondary"
 							size="sm"
 							icon={icons.plus}
 							onclick={openAddSigner}
@@ -491,7 +491,7 @@
 								{:else if doc?.status === 'pending' && signer.token && signer.status === 'pending' && !waiting}
 									<div class="flex flex-wrap items-center gap-2">
 										<Button
-											variant="outline"
+											variant="secondary"
 											size="sm"
 											icon={copiedId === signer.id ? icons.check : icons.copy}
 											onclick={() => copySigningLink(signer)}
@@ -499,7 +499,7 @@
 											{copiedId === signer.id ? t('doc.signers.copied') : t('doc.signers.copyLink')}
 										</Button>
 										<Button
-											variant="outline"
+											variant="secondary"
 											size="sm"
 											icon="solar:plain-linear"
 											onclick={() => remindSigner(signer)}
@@ -545,7 +545,7 @@
 				title={t('doc.notFound.title')}
 				description={t('doc.notFound.text')}
 			>
-				<Button href="/documents" variant="outline" icon={icons.chevronLeft}>
+				<Button href="/documents" variant="secondary" icon={icons.chevronLeft}>
 					{t('common.backToDocuments')}
 				</Button>
 			</EmptyState>

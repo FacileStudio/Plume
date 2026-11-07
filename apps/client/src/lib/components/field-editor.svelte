@@ -502,7 +502,7 @@
 					<p class="text-fc-sm font-medium text-fc-fg">{t('editor.addField')}</p>
 					{#each FIELD_TYPES as ft}
 						<Button
-							variant="outline"
+							variant="secondary"
 							icon={ft.icon}
 							class="justify-start"
 							onclick={() => addField(ft.type)}
@@ -547,7 +547,7 @@
 										{t('editor.pageShort', { page: field.page })}
 									</span>
 									<IconButton
-										variant="danger"
+										variant="ghost-danger"
 										aria-label={t('editor.deleteField')}
 										onclick={() => askDelete(field.id)}
 									>

@@ -67,7 +67,7 @@
 			title={t('clients.empty.title')}
 			description={t('clients.empty.text')}
 		>
-			<Button href="/clients/new" variant="outline" icon={icons.plus}>{t('clients.new')}</Button>
+			<Button href="/clients/new" variant="secondary" icon={icons.plus}>{t('clients.new')}</Button>
 		</EmptyState>
 	{:else}
 		<div class="hidden md:block">

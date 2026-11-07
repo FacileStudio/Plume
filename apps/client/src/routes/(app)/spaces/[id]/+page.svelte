@@ -47,7 +47,7 @@
 
 {#snippet membersAction()}
 	{#if members.length > 5}
-		<Button variant="outline" size="sm" href="/spaces/{spaceId}/members">
+		<Button variant="secondary" size="sm" href="/spaces/{spaceId}/members">
 			{t('space.viewAllMembers')}
 		</Button>
 	{/if}
@@ -74,15 +74,15 @@
 					</p>
 				</div>
 				<div class="flex shrink-0 items-center gap-2">
-					<Button variant="outline" icon={icons.usersGroup} href="/spaces/{spaceId}/members">
+					<Button variant="secondary" icon={icons.usersGroup} href="/spaces/{spaceId}/members">
 						{t('space.membersCount', { count: members.length })}
 					</Button>
 					{#if space.registre_url}
-						<Button variant="outline" icon={icons.space} href={space.registre_url}>
+						<Button variant="secondary" icon={icons.space} href={space.registre_url}>
 							{t('common.manageInRegistre')}
 						</Button>
 					{:else if isAdminOrOwner}
-						<Button variant="outline" icon={icons.settings} href="/spaces/{spaceId}/settings">
+						<Button variant="secondary" icon={icons.settings} href="/spaces/{spaceId}/settings">
 							{t('space.settings')}
 						</Button>
 					{/if}

@@ -35,8 +35,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        APP_VERSION: ${APP_VERSION:-}
     restart: unless-stopped
     ports:
       # Loopback only — Caddy terminates TLS and proxies from the same host.

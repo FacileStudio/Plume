@@ -91,11 +91,11 @@
 			description={registreUrl ? t('spaces.empty.registre') : t('spaces.empty.local')}
 		>
 			{#if registreUrl}
-				<Button href={registreUrl} variant="outline" icon={icons.space}>
+				<Button href={registreUrl} variant="secondary" icon={icons.space}>
 					{t('common.manageInRegistre')}
 				</Button>
 			{:else}
-				<Button href="/spaces/new" variant="outline" icon={icons.plus}>{t('spaces.new')}</Button>
+				<Button href="/spaces/new" variant="secondary" icon={icons.plus}>{t('spaces.new')}</Button>
 			{/if}
 		</EmptyState>
 	{:else}

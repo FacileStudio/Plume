@@ -163,7 +163,7 @@
 
 		<SettingsSection title={t('docNew.section.signers')} description={t('docNew.section.signersText')}>
 			{#snippet actions()}
-				<Button variant="outline" size="sm" icon={icons.plus} onclick={addSigner}>
+				<Button variant="secondary" size="sm" icon={icons.plus} onclick={addSigner}>
 					{t('docNew.addSigner')}
 				</Button>
 			{/snippet}
@@ -184,7 +184,7 @@
 					</div>
 					{#if signers.length > 1}
 						<IconButton
-							variant="danger"
+							variant="ghost-danger"
 							aria-label={t('docNew.removeSigner', { number: i + 1 })}
 							onclick={() => removeSigner(i)}
 						>

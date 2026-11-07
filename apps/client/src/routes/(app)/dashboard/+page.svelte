@@ -91,7 +91,7 @@
 			<p class="text-fc-sm text-fc-fg-muted">{t('dashboard.subtitle')}</p>
 		</div>
 		<div class="flex flex-wrap items-center gap-2">
-			<Button variant="outline" href="/verify" icon={icons.shield}>{t('dashboard.verify')}</Button>
+			<Button variant="secondary" href="/verify" icon={icons.shield}>{t('dashboard.verify')}</Button>
 			<Button href="/documents/new" icon={icons.plus}>{t('dashboard.newDocument')}</Button>
 		</div>
 	</div>
@@ -147,7 +147,7 @@
 					<p class="text-fc-sm text-fc-fg-muted">{t('dashboard.recentHint')}</p>
 				</div>
 				{#if documents.length > recent.length}
-					<Button variant="outline" href="/documents" iconRight={icons.arrow}>
+					<Button variant="secondary" href="/documents" iconRight={icons.arrow}>
 						{t('dashboard.viewAll')}
 					</Button>
 				{/if}

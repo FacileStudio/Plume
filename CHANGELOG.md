@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- `@facile/muse` v0.14.4 to v0.16.1. Secondary buttons use the `secondary` variant in place of the deprecated `outline`, and the remove buttons of the signer and field lists use `ghost-danger`. The icon generator accepts Iconify aliases, which the new muse icons need.
+- `GET /version` comes from the version in `apps/client/package.json`, which the release commit bumps (still `v` plus the number). The `APP_VERSION` build arg and the Dokploy env no longer take part, so a stale env value cannot make the server report an old release. The image build no longer needs `.git`.
+
 ## 0.10.4 - 2026-11-07
 
 ### Changed

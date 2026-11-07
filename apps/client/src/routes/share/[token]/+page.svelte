@@ -380,7 +380,7 @@
 				{@render progressAndRoster()}
 
 				<Button
-					variant="outline"
+					variant="secondary"
 					size="lg"
 					href={fileUrl}
 					download
@@ -488,7 +488,7 @@
 						</div>
 
 						<Button
-							variant="outline"
+							variant="secondary"
 							size="lg"
 							href={fileUrl}
 							download
@@ -534,7 +534,7 @@
 													class="flex-1"
 												/>
 												<Button
-													variant="outline"
+													variant="secondary"
 													size="lg"
 													icon={icons.calendar}
 													aria-label={t('sign.useToday')}
@@ -611,7 +611,7 @@
 								{t('sign.submit')}
 							</Button>
 							<Button
-								variant="outline"
+								variant="secondary"
 								size="lg"
 								onclick={() => (confirmDecline = true)}
 								disabled={submitting}
