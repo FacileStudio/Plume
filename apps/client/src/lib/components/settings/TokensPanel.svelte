@@ -34,7 +34,7 @@
 		}
 	}
 
-	async function generate(draft: TokenDraft): Promise<string> {
+	async function generate(draft: Omit<TokenDraft, 'days'>): Promise<string> {
 		const created = await api.auth.createApiToken(draft.name);
 		toast.success(t('api.generated'));
 		await load();
@@ -50,7 +50,7 @@
 
 <svelte:head><title>{t('api.title')}</title></svelte:head>
 
-<TokensSection tokens={items} onCreate={generate} onRevoke={revoke}>
+<TokensSection tokens={items} expiry={false} onCreate={generate} onRevoke={revoke}>
 	<SettingsSection title={t('api.reference')} description={t('api.referenceText')}>
 		{#snippet actions()}
 			<Button href="/docs" target="_blank" rel="noopener" icon={icons.code}>
