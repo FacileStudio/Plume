@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Security
+
+- Registre tokens are sealed at rest. porte v0.12.0 to v0.13.0: `porte_identities.access_token` and
+  `refresh_token` (the refresh token Plume exchanges for a Nuage write token) are encrypted with
+  AES-256-GCM under `PORTE_TOKEN_KEY`. Existing rows are sealed once, in the background, after boot,
+  and the count is logged. An invalid `PORTE_TOKEN_KEY` stops the boot. With the key unset nothing changes.
+- Keep `PORTE_TOKEN_KEY` once set. Losing it makes the stored tokens unreadable: people sign in again and
+  nothing else is lost. Do not roll back to a build older than porte v0.13.0 after the first reseal.
+
 ## 0.10.2 - 2026-11-07
 
 ### Changed
