@@ -30,6 +30,7 @@ import (
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 
 	"github.com/FacileStudio/Journal/sdk/journal"
+	"github.com/FacileStudio/porte/directory"
 	"github.com/FacileStudio/porte/kit"
 	"github.com/FacileStudio/porte/oidc"
 	"github.com/FacileStudio/porte/session"
@@ -167,27 +168,29 @@ func run() error {
 }
 
 type services struct {
-	auth      *auth.Service
-	smtp      *smtp.Service
-	webhooks  *webhooks.Service
-	documents *documents.Service
-	signers   *signers.Service
-	fields    *fields.Service
-	signing   *signing.Service
-	verify    *verify.Service
-	spaces    *spaces.Service
-	registre  *spaces.Registre
-	deletions *spaces.Deletions
-	clients   *clients.Service
-	reminders *reminders.Service
+	auth       *auth.Service
+	smtp       *smtp.Service
+	webhooks   *webhooks.Service
+	documents  *documents.Service
+	signers    *signers.Service
+	fields     *fields.Service
+	signing    *signing.Service
+	verify     *verify.Service
+	spaces     *spaces.Service
+	registre   *spaces.Registre
+	deletions  *spaces.Deletions
+	clients    *clients.Service
+	reminders  *reminders.Service
+	identities kit.IdentityLister
 }
 
 // authParts is what buildAuth assembles: the session manager, the OIDC kit
 // and the kit store over Plume's users table.
 type authParts struct {
-	sessions *session.Manager
-	oidc     *oidc.Kit
-	users    *kit.Store
+	sessions   *session.Manager
+	oidc       *oidc.Kit
+	users      *kit.Store
+	identities kit.IdentityLister
 }
 
 // buildAuth constructs porte: one session manager and the OIDC kit over the
@@ -237,7 +240,7 @@ func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *s
 	if err != nil {
 		return authParts{}, err
 	}
-	return authParts{sessions: sessions, oidc: oidcKit, users: users}, nil
+	return authParts{sessions: sessions, oidc: oidcKit, users: users, identities: store.Identities()}, nil
 }
 
 func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, porteParts authParts) *services {
@@ -248,19 +251,20 @@ func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, portePa
 	spaceService, registre, deletions := newSpaces(db, appEnv, appLogger,
 		erasureDeps{users: porteParts.users, freeze: signingService.FreezeAuditTrail})
 	return &services{
-		auth:      auth.NewService(db, porteParts.sessions, porteParts.users, appLogger),
-		smtp:      smtpService,
-		webhooks:  webhookService,
-		documents: docService,
-		signers:   signers.NewService(db, docService, webhookService, smtpService, newNuagePublisher(db, appEnv, appLogger), appEnv.Domain),
-		fields:    fields.NewService(db, docService),
-		signing:   signingService,
-		verify:    verify.NewService(db, docService),
-		spaces:    spaceService,
-		registre:  registre,
-		deletions: deletions,
-		clients:   clients.NewService(db),
-		reminders: reminders.NewService(db, smtpService, webhookService, appEnv.Domain),
+		auth:       auth.NewService(db, porteParts.sessions, porteParts.users, appLogger),
+		smtp:       smtpService,
+		webhooks:   webhookService,
+		documents:  docService,
+		signers:    signers.NewService(db, docService, webhookService, smtpService, newNuagePublisher(db, appEnv, appLogger), appEnv.Domain),
+		fields:     fields.NewService(db, docService),
+		signing:    signingService,
+		verify:     verify.NewService(db, docService),
+		spaces:     spaceService,
+		registre:   registre,
+		deletions:  deletions,
+		clients:    clients.NewService(db),
+		reminders:  reminders.NewService(db, smtpService, webhookService, appEnv.Domain),
+		identities: porteParts.identities,
 	}
 }
 
@@ -314,7 +318,7 @@ func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slo
 	var mountErr error
 	requireAuth := svc.auth.RequireAuth
 	router.Route("/api", func(api chi.Router) {
-		mountErr = auth.RegisterRoutes(api, svc.auth, oidcKit)
+		mountErr = errors.Join(auth.RegisterRoutes(api, svc.auth, oidcKit), mountInvitations(api.With(requireAuth), appEnv, svc))
 		documents.RegisterRoutes(api, svc.documents, requireAuth,
 			signers.DocumentRoutes(svc.signers),
 			fields.DocumentRoutes(svc.fields),
@@ -343,6 +347,23 @@ func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slo
 	}
 
 	return router, nil
+}
+
+// mountInvitations serves GET /api/me/invitations, the signed-in person's
+// pending Registre space invitations for the user menu. It needs Registre,
+// so it is mounted only when an issuer is configured.
+func mountInvitations(router chi.Router, appEnv env.Config, svc *services) error {
+	if appEnv.OIDC == nil {
+		return nil
+	}
+	return kit.MountInvitations(router, kit.InvitationsConfig{
+		Directory: directory.Client{
+			Issuer:       appEnv.OIDC.Issuer,
+			ClientID:     appEnv.OIDC.ClientID,
+			ClientSecret: appEnv.OIDC.ClientSecret,
+		},
+		Identities: svc.identities,
+	})
 }
 
 // verifyLimiter bounds the public verify routes per visitor: the host of

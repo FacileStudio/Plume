@@ -3,6 +3,7 @@ package auth
 import (
 	documentation "github.com/FacileStudio/Plume/apps/api/internal/documentation"
 	"github.com/FacileStudio/porte"
+	"github.com/FacileStudio/porte/kit"
 )
 
 // configRoutes documents the public routes that porte itself serves: reading
@@ -57,6 +58,14 @@ func Documentation() documentation.Module {
 	return documentation.Module{
 		Name:        "auth",
 		Description: "Authentication routes.",
-		Routes:      append(configRoutes(), append(profileRoutes(), apiTokenRoutes()...)...),
+		Routes:      append(configRoutes(), append(profileRoutes(), append(apiTokenRoutes(), invitationsRoute())...)...),
 	}
+}
+
+// invitationsRoute documents GET /me/invitations, which porte/kit serves when
+// OIDC is configured.
+func invitationsRoute() documentation.Route {
+	route := kit.InvitationsRoute()
+	route.ResponseBody = kit.InvitationsResponse{}
+	return route
 }

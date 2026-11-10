@@ -12,6 +12,7 @@
 	let { children } = $props();
 
 	let collapsed = $state(false);
+	let invitations = $state<{ count: number; href: string } | null>(null);
 	let scroller: HTMLElement | null = $state(null);
 
 	onMount(async () => {
@@ -27,6 +28,10 @@
 		}
 		userStore.value = me;
 		setSessionLocale(me.locale);
+		fetch('/api/me/invitations', { credentials: 'same-origin' })
+			.then((r) => (r.ok ? r.json() : null))
+			.then((b) => (invitations = b?.href ? { count: b.count, href: b.href } : null))
+			.catch(() => (invitations = null));
 		try {
 			spaceStore.spaces = await api.spaces.list();
 		} catch {}
@@ -69,7 +74,8 @@
 		onSignOut: signOut,
 		theme: theme.preference,
 		onThemeChange: (next: ThemePreference) => theme.set(next),
-		onLocaleChange: rememberLocale
+		onLocaleChange: rememberLocale,
+		invitations
 	});
 
 	const settingsActive = $derived(isActive('/settings'));

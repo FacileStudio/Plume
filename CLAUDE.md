@@ -69,6 +69,7 @@ docker compose down             # Stop all services
   boot, every 5 min and 2 s after `POST /api/registre/sync` (anonymous, 202). Apply links by `registre_space_id`, then
   by name ignoring case, pre-provisions unknown members with a porte identity, and removes only members holding an
   identity under the issuer. Creating a space, and changing or leaving a linked one, answers 409.
+- `GET /api/me/invitations` (porte/kit, mounted only with OIDC) answers the caller's pending Registre space invitations as `{count, href}`; the app layout passes it to muse's `SideBar` and `MobileNav` through `userMenu.invitations`, `null` when there is no `href`.
 - Webhooks: `document.*` payloads carry `external_ref` and `nuage`. Header `x-plume-signature-256: sha256=<hex HMAC-SHA256 of the raw body>`, keyed on the webhook secret. Contract: `docs/ardoise-link.md`.
 
 ## Environment Variables
