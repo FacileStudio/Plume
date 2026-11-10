@@ -1,0 +1,5 @@
+permits:
+  - id: GO-2026-5932
+    package: golang.org/x/crypto
+    reason: fixed only in an unreleased x/crypto commit after v0.58.0; bump to the first release that carries it
+    expires: 2027-02-08

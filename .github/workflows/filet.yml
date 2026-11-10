@@ -17,9 +17,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: FacileStudio/filet@v0.3.0
+      - uses: actions/setup-go@v7
         with:
-          version: v0.3.0
+          go-version-file: apps/api/go.mod
+          cache: false
+      - uses: FacileStudio/filet@v0.19.1
+        with:
+          version: v0.19.1
           fail-on: error
           # The run is always reported and the provider decides what deserves an
           # alert, so that policy lives in one place instead of in every fork's

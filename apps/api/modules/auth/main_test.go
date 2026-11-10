@@ -122,27 +122,6 @@ func decode(t *testing.T, recorder *httptest.ResponseRecorder, want int) map[str
 	return body
 }
 
-// errorCode is the machine-readable half of tronc's error envelope.
-func errorCode(body map[string]any) string {
-	envelope, ok := body["error"].(map[string]any)
-	if !ok {
-		return ""
-	}
-	code, _ := envelope["code"].(string)
-	return code
-}
-
-// errorMessage is the half of tronc's error envelope a person reads, which is
-// where a library's sentinel text leaks if nothing maps it.
-func errorMessage(body map[string]any) string {
-	envelope, ok := body["error"].(map[string]any)
-	if !ok {
-		return ""
-	}
-	message, _ := envelope["message"].(string)
-	return message
-}
-
 // federated creates the account a Registre user has and a login session for it.
 func (a *api) federated(t *testing.T, email string) (int64, string) {
 	t.Helper()
