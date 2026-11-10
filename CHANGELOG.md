@@ -2,9 +2,21 @@
 
 ## Unreleased
 
+## 0.11.0 - 2026-11-10
+
 ### Changed
 
-- Licensed under the GNU Affero General Public License v3.0 only (`AGPL-3.0-only`). See `LICENSE`.
+- Licensed under the GNU Affero General Public License v3.0 only (`AGPL-3.0-only`). See `LICENSE`. Releases up to 0.10.5 carried no licence.
+- **Erasure keeps the legal records.** When Registre erases a person, every document they sent for signature or signed stays byte-identical, with its signers, fields, files and audit trail. Before, their personal documents were deleted and their space documents passed to another owner. The account row, sessions, API tokens, SMTP settings, webhooks, unsent drafts and contacts no sent document names are deleted. Completed and declined documents get their audit trail written to disk first, so it keeps the owner's name and email. Field by field: `docs/erasure.md`.
+- **The verify routes answer `rate_limited`** instead of `resource_exhausted` on 429, with the real wait in `Retry-After` instead of a fixed 60. The limit is tronc's `middleware.Ratelimit`: a burst of 10, then one every 3 seconds, so at most 30 in any minute (the old bucket could admit 40), keyed on the visitor address, with a memory bound.
+- **Sign-in goes through `porte/kit`.** The stored email changes only when Registre marks the new one verified (suite rule). New accounts get the same column values GORM wrote.
+- The browser uses porte's session cookie only. The `plume.token` and `token` keys older builds kept in `localStorage` are deleted on load. API tokens for Ardoise are unchanged.
+- tronc v0.17.1 to v0.21.0, porte v0.13.0 to v0.18.2, `@facile/muse` v0.16.1 to v0.18.0, `@facile/client` v0.1.1, Go 1.26.11, `golang.org/x/crypto` v0.58.0, `golang.org/x/image` v0.48.0, `golang.org/x/text` v0.44.0.
+- CI: filet v0.19.1 with `preset: facile`, douane v0.7.1 (`-fail critical -scope prod`), and `filet gate .` before push through `lefthook.yml`.
+
+### Added
+
+- The user menu shows pending Registre space invitations (`GET /api/me/invitations`).
 
 ## 0.10.5 - 2026-11-07
 
