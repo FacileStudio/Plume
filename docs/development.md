@@ -16,7 +16,7 @@ Local setup, the two processes you run, the tests, and the quality gate that gua
 
 ```sh
 mise run install       # bun install --frozen-lockfile in apps/client
-mise run hooks         # git config core.hooksPath .githooks
+mise run hooks         # lefthook install --reset-hooks-path
 ```
 
 The second one is not optional in spirit — the pre-push hook is the only thing standing
@@ -85,10 +85,12 @@ If `bun` is missing, the client half is skipped with a warning rather than faili
 
 ## The pre-push hook
 
-`.githooks/pre-push` runs `scripts/check.sh --go-only`, not the full gate. Plume's client
-carries pre-existing `svelte-check` errors, so gating on the full check would block every
-push until those are cleared. Run `sh scripts/check.sh` yourself for the whole picture. When
-the client reaches zero errors, drop the `--go-only`.
+`lefthook.yml` runs `filet gate .` before every push: gofmt, `filet check` (`preset: facile`
+in `filet.yml`), `go vet`, staticcheck, svelte-check, the Go and client tests, and
+`douane scan -fail critical -scope prod`. The Go tests need `TEST_DATABASE_URL`. A finding
+that no released version fixes yet gets a dated permit in `douane.yml`, never a pin to an
+unreleased commit. `mise run hooks` installs the hook; the shared commit-msg rules come from
+`FacileStudio/hooks`.
 
 Bypass once with `git push --no-verify`.
 
