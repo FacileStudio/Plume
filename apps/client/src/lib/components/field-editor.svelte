@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
-	import { api, getToken } from '$lib';
+	import { api } from '$lib';
 	import type { Field, Signer, CreateFieldRequest } from '$lib';
 	import {
 		Alert,
@@ -332,11 +332,7 @@
 		).toString();
 
 		try {
-			const token = getToken();
-			const response = await fetch(`/api/documents/${documentId}/file`, {
-				headers: token ? { Authorization: `Bearer ${token}` } : {},
-				credentials: 'same-origin'
-			});
+			const response = await fetch(`/api/documents/${documentId}/file`, { credentials: 'same-origin' });
 			if (!response.ok) throw new Error('Failed to load PDF');
 
 			const arrayBuffer = await response.arrayBuffer();

@@ -12,7 +12,7 @@
 		icons,
 		toast
 	} from '@facile/muse';
-	import { api, clearToken } from '$lib';
+	import { api, forgetLegacyToken } from '$lib';
 	import type { UserProfile } from '$lib';
 	import { userStore } from '$lib/stores/user.svelte';
 	import { formatDateTime } from '$lib/i18n/format';
@@ -47,7 +47,7 @@
 		for (const key of Object.keys(localStorage)) {
 			if (key.startsWith('plume.')) localStorage.removeItem(key);
 		}
-		clearToken();
+		forgetLegacyToken();
 		userStore.value = null;
 		setSessionLocale(null);
 		toast.success(t('advanced.cleared'));

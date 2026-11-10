@@ -93,7 +93,8 @@ Read through `tronc/env`. See `.env.example` and `apps/api/.env.example`.
 ## Architecture Notes
 
 - One binary serves everything: API routes under `/api`, and the built SPA as the catch-all via tronc's `spa` package. The browser calls `/api/*` on the same origin, so there is no proxy and no CORS hop.
-- Auth is a Bearer token in localStorage.
+- The browser signs in with porte's HttpOnly session cookie. `src/lib/backend.ts` is `@facile/client`'s `createApi` (same-origin, `X-Facile-CSRF` on writes, 401 sends the browser to `/login`; session probes pass `{ quiet: true }`). No token goes in `localStorage`, and the root layout deletes the `plume.token` and `token` keys older builds left. API clients (Ardoise) still send a Settings > API token as `Authorization: Bearer`.
+- `theme.svelte.ts` stays app-side: unlike `@facile/client/theme` it writes `.dark` in system mode on a dark OS, which Plume's `dark:` utilities need.
 - Document workflow: `draft` -> `pending` -> `completed` / `declined`.
 - Modules are self-contained: each has routes, service, and handlers. Subrouters are composed in `main.go` via `RegisterRoutes` + `*Routes` helper functions.
 - Migrations run automatically on startup via `schemas.Migrate(db)` (GORM AutoMigrate).

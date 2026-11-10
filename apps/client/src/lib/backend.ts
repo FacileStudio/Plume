@@ -1,147 +1,66 @@
-const TOKEN_KEY = 'plume.token';
-const LEGACY_TOKEN_KEY = 'token';
+import { ApiError, createApi, redirectToLogin, type CallOptions } from '@facile/client';
 
-export function getToken(): string | null {
-	if (typeof window === 'undefined') return null;
-	const stored = localStorage.getItem(TOKEN_KEY);
-	if (stored !== null) return stored;
-	const legacy = localStorage.getItem(LEGACY_TOKEN_KEY);
-	if (legacy === null) return null;
-	localStorage.setItem(TOKEN_KEY, legacy);
-	localStorage.removeItem(LEGACY_TOKEN_KEY);
-	return legacy;
-}
+export { ApiError };
 
-export function clearToken() {
-	localStorage.removeItem(TOKEN_KEY);
-	localStorage.removeItem(LEGACY_TOKEN_KEY);
-}
+const LEGACY_TOKEN_KEYS = ['plume.token', 'token'];
+
+const apiFetch = createApi({ onUnauthorized: redirectToLogin });
 
 /**
- * CSRF_HEADER is porte's second lock on the cookie transport. porte reads the
- * session cookie before the Authorization header and refuses a *mutating*
- * cookie-authenticated request that arrives without this header — reads keep
- * working, writes 403, which reads as "the app loads but saving is broken".
- * porte only checks that the header is present, so the value is a constant.
+ * forgetLegacyToken deletes the bearer token older builds kept in localStorage.
+ * The browser signs in with porte's HttpOnly cookie only, so the token is
+ * never read again and should not outlive this version.
  */
-const CSRF_HEADER = 'X-Facile-CSRF';
-
-const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
-
-/**
- * ApiError carries the HTTP status alongside the message, so a caller can tell
- * "you are not signed in" apart from "the request failed". The session gates
- * depend on that difference: a 401 means show the login page, anything else
- * means the server had a bad moment and signing the user out would be wrong.
- */
-export class ApiError extends Error {
-	readonly status: number;
-
-	constructor(status: number, message: string) {
-		super(message);
-		this.name = 'ApiError';
-		this.status = status;
+export function forgetLegacyToken() {
+	try {
+		for (const key of LEGACY_TOKEN_KEYS) localStorage.removeItem(key);
+	} catch {
+		return;
 	}
 }
 
 /**
  * currentUser asks the API who the caller is, and is the only honest answer to
- * "am I signed in".
- *
- * A local password login leaves a bearer token in localStorage, but an SSO
- * login does not: since porte v0.2.4 the OIDC callback issues an HttpOnly
- * session cookie and redirects, with nothing in the URL for the client to
- * store. Gating on localStorage therefore bounced every SSO user straight back
- * to the login page while they held a perfectly valid session.
+ * "am I signed in". It probes quietly, so a public page that asks is not sent
+ * to the login page.
  *
  * Returns null when the server says the caller is not authenticated, and
  * rethrows anything else so a transient failure is not mistaken for a logout.
  */
 export async function currentUser(): Promise<UserProfile | null> {
 	try {
-		return await api.auth.me();
+		return await request<UserProfile>('GET', '/auth/me', undefined, { quiet: true });
 	} catch (err) {
 		if (err instanceof ApiError && (err.status === 401 || err.status === 403)) return null;
 		throw err;
 	}
 }
 
-/**
- * logout ends the session on both transports: the bearer token this browser
- * may hold, and the cookie only the server can revoke. Clearing localStorage
- * alone left an SSO user signed straight back in on the next page load.
- */
+/** logout ends the cookie session, which only the server can revoke. */
 export async function logout() {
 	try {
-		await request<void>('POST', '/auth/logout');
+		await request<void>('POST', '/auth/logout', undefined, { quiet: true });
 	} catch {}
-	clearToken();
+	forgetLegacyToken();
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
-	const headers: Record<string, string> = {
-		'Content-Type': 'application/json'
-	};
-
-	const token = getToken();
-	if (token) {
-		headers['Authorization'] = `Bearer ${token}`;
-	}
-	if (!SAFE_METHODS.has(method.toUpperCase())) {
-		headers[CSRF_HEADER] = '1';
-	}
-
-	const res = await fetch(`/api${path}`, {
-		method,
-		headers,
-		credentials: 'same-origin',
-		body: body ? JSON.stringify(body) : undefined
-	});
-
-	if (res.status === 204) return undefined as T;
-
-	const data = await res.json().catch(() => null);
-	if (!res.ok) {
-		throw new ApiError(res.status, data?.error?.message ?? 'Request failed');
-	}
-	return data as T;
+function request<T>(method: string, path: string, body?: unknown, call?: CallOptions): Promise<T> {
+	return apiFetch<T>(path, { method, body: body ? JSON.stringify(body) : undefined }, call);
 }
 
-async function upload<T>(method: string, path: string, formData: FormData, opts?: { auth?: boolean }): Promise<T> {
-	const headers: Record<string, string> = {};
-
-	if (opts?.auth !== false) {
-		const token = getToken();
-		if (token) {
-			headers['Authorization'] = `Bearer ${token}`;
-		}
-	}
-	if (!SAFE_METHODS.has(method.toUpperCase())) {
-		headers[CSRF_HEADER] = '1';
-	}
-
-	const res = await fetch(`/api${path}`, {
-		method,
-		headers,
-		credentials: 'same-origin',
-		body: formData
-	});
-
-	if (res.status === 204) return undefined as T;
-
-	let data: any;
+/**
+ * upload sends a multipart body. A refusal without the API's envelope, such as
+ * the proxy's 413 for a file over the limit, keeps the readable message the
+ * upload forms have always shown.
+ */
+async function upload<T>(method: string, path: string, formData: FormData, call?: CallOptions): Promise<T> {
 	try {
-		data = await res.json();
-	} catch {
-		if (res.status === 413) {
-			throw new Error('File is too large. Maximum upload size is 50 MB.');
-		}
+		return await apiFetch<T>(path, { method, body: formData }, call);
+	} catch (err) {
+		if (!(err instanceof ApiError) || err.code) throw err;
+		if (err.status === 413) throw new Error('File is too large. Maximum upload size is 50 MB.');
 		throw new Error('Upload failed — please try again');
 	}
-	if (!res.ok) {
-		throw new ApiError(res.status, data?.error?.message ?? 'Request failed');
-	}
-	return data as T;
 }
 
 export interface ApiToken {
@@ -268,7 +187,7 @@ export const api = {
 		check: (file: File) => {
 			const formData = new FormData();
 			formData.append('file', file);
-			return upload<VerifyResponse>('POST', '/verify', formData, { auth: false });
+			return upload<VerifyResponse>('POST', '/verify', formData, { quiet: true });
 		},
 		byHash: (hash: string) =>
 			fetch(`/api/verify/${hash}`)

@@ -4,8 +4,9 @@ Every HTTP route the Go binary registers, grouped by module, generated from the 
 `apps/api/modules/`.
 
 All application routes live under `/api`. Responses are JSON via `httpjson.WriteJSON`, and
-errors share the tronc error shape. Authenticated routes want
-`Authorization: Bearer <token>`; the token comes from the OIDC exchange or from Settings > API.
+errors share the tronc error shape. Authenticated routes take porte's session cookie (the
+browser; writes also need `X-Facile-CSRF: 1`) or `Authorization: Bearer <token>` with a token
+from Settings > API.
 
 Plume also serves its own reference at `GET /docs` — a Scalar UI over the OpenAPI 3.1 document
 at `GET /docs/openapi.json` — mounted on the root router through `tronc/apiref`, beside `/api`

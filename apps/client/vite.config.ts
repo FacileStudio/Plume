@@ -4,7 +4,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
-	optimizeDeps: { exclude: ['@facile/muse'] },
+	optimizeDeps: { exclude: ['@facile/muse', '@facile/client'] },
 	server: {
 		proxy: {
 			'/api': process.env.API_URL ?? 'http://localhost:4000'

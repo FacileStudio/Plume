@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
-	import { api, getToken } from '$lib';
+	import { api } from '$lib';
 	import type { Document, Signer, Field as DocumentField, Client } from '$lib';
 	import { spaceStore } from '$lib/stores/space.svelte';
 	import {
@@ -221,14 +221,7 @@
 		if (!doc) return;
 		setLoading(true);
 		try {
-			/* An SSO session has no bearer token to send, only a cookie — hence
-			   the conditional header and credentials rather than an
-			   unconditional `Bearer null`. */
-			const token = getToken();
-			const res = await fetch(urlPath, {
-				headers: token ? { Authorization: `Bearer ${token}` } : {},
-				credentials: 'same-origin'
-			});
+			const res = await fetch(urlPath, { credentials: 'same-origin' });
 			if (!res.ok) throw new Error(t('doc.downloadFailed'));
 			const blob = await res.blob();
 			const url = URL.createObjectURL(blob);
