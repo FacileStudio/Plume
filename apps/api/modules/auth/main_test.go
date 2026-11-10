@@ -70,13 +70,19 @@ func newAPI(t *testing.T) *api {
 	if err != nil {
 		t.Fatalf("session.New: %v", err)
 	}
-	service := NewService(testDB, sessions, logger)
-	kit, err := oidc.New(context.Background(), appEnv.Porte(), oidc.Deps{Sessions: sessions, Logger: logger})
+	users, err := NewUsers(context.Background(), sqlDB, logger)
+	if err != nil {
+		t.Fatalf("NewUsers: %v", err)
+	}
+	service := NewService(testDB, sessions, users, logger)
+	oidcKit, err := oidc.New(context.Background(), appEnv.Porte(), oidc.Deps{Sessions: sessions, Logger: logger})
 	if err != nil {
 		t.Fatalf("oidc.New: %v", err)
 	}
 	router := chi.NewRouter()
-	RegisterRoutes(router, service, kit)
+	if err := RegisterRoutes(router, service, oidcKit); err != nil {
+		t.Fatalf("RegisterRoutes: %v", err)
+	}
 	return &api{router: router, service: service, db: testDB}
 }
 

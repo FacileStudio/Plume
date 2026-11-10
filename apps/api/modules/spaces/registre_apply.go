@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/FacileStudio/Plume/apps/api/internal/oidcavatar"
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 	"github.com/FacileStudio/porte/directory"
+	"github.com/FacileStudio/porte/kit"
 
 	"gorm.io/gorm"
 )
@@ -157,7 +157,7 @@ func userByEmail(tx *gorm.DB, member directory.Member) (int64, error) {
 	var user schemas.User
 	err := tx.Where("lower(email) = ?", email).First(&user).Error
 	if stderrors.Is(err, gorm.ErrRecordNotFound) {
-		user = schemas.User{Email: email, Name: member.Name, OIDCPictureURL: oidcavatar.PhotoURL(member.Picture)}
+		user = schemas.User{Email: email, Name: member.Name, OIDCPictureURL: kit.PictureURL(member.Picture)}
 		err = tx.Create(&user).Error
 	}
 	return user.ID, err

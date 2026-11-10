@@ -31,6 +31,7 @@ import (
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 
 	"github.com/FacileStudio/Journal/sdk/journal"
+	"github.com/FacileStudio/porte/kit"
 	"github.com/FacileStudio/porte/oidc"
 	"github.com/FacileStudio/porte/session"
 	"github.com/FacileStudio/tronc/apiref"
@@ -97,13 +98,13 @@ func run() error {
 		}
 	}()
 
-	sessions, kit, err := buildAuth(context.Background(), db, appEnv, appLogger)
+	porteParts, err := buildAuth(context.Background(), db, appEnv, appLogger)
 	if err != nil {
 		appLogger.Error("failed to build authentication", slog.Any("error", err))
 		return err
 	}
 
-	svc := newServices(db, appEnv, appLogger, sessions)
+	svc := newServices(db, appEnv, appLogger, porteParts)
 
 	go func() {
 		count, err := svc.documents.BackfillHashes(context.Background())
@@ -116,7 +117,11 @@ func run() error {
 		}
 	}()
 
-	router := buildRouter(svc, sqlDB, appEnv, appLogger, kit)
+	router, err := buildRouter(svc, sqlDB, appEnv, appLogger, porteParts.oidc)
+	if err != nil {
+		appLogger.Error("failed to build the router", slog.Any("error", err))
+		return err
+	}
 
 	addr := ":" + strconv.Itoa(appEnv.Port)
 	server := &http.Server{
@@ -176,6 +181,14 @@ type services struct {
 	reminders *reminders.Service
 }
 
+// authParts is what buildAuth assembles: the session manager, the OIDC kit
+// and the kit store over Plume's users table.
+type authParts struct {
+	sessions *session.Manager
+	oidc     *oidc.Kit
+	users    *kit.Store
+}
+
 // buildAuth constructs porte: one session manager and the OIDC kit over the
 // identity tables. Sign-in goes through Registre only; there is no local
 // password kit. Discovery runs here, so an unreachable or half-configured
@@ -183,24 +196,27 @@ type services struct {
 //
 // The CLI login codes live in a table and are consumed with a DELETE ...
 // RETURNING, so a replay finds nothing and a restart loses no pending login.
-func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) (*session.Manager, *oidc.Kit, error) {
+func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) (authParts, error) {
 	sqlDB, err := db.DB()
 	if err != nil {
-		return nil, nil, err
+		return authParts{}, err
 	}
 	store, err := newPorteStore(sqlDB)
 	if err != nil {
-		return nil, nil, err
+		return authParts{}, err
 	}
 	resealInBackground(ctx, store, appLogger)
-	users := auth.NewUserStore(db)
+	users, err := auth.NewUsers(ctx, sqlDB, appLogger)
+	if err != nil {
+		return authParts{}, err
+	}
 	cfg := appEnv.Porte()
 
 	sessions, err := session.New(cfg, session.Deps{Sessions: store.Sessions(), Logger: appLogger})
 	if err != nil {
-		return nil, nil, err
+		return authParts{}, err
 	}
-	kit, err := oidc.New(ctx, cfg, oidc.Deps{
+	oidcKit, err := oidc.New(ctx, cfg, oidc.Deps{
 		Users:      users,
 		Identities: store.Identities(),
 		Sessions:   sessions,
@@ -218,18 +234,18 @@ func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *s
 		},
 	})
 	if err != nil {
-		return nil, nil, err
+		return authParts{}, err
 	}
-	return sessions, kit, nil
+	return authParts{sessions: sessions, oidc: oidcKit, users: users}, nil
 }
 
-func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, sessions *session.Manager) *services {
+func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, porteParts authParts) *services {
 	smtpService := smtp.NewService(db)
 	webhookService := webhooks.NewService(db)
 	docService := documents.NewService(db, smtpService, webhookService, appEnv.Domain, appEnv.UploadDir)
 	spaceService, registre, deletions := newSpaces(db, appEnv, appLogger)
 	return &services{
-		auth:      auth.NewService(db, sessions, appLogger),
+		auth:      auth.NewService(db, porteParts.sessions, porteParts.users, appLogger),
 		smtp:      smtpService,
 		webhooks:  webhookService,
 		documents: docService,
@@ -275,7 +291,7 @@ func apiReference() apiref.Config {
 // trusted: Traefik replaces the forwarded chain rather than extending it, so
 // the visitor survives in Cf-Connecting-Ip alone. TRUSTED_PROXIES=private,cloudflare
 // fills all three.
-func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slog.Logger, kit *oidc.Kit) chi.Router {
+func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slog.Logger, oidcKit *oidc.Kit) (chi.Router, error) {
 	clientDir := spa.DirFromEnv()
 	router := httpx.NewRouter(httpx.Config{
 		TrustedProxies: appEnv.TrustedProxies,
@@ -292,33 +308,39 @@ func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slo
 	registerVersionRoute(router)
 	apiref.Mount(router, apiReference())
 
+	var mountErr error
+	requireAuth := svc.auth.RequireAuth
 	router.Route("/api", func(api chi.Router) {
-		auth.RegisterRoutes(api, svc.auth, kit)
-		documents.RegisterRoutes(api, svc.documents, svc.auth,
+		mountErr = auth.RegisterRoutes(api, svc.auth, oidcKit)
+		documents.RegisterRoutes(api, svc.documents, requireAuth,
 			signers.DocumentRoutes(svc.signers),
 			fields.DocumentRoutes(svc.fields),
 			signing.DocumentRoutes(svc.signing),
 		)
-		signers.RegisterRoutes(api, svc.signers, svc.auth,
+		signers.RegisterRoutes(api, svc.signers, requireAuth,
 			reminders.SignerRoutes(svc.reminders),
 		)
-		webhooks.RegisterRoutes(api, svc.webhooks, svc.auth)
-		smtp.RegisterRoutes(api, svc.smtp, svc.auth)
-		spaces.RegisterRoutes(api, svc.spaces, svc.auth)
+		webhooks.RegisterRoutes(api, svc.webhooks, requireAuth)
+		smtp.RegisterRoutes(api, svc.smtp, requireAuth)
+		spaces.RegisterRoutes(api, svc.spaces, requireAuth)
 		spaces.RegisterSyncRoute(api, svc.registre)
 		spaces.RegisterDeletionsRoute(api, svc.deletions)
-		clients.RegisterRoutes(api, svc.clients, svc.auth)
+		clients.RegisterRoutes(api, svc.clients, requireAuth)
 
 		verifyLimiter := middleware.NewRateLimiter(30, 10).Handler()
 		verify.RegisterRoutes(api, svc.verify, verifyLimiter)
 	})
+
+	if mountErr != nil {
+		return nil, mountErr
+	}
 
 	if spa.Available(clientDir) {
 		router.Handle("/*", spa.Handler(spa.Config{Dir: clientDir}))
 		appLogger.Info("serving client", slog.String("dir", clientDir))
 	}
 
-	return router
+	return router, nil
 }
 
 func newNuagePublisher(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) *nuage.Publisher {

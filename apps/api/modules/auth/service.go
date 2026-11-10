@@ -5,11 +5,11 @@ import (
 	stderrors "errors"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 	"github.com/FacileStudio/porte"
+	"github.com/FacileStudio/porte/kit"
 	"github.com/FacileStudio/porte/session"
 	"github.com/FacileStudio/tronc/errors"
 
@@ -17,56 +17,29 @@ import (
 )
 
 // Service is what is left of Plume's authentication after porte took the
-// credential: the profile lookup the rest of the app reads and the session
-// manager the other modules authenticate through.
+// credential: the profile routes, the API tokens and the session manager the
+// other modules authenticate through.
 type Service struct {
-	orm        *gorm.DB
-	sessions   *session.Manager
-	logger     *slog.Logger
-	controller *Controller
+	orm         *gorm.DB
+	sessions    *session.Manager
+	requireAuth func(http.Handler) http.Handler
+	logger      *slog.Logger
+	controller  *Controller
 }
 
-// NewService creates a Service wired to the given database, session manager
-// and logger.
-func NewService(orm *gorm.DB, sessions *session.Manager, logger *slog.Logger) *Service {
-	service := &Service{orm: orm, sessions: sessions, logger: logger}
+// NewService creates a Service wired to the given database, session manager,
+// user resolver and logger. users is the kit store that turns the user id
+// porte authenticated into the identity handlers read.
+func NewService(orm *gorm.DB, sessions *session.Manager, users kit.Resolver, logger *slog.Logger) *Service {
+	service := &Service{orm: orm, sessions: sessions, requireAuth: kit.RequireAuth(sessions, users), logger: logger}
 	service.controller = newController(service)
 	return service
 }
 
-// RequireAuth is porte's session middleware, re-exported so the module routers
-// keep passing this one service to middleware.RequireAuth.
+// RequireAuth is the middleware every authenticated route sits behind:
+// porte's session check, then the identity from Plume's users table.
 func (service *Service) RequireAuth(next http.Handler) http.Handler {
-	return service.sessions.RequireAuth(next)
-}
-
-// IdentityForUser turns the user id porte authenticated into the identity the
-// rest of Plume reads. It is no longer where authentication happens.
-//
-// porte deliberately carries neither the email nor any role: what a role may
-// do is the app's business, and the profile lives in the app's table. So the
-// address is looked up here, which costs the one query the old join cost.
-//
-// If the user is not found, the session outlived the user: porte's foreign
-// key cascades a delete, so this is a race, and it is still not
-// authenticated.
-func (service *Service) IdentityForUser(ctx context.Context, userID int64) (string, string, error) {
-	var out struct {
-		ID    int64
-		Email string
-	}
-	err := service.orm.WithContext(ctx).
-		Model(&schemas.User{}).
-		Select("id", "email").
-		Where("id = ?", userID).
-		Scan(&out).Error
-	if err != nil {
-		return "", "", errors.Internal("failed to load the account", err)
-	}
-	if out.ID == 0 {
-		return "", "", errors.Unauthorized("invalid auth token")
-	}
-	return strconv.FormatInt(out.ID, 10), out.Email, nil
+	return service.requireAuth(next)
 }
 
 // Issue mints a named API token: a porte session with a label and no expiry,
@@ -135,25 +108,6 @@ func (service *Service) GetUser(ctx context.Context, userID int64) (*schemas.Use
 		return nil, errors.NotFound("user not found")
 	}
 	return &record, nil
-}
-
-// getUserByString and updateProfileByString adapt the decimal-string user id
-// the controllers still carry to the int64 porte resolved. Keeping the string
-// at the controller boundary leaves the response shapes untouched.
-func (service *Service) getUserByString(ctx context.Context, userID string) (*schemas.User, error) {
-	id, err := strconv.ParseInt(userID, 10, 64)
-	if err != nil {
-		return nil, errors.Internal("failed to parse user id", err)
-	}
-	return service.GetUser(ctx, id)
-}
-
-func (service *Service) updateProfileByString(ctx context.Context, userID, name, email string, reminderIntervalDays *int) (*schemas.User, error) {
-	id, err := strconv.ParseInt(userID, 10, 64)
-	if err != nil {
-		return nil, errors.Internal("failed to parse user id", err)
-	}
-	return service.UpdateProfile(ctx, id, name, email, reminderIntervalDays)
 }
 
 // SweepExpiredSessions is the hourly cleanup this app has always run, now over

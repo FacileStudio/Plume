@@ -38,7 +38,11 @@ func testRouter(t *testing.T) chi.Router {
 	if err != nil {
 		t.Fatalf("oidc.New: %v", err)
 	}
-	return buildRouter(newServices(nil, appEnv, logger, sessions), nil, appEnv, logger, kit)
+	router, err := buildRouter(newServices(nil, appEnv, logger, authParts{sessions: sessions}), nil, appEnv, logger, kit)
+	if err != nil {
+		t.Fatalf("buildRouter: %v", err)
+	}
+	return router
 }
 
 func TestEveryRouteIsDocumented(t *testing.T) {

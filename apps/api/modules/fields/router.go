@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/FacileStudio/Plume/apps/api/internal/authcontext"
+	"github.com/FacileStudio/porte/kit"
 	"github.com/FacileStudio/tronc/httpjson"
 
 	"github.com/go-chi/chi/v5"
@@ -12,9 +12,8 @@ import (
 
 // ownerIDFrom extracts the authenticated owner's numeric ID from the request.
 func ownerIDFrom(r *http.Request) (int64, bool) {
-	identity, _ := authcontext.IdentityFromContext(r.Context())
-	ownerID, err := strconv.ParseInt(identity.UserID, 10, 64)
-	return ownerID, err == nil
+	identity, ok := kit.FromContext(r.Context())
+	return identity.UserID, ok
 }
 
 // DocumentRoutes returns a router mount function adding field CRUD routes

@@ -4,8 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/FacileStudio/Plume/apps/api/internal/authcontext"
-	"github.com/FacileStudio/Plume/apps/api/internal/middleware"
+	"github.com/FacileStudio/porte/kit"
 	"github.com/FacileStudio/tronc/httpjson"
 
 	"github.com/go-chi/chi/v5"
@@ -23,12 +22,8 @@ var trackingPixelGIF = []byte{
 // parsed as an integer. The bool reports whether an identity was present;
 // routes guarded by RequireAuth can ignore it.
 func ownerIDFrom(r *http.Request) (int64, bool) {
-	identity, ok := authcontext.IdentityFromContext(r.Context())
-	if !ok {
-		return 0, false
-	}
-	ownerID, _ := strconv.ParseInt(identity.UserID, 10, 64)
-	return ownerID, true
+	identity, ok := kit.FromContext(r.Context())
+	return identity.UserID, ok
 }
 
 // clientIP returns the request's client IP, honouring X-Real-IP when a trusted
@@ -74,9 +69,9 @@ func DocumentRoutes(service *Service) func(chi.Router) {
 
 // RegisterSignerRoutes mounts the authenticated /signers resource: removing a
 // signer, plus any nested routes such as reminders' send-remind action.
-func RegisterSignerRoutes(router chi.Router, service *Service, authService middleware.Authenticator, nested ...func(chi.Router)) {
+func RegisterSignerRoutes(router chi.Router, service *Service, requireAuth func(http.Handler) http.Handler, nested ...func(chi.Router)) {
 	router.Route("/signers", func(router chi.Router) {
-		router.Use(middleware.RequireAuth(authService))
+		router.Use(requireAuth)
 
 		router.Delete("/{id}", func(w http.ResponseWriter, request *http.Request) {
 			ownerID, _ := ownerIDFrom(request)
@@ -174,8 +169,8 @@ func RegisterSigningDecisionRoutes(router chi.Router, service *Service) {
 
 // RegisterRoutes mounts the signer CRUD and the public, token-scoped signing
 // endpoints, applying auth to everything except the token sign routes.
-func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator, nested ...func(chi.Router)) {
-	RegisterSignerRoutes(router, service, authService, nested...)
+func RegisterRoutes(router chi.Router, service *Service, requireAuth func(http.Handler) http.Handler, nested ...func(chi.Router)) {
+	RegisterSignerRoutes(router, service, requireAuth, nested...)
 	RegisterSigningStateRoutes(router, service)
 	RegisterSigningDeliveryRoutes(router, service)
 	RegisterSigningDecisionRoutes(router, service)

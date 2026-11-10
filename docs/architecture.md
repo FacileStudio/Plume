@@ -30,7 +30,8 @@ and CORS is only relevant when you run the Vite dev server on `:5173`.
 |---|---|
 | `main.go` | Config load, logger, DB open, migrations, service wiring, router, shutdown |
 | `internal/env` | Wraps `troncenv.Core`, adds `DOMAIN`, `UPLOAD_DIR`, `OIDC_*` |
-| `internal/middleware` | `RequireAuth`, `SecurityHeaders`, `NoStore`, in-process rate limiter |
+| `internal/middleware` | `NoStore`, in-process rate limiter |
+| `modules/auth` | porte wiring: the `porte/kit` store over `users`, `RequireAuth`, profile and API token routes |
 | `internal/authcrypto` | argon2id password hashing, 32-byte URL-safe random tokens |
 | `internal/hashing` | SHA-256 over readers and files, plus a 64-hex validator |
 | `internal/pdfutil` | Field flattening (fpdf overlay + pdfcpu watermark), Unicode fonts |
@@ -49,9 +50,9 @@ hang off `/api/documents`, and `reminders.SignerRoutes` hangs off `/api/signers`
    `CORSAllowedOrigins`. `middleware.SecurityHeaders` is added on top.
 2. `health.Mount` registers `/health` and `/ready` twice — bare and under `/api` — with a
    database ping as the readiness check.
-3. `/api` routes into the module subrouters. Authenticated groups run
-   `middleware.RequireAuth`, which reads the `Authorization: Bearer` token, looks the
-   session up, and puts the identity in the request context.
+3. `/api` routes into the module subrouters. Authenticated groups run porte/kit's
+   `RequireAuth`, which checks the session cookie or `Authorization: Bearer` token through
+   porte, loads the account from `users`, and puts a `kit.Identity` in the request context.
 4. Anything unmatched falls through to the SPA handler.
 
 Timeouts are set on the `http.Server`: 5s read header, 10s read, 15s write, 60s idle.

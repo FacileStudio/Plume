@@ -6,9 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/FacileStudio/Plume/apps/api/internal/authcontext"
 	documentation "github.com/FacileStudio/Plume/apps/api/internal/documentation"
-	"github.com/FacileStudio/Plume/apps/api/internal/middleware"
+	"github.com/FacileStudio/porte/kit"
 	"github.com/FacileStudio/tronc/errors"
 	"github.com/FacileStudio/tronc/httpjson"
 
@@ -48,7 +47,7 @@ type APITokenRevoked struct {
 // lists the caller's tokens and DELETE revokes one by id.
 func registerAPIToken(router chi.Router, service *Service) {
 	router.Group(func(router chi.Router) {
-		router.Use(middleware.RequireAuth(service))
+		router.Use(service.RequireAuth)
 
 		router.Post("/api-token", func(w http.ResponseWriter, request *http.Request) {
 			var req APITokenRequest
@@ -61,8 +60,8 @@ func registerAPIToken(router chi.Router, service *Service) {
 				httpjson.WriteError(w, errors.Invalid("label is required and at most 100 characters"))
 				return
 			}
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			userID, _ := strconv.ParseInt(identity.UserID, 10, 64)
+			identity, _ := kit.FromContext(request.Context())
+			userID := identity.UserID
 			token, session, err := service.Issue(request.Context(), userID, label)
 			if err != nil {
 				httpjson.WriteError(w, errors.Internal("failed to issue token", err))
@@ -72,8 +71,8 @@ func registerAPIToken(router chi.Router, service *Service) {
 		})
 
 		router.Get("/api-tokens", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			userID, _ := strconv.ParseInt(identity.UserID, 10, 64)
+			identity, _ := kit.FromContext(request.Context())
+			userID := identity.UserID
 			sessions, err := service.Sessions().List(request.Context(), userID)
 			if err != nil {
 				httpjson.WriteError(w, errors.Internal("failed to list tokens", err))
@@ -95,8 +94,8 @@ func registerAPIToken(router chi.Router, service *Service) {
 				httpjson.WriteError(w, errors.Invalid("invalid token id"))
 				return
 			}
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			userID, _ := strconv.ParseInt(identity.UserID, 10, 64)
+			identity, _ := kit.FromContext(request.Context())
+			userID := identity.UserID
 			if err := service.revokeAPIToken(request.Context(), userID, id); err != nil {
 				httpjson.WriteError(w, err)
 				return

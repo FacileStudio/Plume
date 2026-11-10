@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/FacileStudio/Plume/apps/api/internal/env"
+	"github.com/FacileStudio/Plume/apps/api/modules/auth"
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 	"github.com/FacileStudio/porte/oidc"
 	portepg "github.com/FacileStudio/porte/pg"
@@ -55,7 +56,15 @@ func contractRouter(t *testing.T) chi.Router {
 	if err != nil {
 		t.Fatalf("oidc.New: %v", err)
 	}
-	return buildRouter(newServices(db, appEnv, logger, sessions), sqlDB, appEnv, logger, kit)
+	users, err := auth.NewUsers(context.Background(), sqlDB, logger)
+	if err != nil {
+		t.Fatalf("NewUsers: %v", err)
+	}
+	router, err := buildRouter(newServices(db, appEnv, logger, authParts{sessions: sessions, users: users}), sqlDB, appEnv, logger, kit)
+	if err != nil {
+		t.Fatalf("buildRouter: %v", err)
+	}
+	return router
 }
 
 func seedContract(t *testing.T, db *gorm.DB) {

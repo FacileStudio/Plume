@@ -2,8 +2,9 @@ package reminders
 
 import (
 	"net/http"
+	"strconv"
 
-	"github.com/FacileStudio/Plume/apps/api/internal/authcontext"
+	"github.com/FacileStudio/porte/kit"
 	"github.com/FacileStudio/tronc/httpjson"
 
 	"github.com/go-chi/chi/v5"
@@ -14,8 +15,8 @@ import (
 func SignerRoutes(service *Service) func(chi.Router) {
 	return func(router chi.Router) {
 		router.Post("/{id}/remind", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
-			resp, err := service.RemindSigner(request.Context(), identity.UserID, chi.URLParam(request, "id"))
+			identity, _ := kit.FromContext(request.Context())
+			resp, err := service.RemindSigner(request.Context(), strconv.FormatInt(identity.UserID, 10), chi.URLParam(request, "id"))
 			if err != nil {
 				httpjson.WriteError(w, err)
 				return

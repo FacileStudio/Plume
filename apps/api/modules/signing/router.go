@@ -2,8 +2,9 @@ package signing
 
 import (
 	"net/http"
+	"strconv"
 
-	"github.com/FacileStudio/Plume/apps/api/internal/authcontext"
+	"github.com/FacileStudio/porte/kit"
 	"github.com/FacileStudio/tronc/httpjson"
 
 	"github.com/go-chi/chi/v5"
@@ -14,10 +15,10 @@ import (
 func DocumentRoutes(service *Service) func(chi.Router) {
 	return func(router chi.Router) {
 		router.Get("/{docId}/certificate", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
+			identity, _ := kit.FromContext(request.Context())
 			docID := chi.URLParam(request, "docId")
 
-			certPath, err := service.GetOrGenerateCertificate(request.Context(), identity.UserID, docID)
+			certPath, err := service.GetOrGenerateCertificate(request.Context(), strconv.FormatInt(identity.UserID, 10), docID)
 			if err != nil {
 				httpjson.WriteError(w, err)
 				return
@@ -30,10 +31,10 @@ func DocumentRoutes(service *Service) func(chi.Router) {
 		})
 
 		router.Get("/{docId}/audit-trail", func(w http.ResponseWriter, request *http.Request) {
-			identity, _ := authcontext.IdentityFromContext(request.Context())
+			identity, _ := kit.FromContext(request.Context())
 			docID := chi.URLParam(request, "docId")
 
-			trailPath, err := service.GetOrGenerateAuditTrail(request.Context(), identity.UserID, docID)
+			trailPath, err := service.GetOrGenerateAuditTrail(request.Context(), strconv.FormatInt(identity.UserID, 10), docID)
 			if err != nil {
 				httpjson.WriteError(w, err)
 				return

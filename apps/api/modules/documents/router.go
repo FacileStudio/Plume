@@ -4,8 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/FacileStudio/Plume/apps/api/internal/authcontext"
-	"github.com/FacileStudio/Plume/apps/api/internal/middleware"
+	"github.com/FacileStudio/porte/kit"
 	"github.com/FacileStudio/tronc/httpjson"
 
 	"github.com/go-chi/chi/v5"
@@ -14,9 +13,9 @@ import (
 // RegisterRoutes mounts the /documents routes on router: upload, list,
 // stats, get, file download, update, delete, and send. All require auth.
 // Additional nested routers can be mounted under /documents via nested.
-func RegisterRoutes(router chi.Router, service *Service, authService middleware.Authenticator, nested ...func(chi.Router)) {
+func RegisterRoutes(router chi.Router, service *Service, requireAuth func(http.Handler) http.Handler, nested ...func(chi.Router)) {
 	router.Route("/documents", func(router chi.Router) {
-		router.Use(middleware.RequireAuth(authService))
+		router.Use(requireAuth)
 
 		for _, fn := range nested {
 			fn(router)
@@ -36,9 +35,8 @@ func RegisterRoutes(router chi.Router, service *Service, authService middleware.
 // ownerIDFrom extracts the authenticated user's numeric ID from the request.
 // The bool reports whether the identity was present and parsed.
 func ownerIDFrom(r *http.Request) (int64, bool) {
-	identity, _ := authcontext.IdentityFromContext(r.Context())
-	ownerID, err := strconv.ParseInt(identity.UserID, 10, 64)
-	return ownerID, err == nil
+	identity, ok := kit.FromContext(r.Context())
+	return identity.UserID, ok
 }
 
 // RegisterListRoutes mounts the collection read routes: GET /documents/stats

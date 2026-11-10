@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/FacileStudio/Plume/apps/api/internal/env"
+	"github.com/FacileStudio/Plume/apps/api/modules/auth"
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 	"github.com/FacileStudio/porte/oidc"
 	portepg "github.com/FacileStudio/porte/pg"
@@ -56,7 +57,14 @@ func TestSigningLinksStaySessionlessWhileTheRestNeedsASession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("oidc.New: %v", err)
 	}
-	router := buildRouter(newServices(db, appEnv, logger, sessions), sqlDB, appEnv, logger, kit)
+	users, err := auth.NewUsers(context.Background(), sqlDB, logger)
+	if err != nil {
+		t.Fatalf("NewUsers: %v", err)
+	}
+	router, err := buildRouter(newServices(db, appEnv, logger, authParts{sessions: sessions, users: users}), sqlDB, appEnv, logger, kit)
+	if err != nil {
+		t.Fatalf("buildRouter: %v", err)
+	}
 
 	call := func(method, path, body string) *httptest.ResponseRecorder {
 		request := httptest.NewRequest(method, path, strings.NewReader(body))
