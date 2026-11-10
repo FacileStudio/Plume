@@ -133,8 +133,9 @@ on, the issuer and redirect URL.
 
 Registre erases people on request. `POST /api/registre/deletions` (a signed `user.deleted`
 push, no session) and a poll of Registre's deletion list both call `spaces.Deletions`, which
-deletes the account and its personal documents, files, contacts, webhooks, SMTP settings and
-memberships, and keeps documents other people use in a shared space with no owner.
+deletes the account, its sessions, API tokens, SMTP settings, webhooks, unused contacts and
+unsent drafts, and keeps every sent or signed document byte-identical. See
+[erasure.md](erasure.md) for the field-by-field list.
 
 ### The OIDC flow, and why Plume's differs
 

@@ -243,7 +243,9 @@ func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, portePa
 	smtpService := smtp.NewService(db)
 	webhookService := webhooks.NewService(db)
 	docService := documents.NewService(db, smtpService, webhookService, appEnv.Domain, appEnv.UploadDir)
-	spaceService, registre, deletions := newSpaces(db, appEnv, appLogger)
+	signingService := signing.NewService(db, appEnv.UploadDir, docService)
+	spaceService, registre, deletions := newSpaces(db, appEnv, appLogger,
+		erasureDeps{users: porteParts.users, freeze: signingService.FreezeAuditTrail})
 	return &services{
 		auth:      auth.NewService(db, porteParts.sessions, porteParts.users, appLogger),
 		smtp:      smtpService,
@@ -251,7 +253,7 @@ func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, portePa
 		documents: docService,
 		signers:   signers.NewService(db, docService, webhookService, smtpService, newNuagePublisher(db, appEnv, appLogger), appEnv.Domain),
 		fields:    fields.NewService(db, docService),
-		signing:   signing.NewService(db, appEnv.UploadDir, docService),
+		signing:   signingService,
 		verify:    verify.NewService(db, docService),
 		spaces:    spaceService,
 		registre:  registre,

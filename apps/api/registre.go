@@ -8,6 +8,7 @@ import (
 	"github.com/FacileStudio/Plume/apps/api/internal/env"
 	"github.com/FacileStudio/Plume/apps/api/modules/spaces"
 	"github.com/FacileStudio/porte/directory"
+	"github.com/FacileStudio/porte/kit"
 	portepg "github.com/FacileStudio/porte/pg"
 
 	"gorm.io/gorm"
@@ -17,10 +18,18 @@ import (
 // doubles up to five minutes while Registre does not answer.
 const firstImportRetry = 15 * time.Second
 
+// erasureDeps is what the deletion receiver needs from the rest of the app:
+// the kit store that deletes the account and the signing service's audit
+// trail freeze.
+type erasureDeps struct {
+	users  *kit.Store
+	freeze func(ctx context.Context, docID int64) error
+}
+
 // newSpaces builds the spaces service and, when OIDC is configured, the
 // Registre link that owns the spaces and the receiver for the people Registre
 // erased. Both pull with the app's own OIDC client credentials.
-func newSpaces(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) (*spaces.Service, *spaces.Registre, *spaces.Deletions) {
+func newSpaces(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, erasure erasureDeps) (*spaces.Service, *spaces.Registre, *spaces.Deletions) {
 	service := spaces.NewService(db)
 	if appEnv.OIDC == nil {
 		return service, nil, nil
@@ -35,7 +44,10 @@ func newSpaces(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) (*spaces.
 		ClientID:     appEnv.OIDC.ClientID,
 		ClientSecret: appEnv.OIDC.ClientSecret,
 	}
-	deletions := spaces.NewDeletions(db, client, portepg.New(sqlDB).EraseIdentity, appEnv.UploadDir, appLogger)
+	deletions := spaces.NewDeletions(spaces.DeletionsConfig{
+		ORM: db, Client: client, Users: erasure.users, Freeze: erasure.freeze,
+		Erase: portepg.New(sqlDB).EraseIdentity, UploadDir: appEnv.UploadDir, Logger: appLogger,
+	})
 	return service.ManagedBy(appEnv.OIDC.Issuer), spaces.NewRegistre(db, client, appLogger), deletions
 }
 

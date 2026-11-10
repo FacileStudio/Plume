@@ -20,7 +20,7 @@ func ownerOf(t *testing.T, name string) int64 {
 	return count(t, `SELECT owner_id FROM documents WHERE name = ?`, name)
 }
 
-func TestErasePersonPassesSpaceDocumentsToTheLongestStandingAdmin(t *testing.T) {
+func TestErasePersonPassesSpaceDraftsToTheLongestStandingAdmin(t *testing.T) {
 	f := seedErasure(t)
 	oldMember := createUser(t, "old-member@facile.studio")
 	youngAdmin := createUser(t, "young-admin@facile.studio")
@@ -40,16 +40,12 @@ func TestErasePersonPassesSpaceDocumentsToTheLongestStandingAdmin(t *testing.T) 
 	joinAt(t, withMembers.ID, onlyMember, "member", 10)
 	joinAt(t, withMembers.ID, f.other, "member", 2)
 
-	document(t, f.gone, &withAdmins.ID, "to-admin", "1/10_x.pdf")
-	document(t, f.gone, &withMembers.ID, "to-member", "1/11_y.pdf")
+	document(t, f.gone, &withAdmins.ID, "to-admin", "1/10_x.pdf", "draft")
+	document(t, f.gone, &withMembers.ID, "to-member", "1/11_y.pdf", "draft")
 	mustCreate(t, &schemas.Document{Name: "taken", OwnerID: elderAdmin, SpaceID: &withAdmins.ID, ExternalRef: "ref-1"})
 	mustCreate(t, &schemas.Document{Name: "clash", OwnerID: f.gone, SpaceID: &withAdmins.ID, ExternalRef: "ref-1"})
 
-	for range 2 {
-		if err := f.deletions.ErasePerson(context.Background(), testIssuer, "sub-gone"); err != nil {
-			t.Fatalf("erase: %v", err)
-		}
-	}
+	f.erase(t)
 
 	for name, want := range map[string]int64{"to-admin": elderAdmin, "clash": elderAdmin, "to-member": onlyMember} {
 		if got := ownerOf(t, name); got != want {
