@@ -24,6 +24,7 @@ func hashRoutes() []documentation.Route {
 			ResponseBody: Response{},
 			Errors: []documentation.Error{
 				{Status: 404, Code: "not_found", Description: "Document not found or not yet signed."},
+				{Status: 429, Code: "rate_limited", Description: "More than 30 verify requests from this address in a minute. Retry-After gives the wait in seconds."},
 			},
 		},
 	}
@@ -42,6 +43,7 @@ func uploadRoutes() []documentation.Route {
 			Errors: []documentation.Error{
 				{Status: 400, Code: "invalid_argument", Description: "Missing file or file is not a valid PDF."},
 				{Status: 404, Code: "not_found", Description: "No matching signed document found for this file hash."},
+				{Status: 429, Code: "rate_limited", Description: "More than 30 verify requests from this address in a minute. Retry-After gives the wait in seconds."},
 			},
 		},
 	}

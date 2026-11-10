@@ -26,7 +26,7 @@ import (
 const (
 	contractOriginalHash = "1111111111111111111111111111111111111111111111111111111111111111"
 	contractSignedHash   = "2222222222222222222222222222222222222222222222222222222222222222"
-	verifyRefusalCode    = "resource_exhausted"
+	verifyRefusalCode    = "rate_limited"
 )
 
 // contractRouter is the production router over a test database seeded with

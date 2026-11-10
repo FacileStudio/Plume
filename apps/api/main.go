@@ -15,7 +15,6 @@ import (
 	"github.com/FacileStudio/Plume/apps/api/internal/database"
 	documentation "github.com/FacileStudio/Plume/apps/api/internal/documentation"
 	"github.com/FacileStudio/Plume/apps/api/internal/env"
-	"github.com/FacileStudio/Plume/apps/api/internal/middleware"
 	"github.com/FacileStudio/Plume/apps/api/internal/nuage"
 	"github.com/FacileStudio/Plume/apps/api/modules/auth"
 	"github.com/FacileStudio/Plume/apps/api/modules/clients"
@@ -35,8 +34,10 @@ import (
 	"github.com/FacileStudio/porte/oidc"
 	"github.com/FacileStudio/porte/session"
 	"github.com/FacileStudio/tronc/apiref"
+	troncerrors "github.com/FacileStudio/tronc/errors"
 	"github.com/FacileStudio/tronc/health"
 	"github.com/FacileStudio/tronc/healthcheck"
+	"github.com/FacileStudio/tronc/httpjson"
 	"github.com/FacileStudio/tronc/httpx"
 	"github.com/FacileStudio/tronc/logger"
 	troncmiddleware "github.com/FacileStudio/tronc/middleware"
@@ -329,8 +330,7 @@ func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slo
 		spaces.RegisterDeletionsRoute(api, svc.deletions)
 		clients.RegisterRoutes(api, svc.clients, requireAuth)
 
-		verifyLimiter := middleware.NewRateLimiter(30, 10).Handler()
-		verify.RegisterRoutes(api, svc.verify, verifyLimiter)
+		verify.RegisterRoutes(api, svc.verify, verifyLimiter())
 	})
 
 	if mountErr != nil {
@@ -343,6 +343,21 @@ func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slo
 	}
 
 	return router, nil
+}
+
+// verifyLimiter bounds the public verify routes per visitor: the host of
+// RemoteAddr as tronc's real-IP middleware rewrote it, at most 30 requests in
+// any minute (a burst of 10, then one every 3 seconds), with the suite's
+// rate_limited envelope on refusal.
+func verifyLimiter() func(http.Handler) http.Handler {
+	return troncmiddleware.Ratelimit(troncmiddleware.RatelimitConfig{
+		Limit:   20.0 / 60,
+		Burst:   10,
+		MaxKeys: 50000,
+		OnRefuse: func(w http.ResponseWriter, _ *http.Request) {
+			httpjson.WriteError(w, troncerrors.RateLimited("too many requests"))
+		},
+	})
 }
 
 func newNuagePublisher(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) *nuage.Publisher {

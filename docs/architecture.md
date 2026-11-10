@@ -30,7 +30,7 @@ and CORS is only relevant when you run the Vite dev server on `:5173`.
 |---|---|
 | `main.go` | Config load, logger, DB open, migrations, service wiring, router, shutdown |
 | `internal/env` | Wraps `troncenv.Core`, adds `DOMAIN`, `UPLOAD_DIR`, `OIDC_*` |
-| `internal/middleware` | `NoStore`, in-process rate limiter |
+| `internal/middleware` | `NoStore` |
 | `modules/auth` | porte wiring: the `porte/kit` store over `users`, `RequireAuth`, profile and API token routes |
 | `internal/authcrypto` | argon2id password hashing, 32-byte URL-safe random tokens |
 | `internal/hashing` | SHA-256 over readers and files, plus a 64-hex validator |
@@ -117,7 +117,9 @@ Document status moves `draft` → `pending` → `completed` or `declined`.
 64-character lowercase hex SHA-256 and look for a document whose `original_hash` or
 `signed_hash` matches, reporting which of the two variants hit. The response carries the
 document name, status and timestamps plus the signer list, with every signer email masked.
-The route group runs behind a 30-requests-per-minute rate limiter and `NoStore`, which sets
+The route group runs behind tronc's `middleware.Ratelimit` (per visitor address: a burst of 10, then
+one every 3 seconds, so at most 30 in any minute; a refusal is 429 `rate_limited` with a computed
+`Retry-After`) and `NoStore`, which sets
 `Cache-Control: no-store`, `Referrer-Policy: no-referrer` and `X-Content-Type-Options`.
 
 ## Authentication
