@@ -40,6 +40,11 @@ func (t *toolset) reads() []mcpkit.Tool {
 
 // writes are the tools that create or change drafts and clients without emailing anyone.
 func (t *toolset) writes() []mcpkit.Tool {
+	return append(append(t.draftWrites(), t.signerWrites()...), t.clientWrites()...)
+}
+
+// draftWrites create a draft and change its settings.
+func (t *toolset) draftWrites() []mcpkit.Tool {
 	return []mcpkit.Tool{
 		mcpkit.NewTool(mcpkit.ToolSpec{
 			Name: toolCreate, Title: "Create a document",
@@ -55,6 +60,12 @@ func (t *toolset) writes() []mcpkit.Tool {
 				"left out stay as they are. A document already sent cannot change.",
 			Annotations: &mcpkit.Annotations{Destructive: true, Idempotent: true},
 		}, t.updateDocument),
+	}
+}
+
+// signerWrites add and remove the people on a draft.
+func (t *toolset) signerWrites() []mcpkit.Tool {
+	return []mcpkit.Tool{
 		mcpkit.NewTool(mcpkit.ToolSpec{
 			Name: toolAddSigner, Title: "Add a signer",
 			Description: "Add a person to a draft as signer (default), approver or viewer, with a required signature " +
@@ -62,6 +73,18 @@ func (t *toolset) writes() []mcpkit.Tool {
 				"plume_send_document.",
 			Annotations: &mcpkit.Annotations{},
 		}, t.addSigner),
+		mcpkit.NewTool(mcpkit.ToolSpec{
+			Name: toolRemoveSigner, Title: "Remove a signer",
+			Description: "Take a person off a draft the user owns, with the fields placed for them. A document " +
+				"already sent keeps its signers.",
+			Annotations: &mcpkit.Annotations{Destructive: true, Idempotent: true},
+		}, t.removeSigner),
+	}
+}
+
+// clientWrites create and change clients.
+func (t *toolset) clientWrites() []mcpkit.Tool {
+	return []mcpkit.Tool{
 		mcpkit.NewTool(mcpkit.ToolSpec{
 			Name: toolSaveClient, Title: "Save a client",
 			Description: "Create a client (leave out client_id; name is required) or change one: fields left out " +
