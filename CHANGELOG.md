@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.13.1 - 2026-11-11
+
 ### Security
 
 - Client dependencies past their high advisories: `pdfjs-dist` 6.5.438, `@sveltejs/kit` 2.70.4 and `vite` 7.3.8, with overrides pinning `devalue` 5.9.4, `nanoid` 3.3.20, `postcss` 8.5.32 and `source-map-js` 1.2.2.
