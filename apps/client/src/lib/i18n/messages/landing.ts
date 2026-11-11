@@ -3,16 +3,16 @@ import type { Row } from '../row';
 /** Strings of the public landing page. */
 export const landing = {
 	'landing.title': [
-		'Plume — Document signing',
-		'Plume — Signature de documents',
-		'Plume — Firma de documentos',
-		'Plume — Dokumente signieren'
+		'Plume · E-signatures without the bloat',
+		'Plume · La signature électronique sans superflu',
+		'Plume · Firma electrónica sin complicaciones',
+		'Plume · E-Signaturen ohne Ballast'
 	],
 	'landing.description': [
-		'Self-hosted document signing. Send, sign, and seal — no third party required.',
-		'Signature de documents auto-hébergée. Envoyez, signez, scellez, sans tiers.',
-		'Firma de documentos autoalojada. Envía, firma y sella, sin terceros.',
-		'Selbst gehostete Dokumentsignatur. Senden, unterschreiben, besiegeln, ganz ohne Dritte.'
+		'Upload a PDF, place the signature fields and send the link to your client. Simple and legally binding.',
+		'Importez un PDF, placez les champs de signature et envoyez le lien à votre client. Simple et juridiquement valable.',
+		'Sube un PDF, coloca los campos de firma y envía el enlace a tu cliente. Sencillo y con validez legal.',
+		'PDF hochladen, Signaturfelder platzieren und den Link an den Kunden senden. Einfach und rechtsverbindlich.'
 	],
 	'landing.heroTitle': [
 		'Send it. Sign it.|Seal it.',
