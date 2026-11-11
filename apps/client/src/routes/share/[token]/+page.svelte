@@ -234,7 +234,7 @@
 				).toString();
 
 				try {
-					const pdf = await pdfjsLib.getDocument(fileUrl).promise;
+					const pdf = await pdfjsLib.getDocument({ url: fileUrl }).promise;
 					for (let i = 1; i <= pdf.numPages; i++) {
 						const pg = await pdf.getPage(i);
 						const viewport = pg.getViewport({ scale: 1.5 });
