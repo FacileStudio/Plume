@@ -145,6 +145,24 @@ func (s *Service) withAvatar(ctx context.Context, signer *SignerResponse) *Signe
 	return &resp[0]
 }
 
+// OwnedSigner returns a signer of one of ownerID's documents, with the reach of
+// DELETE /signers/{id} and POST /signers/{id}/remind: the document's owner only.
+func (s *Service) OwnedSigner(ctx context.Context, ownerID int64, signerID int64) (*SignerResponse, error) {
+	var signer schemas.Signer
+	err := s.orm.WithContext(ctx).
+		Select("signers.*").
+		Joins("JOIN documents ON documents.id = signers.document_id").
+		Where("signers.id = ? AND documents.owner_id = ?", signerID, ownerID).
+		First(&signer).Error
+	if stderrors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, errors.NotFound("signer not found")
+	}
+	if err != nil {
+		return nil, errors.Internal("failed to read signer", err)
+	}
+	return toSignerResponse(&signer), nil
+}
+
 func (s *Service) RemoveSigner(ctx context.Context, ownerID string, signerID string) error {
 	sid, _ := strconv.ParseInt(signerID, 10, 64)
 

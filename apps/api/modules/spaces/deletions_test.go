@@ -76,7 +76,7 @@ func seedErasure(t *testing.T) erasureFixture {
 		t.Skip(testdb.SkipReason("sh scripts/postgres-up.sh"))
 	}
 	newService(t)
-	if err := testDB.Exec(`TRUNCATE documents, signers, fields, clients, webhooks, smtp_configs RESTART IDENTITY CASCADE`).Error; err != nil {
+	if err := testDB.Exec(`TRUNCATE documents, signers, fields, clients, webhooks, smtp_configs, mcp_actions RESTART IDENTITY CASCADE`).Error; err != nil {
 		t.Fatalf("clear: %v", err)
 	}
 	gone := createUser(t, "gone@facile.studio")

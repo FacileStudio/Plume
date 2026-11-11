@@ -23,6 +23,8 @@ Live at [plume.facile.studio](https://plume.facile.studio).
 - Groups documents into shared spaces with per-member roles, and files them against clients
 - Fires HMAC-SHA256-signed webhooks on eleven document and signer events
 - Reminds pending signers on a background ticker, at a per-user interval
+- Serves a remote MCP server at `/mcp` for AI clients (Claude, ChatGPT, Cursor and any compliant
+  client), behind Registre sign-in; sending, reminding and deleting wait for the person's confirmation
 
 ## Stack
 
@@ -64,6 +66,7 @@ cd apps/api    && go run .             # API on :8080 unless PORT says otherwise
 | `UPLOAD_DIR` | Where uploaded and generated PDFs live |
 | `CLIENT_DIR` | Directory holding the built SPA the binary serves |
 | `OIDC_ISSUER` | Registre. Required in production; three more `OIDC_*` variables become required with it |
+| `MCP_RESOURCE` | `https://<host>/mcp` mounts the MCP server there. Needs `OIDC_ISSUER` |
 
 Full reference: [docs/configuration.md](docs/configuration.md).
 

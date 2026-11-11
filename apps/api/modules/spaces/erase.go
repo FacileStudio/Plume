@@ -7,7 +7,10 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+
+	mcpkit "github.com/FacileStudio/tronc/mcp"
 )
 
 const (
@@ -64,7 +67,7 @@ type erasedFiles struct {
 // fields, files and audit trail, are legal records and are never touched: the
 // account is anonymised around them. Drafts that were never sent, the SMTP
 // settings, webhooks, contacts no sent document uses, memberships, sessions,
-// API tokens and the account row go. Drafts in a space others use pass to the
+// API tokens, pending MCP actions and the account row go. Drafts in a space others use pass to the
 // space's longest-standing admin, else its longest-standing member, as the
 // space itself does. Before anything is deleted, every completed or declined
 // document's audit trail is written to disk while it can still print the
@@ -127,6 +130,9 @@ func eraseAccountData(ctx context.Context, tx *sql.Tx, userID int64) (erasedFile
 		return files, err
 	}
 	if err := files.collectDrafts(ctx, tx); err != nil {
+		return files, err
+	}
+	if err := mcpkit.ErasePending(ctx, tx, strconv.FormatInt(userID, 10)); err != nil {
 		return files, err
 	}
 	return files, execAll(ctx, tx, accountRows, userID)

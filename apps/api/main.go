@@ -20,6 +20,7 @@ import (
 	"github.com/FacileStudio/Plume/apps/api/modules/clients"
 	"github.com/FacileStudio/Plume/apps/api/modules/documents"
 	"github.com/FacileStudio/Plume/apps/api/modules/fields"
+	"github.com/FacileStudio/Plume/apps/api/modules/mcp"
 	"github.com/FacileStudio/Plume/apps/api/modules/reminders"
 	"github.com/FacileStudio/Plume/apps/api/modules/signers"
 	"github.com/FacileStudio/Plume/apps/api/modules/signing"
@@ -30,6 +31,7 @@ import (
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 
 	"github.com/FacileStudio/Journal/sdk/journal"
+	"github.com/FacileStudio/porte"
 	"github.com/FacileStudio/porte/directory"
 	"github.com/FacileStudio/porte/kit"
 	"github.com/FacileStudio/porte/oidc"
@@ -107,6 +109,11 @@ func run() error {
 	}
 
 	svc := newServices(db, appEnv, appLogger, porteParts)
+	svc.mcp, err = newMCP(context.Background(), appEnv, porteParts, svc, appLogger)
+	if err != nil {
+		appLogger.Error("failed to build the MCP server", slog.Any("error", err))
+		return err
+	}
 
 	go func() {
 		count, err := svc.documents.BackfillHashes(context.Background())
@@ -182,6 +189,7 @@ type services struct {
 	clients    *clients.Service
 	reminders  *reminders.Service
 	identities kit.IdentityLister
+	mcp        *mcp.Service
 }
 
 // authParts is what buildAuth assembles: the session manager, the OIDC kit
@@ -190,7 +198,7 @@ type authParts struct {
 	sessions   *session.Manager
 	oidc       *oidc.Kit
 	users      *kit.Store
-	identities kit.IdentityLister
+	identities porte.IdentityStore
 }
 
 // buildAuth constructs porte: one session manager and the OIDC kit over the
@@ -285,6 +293,7 @@ func apiReference() apiref.Config {
 				clients.Documentation(),
 				smtp.Documentation(),
 				webhooks.Documentation(),
+				mcp.Documentation(),
 				versionDocumentation(),
 			},
 		},
@@ -314,6 +323,9 @@ func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slo
 	health.Mount(router, health.DB(sqlDB))
 	registerVersionRoute(router)
 	apiref.Mount(router, apiReference())
+	if svc.mcp != nil {
+		mcp.RegisterRoutes(router, svc.mcp)
+	}
 
 	var mountErr error
 	requireAuth := svc.auth.RequireAuth
@@ -333,6 +345,9 @@ func buildRouter(svc *services, sqlDB *sql.DB, appEnv env.Config, appLogger *slo
 		spaces.RegisterSyncRoute(api, svc.registre)
 		spaces.RegisterDeletionsRoute(api, svc.deletions)
 		clients.RegisterRoutes(api, svc.clients, requireAuth)
+		if svc.mcp != nil {
+			mcp.RegisterPendingRoutes(api, svc.mcp, requireAuth)
+		}
 
 		verify.RegisterRoutes(api, svc.verify, verifyLimiter())
 	})

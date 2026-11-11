@@ -3,6 +3,7 @@ package env
 import (
 	"github.com/FacileStudio/porte"
 
+	"crypto/sha256"
 	"fmt"
 	"strings"
 
@@ -16,6 +17,19 @@ type OIDCConfig struct {
 	ClientSecret string
 	RedirectURL  string
 	SuccessURL   string
+
+	// MCPResource is the canonical URI of the remote MCP server,
+	// https://plume.facile.studio/mcp in production, and the RFC 8707
+	// resource Registre binds its tokens to, from MCP_RESOURCE. Empty leaves
+	// /mcp unmounted.
+	MCPResource string
+}
+
+// MCPStateKey derives the key that signs MCP confirmation state from the client
+// secret, which is secret, stable across restarts and set whenever OIDC is.
+func (o OIDCConfig) MCPStateKey() []byte {
+	sum := sha256.Sum256([]byte("plume-mcp-state:" + o.ClientSecret))
+	return sum[:]
 }
 
 // NuageConfig holds the settings for archiving signed documents in Nuage.
@@ -68,6 +82,7 @@ func Load() (Config, error) {
 			ClientSecret: clientSecret,
 			RedirectURL:  redirectURL,
 			SuccessURL:   troncenv.String("OIDC_SUCCESS_URL", env.Domain),
+			MCPResource:  troncenv.String("MCP_RESOURCE", ""),
 		}
 	}
 
