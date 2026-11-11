@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.12.0 - 2026-11-11
+
 ### Added
 
 - **Remote MCP server at `/mcp`**, on tronc/mcp v0.22.1 and porte/mcpauth v0.2.1, behind Registre access tokens bound to `MCP_RESOURCE` (scopes `plume.read` and `plume.write`). Any MCP client (Claude, ChatGPT, Cursor) connects after a Registre sign-in, free on every plan; the first call creates the Plume account as a first web sign-in would. Ten tools: `plume_list_documents`, `plume_get_document`, `plume_list_clients`, `plume_create_document` (a base64 PDF of up to 3 MB as a draft with its signers), `plume_update_document`, `plume_add_signer`, `plume_save_client`, and three the person always confirms: `plume_send_document`, `plume_remind_signer` and `plume_delete_document`. A client that can ask confirms in its own UI (MRTR); any other gets a link to the new `/pending` page. Every tool calls the service behind the matching REST route, so spaces and ownership hold as in the web app, and signing links never reach the model.
