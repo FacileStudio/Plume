@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- `DELETE /signers/{id}` deletes the signer's fields in the same transaction. Before, the fields stayed on the draft, pointing at a signer that no longer existed.
+
 ## 0.12.0 - 2026-11-11
 
 ### Added

@@ -163,6 +163,8 @@ func (s *Service) OwnedSigner(ctx context.Context, ownerID int64, signerID int64
 	return toSignerResponse(&signer), nil
 }
 
+// RemoveSigner deletes a signer of one of ownerID's draft documents together with
+// the fields placed for it, in one transaction.
 func (s *Service) RemoveSigner(ctx context.Context, ownerID string, signerID string) error {
 	sid, _ := strconv.ParseInt(signerID, 10, 64)
 
@@ -188,10 +190,21 @@ func (s *Service) RemoveSigner(ctx context.Context, ownerID string, signerID str
 		return errors.Invalid("signers can only be removed from draft documents")
 	}
 
-	if err := s.orm.WithContext(ctx).Delete(&signer).Error; err != nil {
+	if err := s.deleteWithFields(ctx, &signer); err != nil {
 		return errors.Internal("failed to remove signer", err)
 	}
 	return nil
+}
+
+// deleteWithFields deletes signer and the fields placed for it in one transaction, so
+// no field outlives the signer it belongs to.
+func (s *Service) deleteWithFields(ctx context.Context, signer *schemas.Signer) error {
+	return s.orm.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("signer_id = ?", signer.ID).Delete(&schemas.Field{}).Error; err != nil {
+			return err
+		}
+		return tx.Delete(signer).Error
+	})
 }
 
 func (s *Service) GetSigningView(ctx context.Context, token string) (*SigningView, error) {
