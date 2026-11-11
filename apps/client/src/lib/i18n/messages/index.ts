@@ -3,6 +3,7 @@ import type { Row } from '../row';
 import { clients } from './clients';
 import { documents } from './documents';
 import { landing } from './landing';
+import { pending } from './pending';
 import { settings } from './settings';
 import { shell } from './shell';
 import { signing } from './signing';
@@ -15,7 +16,8 @@ const rows = {
 	...signing,
 	...clients,
 	...spaces,
-	...settings
+	...settings,
+	...pending
 };
 
 export type AppKey = keyof typeof rows;

@@ -33,6 +33,7 @@ erased, changes nothing. The provider matches with or without a trailing slash.
 | `porte_login_codes`, `porte_magic_links` | the person's | **Deleted** (cascade) |
 | `smtp_configs` | owned by the person | **Deleted**, password included |
 | `webhooks` | owned by the person | **Deleted**, secret included |
+| `mcp_actions` | the person's | **Deleted**: sends, reminders and deletions an MCP client asked for and the person never confirmed |
 | `space_members` | the person's memberships | **Deleted** (cascade) |
 | `spaces` | owned, unlinked, with no other member | **Deleted** when no document is left in it after the drafts go. **Kept** otherwise, with `owner_id` set to 0, because a sent document names it |
 | `spaces` | owned, with other members or linked to Registre | **Kept**, `owner_id` passes to the longest-standing owner or admin, else the longest-standing member, else 0 |

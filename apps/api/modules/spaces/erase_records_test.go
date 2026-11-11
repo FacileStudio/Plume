@@ -87,6 +87,9 @@ func (f erasureFixture) seedRecords(t *testing.T, shared, alone schemas.Space) (
 		`UPDATE documents SET signed_hash = 'abc', original_hash = 'def',
 			client_id = (SELECT id FROM clients WHERE name = 'Acme') WHERE name = 'signed'`,
 		`UPDATE documents SET external_ref = 'ardoise:42', nuage_linked_to = 'ardoise:42' WHERE name = 'signed-shared'`,
+		fmt.Sprintf(`INSERT INTO mcp_actions (id, user_id, kind, target, digest, summary, expires_at) VALUES
+			('gone-action', '%d', 'delete_document', '1', 'd', 'Delete for Gone Person', now() + interval '1 day'),
+			('other-action', '%d', 'delete_document', '5', 'd', 'Delete', now() + interval '1 day')`, f.gone, f.other),
 	}
 	for _, statement := range statements {
 		if err := testDB.Exec(statement).Error; err != nil {
@@ -133,5 +136,8 @@ func TestErasePersonLeavesEverySentDocumentByteIdentical(t *testing.T) {
 	}
 	if n := count(t, `SELECT count(*) FROM clients WHERE name = 'Acme'`); n != 1 {
 		t.Errorf("the client a signed document names was deleted")
+	}
+	if n := count(t, `SELECT count(*) FROM mcp_actions WHERE id = 'other-action'`); n != 1 {
+		t.Errorf("another person's pending MCP action was erased")
 	}
 }

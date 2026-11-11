@@ -45,6 +45,7 @@ The default `DOMAIN` points at the Vite dev server, which is right for `go run .
 | `OIDC_CLIENT_SECRET` | with issuer | — | Client secret |
 | `OIDC_REDIRECT_URL` | with issuer | — | Must point at `<DOMAIN>/api/auth/oidc/callback` |
 | `OIDC_SUCCESS_URL` | no | value of `DOMAIN` | Where the callback redirects the browser, with `?code=` appended |
+| `MCP_RESOURCE` | no | — | Canonical URI of the remote MCP server, `https://plume.facile.studio/mcp` in production, and the RFC 8707 resource Registre binds its tokens to. Set, it mounts `/mcp` and `/.well-known/oauth-protected-resource/mcp`; read only when `OIDC_ISSUER` is set. Confirmation state is signed with a key derived from `OIDC_CLIENT_SECRET` |
 
 Requested scopes are `openid`, `email`, `profile` and `offline_access`. The provider must
 return an `email` claim and a truthy `email_verified`, or the callback rejects the login.

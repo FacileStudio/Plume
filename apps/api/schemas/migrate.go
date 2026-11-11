@@ -1,6 +1,9 @@
 package schemas
 
-import "gorm.io/gorm"
+import (
+	mcpkit "github.com/FacileStudio/tronc/mcp"
+	"gorm.io/gorm"
+)
 
 // Migrate brings the schema up to date and then hands authentication to
 // porte. AdoptPorte runs last because it repoints foreign keys at users(id)
@@ -12,7 +15,9 @@ func Migrate(db *gorm.DB) error {
 // MigrateWithIssuer is Migrate with the OIDC issuer, which the identity
 // backfill needs: porte matches an account on (provider, subject) and the
 // provider is the issuer, so backfilling with a placeholder would leave every
-// existing SSO user unmatched and quietly fall through to the email path.
+// existing SSO user unmatched and quietly fall through to the email path. It also
+// creates mcp_actions, the MCP actions waiting for a person's confirmation, from
+// tronc/mcp's idempotent DDL.
 func MigrateWithIssuer(db *gorm.DB, issuer string) error {
 	db.Exec("DROP INDEX IF EXISTS idx_signers_token")
 
@@ -30,6 +35,10 @@ func MigrateWithIssuer(db *gorm.DB, issuer string) error {
 	}
 
 	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_owner_external_ref ON documents (owner_id, external_ref) WHERE external_ref <> ''").Error; err != nil {
+		return err
+	}
+
+	if err := db.Exec(mcpkit.PendingSchema).Error; err != nil {
 		return err
 	}
 

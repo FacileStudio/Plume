@@ -46,13 +46,15 @@ func buildSignatureFields(docID int64, req *SignatureRequest, signers []schemas.
 		if signer.Role == "viewer" {
 			continue
 		}
-		fields = append(fields, defaultSignatureField(docID, signer.ID, pages, row))
+		fields = append(fields, DefaultSignatureField(docID, signer.ID, pages, row))
 		row++
 	}
 	return fields
 }
 
-func defaultSignatureField(docID, signerID int64, pages, row int) schemas.Field {
+// DefaultSignatureField is the required signature box a signer gets when nobody placed
+// one: on the last page, stacked by row so up to five signers do not overlap.
+func DefaultSignatureField(docID, signerID int64, pages, row int) schemas.Field {
 	return schemas.Field{
 		DocumentID: docID, SignerID: signerID, FieldType: "signature", Page: pages, Required: true,
 		X: 8, Y: float64(70 - 12*(row%5)), Width: 30, Height: 8, Label: "Signature",

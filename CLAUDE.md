@@ -70,6 +70,7 @@ docker compose down             # Stop all services
   by name ignoring case, pre-provisions unknown members with a porte identity, and removes only members holding an
   identity under the issuer. Creating a space, and changing or leaving a linked one, answers 409.
 - `GET /api/me/invitations` (porte/kit, mounted only with OIDC) answers the caller's pending Registre space invitations as `{count, href}`; the app layout passes it to muse's `SideBar` and `MobileNav` through `userMenu.invitations`, `null` when there is no `href`.
+- MCP: `POST /mcp` (tronc/mcp, stateless 2026-07-28) with Registre tokens bound to `MCP_RESOURCE`, scopes `plume.read`/`plume.write`; the first call creates the account (`Provision: true`). Tools in `modules/mcp/tools_register.go`; send, remind and delete are confirmed through MRTR or `/pending` (`/api/mcp/pending`, session only, a delegated token gets 403). Tool names and schemas are a contract with MCP clients: never rename or reshape one. Signing tokens never leave through MCP.
 - Webhooks: `document.*` payloads carry `external_ref` and `nuage`. Header `x-plume-signature-256: sha256=<hex HMAC-SHA256 of the raw body>`, keyed on the webhook secret. Contract: `docs/ardoise-link.md`.
 
 ## Environment Variables
@@ -87,6 +88,7 @@ Read through `tronc/env`. See `.env.example` and `apps/api/.env.example`.
 | `UPLOAD_DIR` | `/data/uploads` | PDF storage directory |
 | `CLIENT_DIR` | `./client` | Directory holding the built SPA the API serves |
 | `OIDC_*` | unset | OIDC/SSO config (required in production; all four required if `OIDC_ISSUER` is set) |
+| `MCP_RESOURCE` | unset | `https://plume.facile.studio/mcp` mounts the remote MCP server (`modules/mcp`, tronc/mcp). Needs `OIDC_ISSUER` |
 | `JOURNAL_URL`, `JOURNAL_TOKEN` | unset | Ship logs to Journal. Both must be set or nothing ships |
 | `NUAGE_URL`, `NUAGE_AUDIENCE` | unset | Archive fully signed PDFs in the document owner's private Plume folder in Nuage (app folders, `PUT /api/app/object`). Both must be set, and `OIDC_ISSUER` too, or the API exits 1. `NUAGE_AUDIENCE` is Nuage's Registre client id. Plume refreshes the owner's stored Registre token, exchanges it (RFC 8693, scope `nuage.write`) and sends the 5-minute delegated token (`act.sub` = Plume's client id). Needs Registre `token_exchange` for Plume and Nuage's `NUAGE_APPS` entry. Publishing is async, 5 attempts with backoff; a Nuage outage never fails signing. An owner with no stored Registre refresh token (password-only account, or never signed in since SSO) is skipped and logged |
 

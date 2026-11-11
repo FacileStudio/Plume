@@ -183,6 +183,11 @@ export const api = {
 		delete: (id: number) => request<void>('DELETE', `/clients/${id}`),
 		documents: (id: number) => request<Document[]>('GET', `/documents?client_id=${id}`)
 	},
+	pending: {
+		list: () => request<{ actions: PendingAction[] }>('GET', '/mcp/pending/'),
+		confirm: (id: string) => request<{ status: string; url?: string }>('POST', `/mcp/pending/${id}/confirm`),
+		dismiss: (id: string) => request<{ status: string }>('POST', `/mcp/pending/${id}/dismiss`)
+	},
 	verify: {
 		check: (file: File) => {
 			const formData = new FormData();
@@ -198,6 +203,19 @@ export const api = {
 				})
 	}
 };
+
+/** An action an AI client asked for, waiting on the confirm page. */
+export interface PendingAction {
+	id: string;
+	kind: 'send_document' | 'remind_signer' | 'delete_document';
+	client_id: string;
+	summary: string;
+	created_at: string;
+	expires_at: string;
+	state: 'ready' | 'changed' | 'missing';
+	document?: { id: number; name: string; status: string; signers: string[] };
+	signer?: { id: number; name: string; email: string };
+}
 
 export interface SmtpConfig {
 	host: string;
