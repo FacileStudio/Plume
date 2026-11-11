@@ -13,7 +13,10 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-const statusAdded = "added"
+const (
+	statusAdded   = "added"
+	statusRemoved = "removed"
+)
 
 var errNoChange = stderrors.New("pass at least one of name, sequential or client_id to change")
 
@@ -63,6 +66,23 @@ func (t *toolset) addSigner(ctx context.Context, req *sdk.CallToolRequest, in ad
 	}
 	out := signerOf(*added, map[int64]int{added.ID: placed})
 	return nil, signerOutput{Status: statusAdded, DocumentID: in.DocumentID, Signer: &out}, nil
+}
+
+// removeSigner is plume_remove_signer: a person off a draft, with the fields placed for
+// them, through the same service call as DELETE /signers/{id}.
+func (t *toolset) removeSigner(ctx context.Context, req *sdk.CallToolRequest, in signerRef) (*sdk.CallToolResult, signerOutput, error) {
+	userID, err := t.userOf(ctx, req)
+	if err != nil {
+		return nil, signerOutput{}, err
+	}
+	signer, err := t.Signers.OwnedSigner(ctx, userID, in.SignerID)
+	if err != nil {
+		return nil, signerOutput{}, mcpkit.Failure(err, hintSigner)
+	}
+	if err := t.Signers.RemoveSigner(ctx, id(userID), id(in.SignerID)); err != nil {
+		return nil, signerOutput{}, mcpkit.Failure(err, hintSigner)
+	}
+	return nil, signerOutput{Status: statusRemoved, DocumentID: signer.DocumentID}, nil
 }
 
 // placeSignatureBox adds the default signature box for signerID, below the boxes already

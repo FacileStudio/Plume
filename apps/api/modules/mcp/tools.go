@@ -11,20 +11,21 @@ import (
 )
 
 const (
-	toolList       = "plume_list_documents"
-	toolGet        = "plume_get_document"
-	toolCreate     = "plume_create_document"
-	toolUpdate     = "plume_update_document"
-	toolAddSigner  = "plume_add_signer"
-	toolSend       = "plume_send_document"
-	toolRemind     = "plume_remind_signer"
-	toolDelete     = "plume_delete_document"
-	toolClients    = "plume_list_clients"
-	toolSaveClient = "plume_save_client"
-	hintDocument   = "Call plume_list_documents for the ids of the documents you can reach."
-	hintSigner     = "Call plume_get_document for the ids of a document's signers."
-	hintClient     = "Call plume_list_clients for the ids of your clients."
-	hintSpace      = "plume_list_documents lists the spaces you belong to."
+	toolList         = "plume_list_documents"
+	toolGet          = "plume_get_document"
+	toolCreate       = "plume_create_document"
+	toolUpdate       = "plume_update_document"
+	toolAddSigner    = "plume_add_signer"
+	toolRemoveSigner = "plume_remove_signer"
+	toolSend         = "plume_send_document"
+	toolRemind       = "plume_remind_signer"
+	toolDelete       = "plume_delete_document"
+	toolClients      = "plume_list_clients"
+	toolSaveClient   = "plume_save_client"
+	hintDocument     = "Call plume_list_documents for the ids of the documents you can reach."
+	hintSigner       = "Call plume_get_document for the ids of a document's signers."
+	hintClient       = "Call plume_list_clients for the ids of your clients."
+	hintSpace        = "plume_list_documents lists the spaces you belong to."
 )
 
 var errNoCaller = stderrors.New("this request carries no valid access token. Reconnect Plume")

@@ -6,6 +6,10 @@
 
 - `DELETE /signers/{id}` deletes the signer's fields in the same transaction. Before, the fields stayed on the draft, pointing at a signer that no longer existed.
 
+### Added
+
+- MCP tool `plume_remove_signer`: takes a person off a draft the user owns, with their fields, through the same service call as `DELETE /signers/{id}`. A normal write, not confirmed; a document already sent keeps its signers.
+
 ## 0.12.0 - 2026-11-11
 
 ### Added

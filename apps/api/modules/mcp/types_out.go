@@ -60,7 +60,7 @@ type documentOutput struct {
 	Signers  []signerOut `json:"signers"`
 }
 
-// signerOutput is plume_add_signer's result.
+// signerOutput is plume_add_signer's and plume_remove_signer's result.
 type signerOutput struct {
 	Status     string     `json:"status"`
 	DocumentID int64      `json:"document_id"`
