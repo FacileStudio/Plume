@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/FacileStudio/porte"
 	"github.com/FacileStudio/porte/directory"
 
 	"gorm.io/gorm"
@@ -16,18 +17,22 @@ const maxImportRetry = 5 * time.Minute
 
 // Registre keeps Plume's spaces equal to the ones Registre owns. issuer is
 // the configured OIDC_ISSUER: it is the provider column of every porte
-// identity a snapshot member is matched on.
+// identity a snapshot member is matched on. erased, when set, is the ledger
+// of the subjects Registre erased: a snapshot member it names is skipped, so a
+// stale snapshot cannot give an erased person an account again.
 type Registre struct {
 	orm    *gorm.DB
 	issuer string
+	erased porte.ErasedSubjects
 	logger *slog.Logger
 	syncer *directory.Syncer
 }
 
-// NewRegistre wires the Registre link to its database and to the directory
-// client, which carries the issuer and the app's own OIDC client credentials.
-func NewRegistre(orm *gorm.DB, client directory.Client, logger *slog.Logger) *Registre {
-	r := &Registre{orm: orm, issuer: client.Issuer, logger: logger}
+// NewRegistre wires the Registre link to its database, to the directory
+// client, which carries the issuer and the app's own OIDC client credentials,
+// and to the erased-subjects ledger, which may be nil.
+func NewRegistre(orm *gorm.DB, client directory.Client, erased porte.ErasedSubjects, logger *slog.Logger) *Registre {
+	r := &Registre{orm: orm, issuer: client.Issuer, erased: erased, logger: logger}
 	r.syncer = &directory.Syncer{Client: client, Apply: r.Apply, Logger: logger}
 	return r
 }

@@ -131,7 +131,14 @@ func firstOwner(members []resolvedMember) int64 {
 // resolveUser finds the user holding the member's identity under the issuer.
 // Failing that it takes the user with the member's email, or provisions one,
 // and records the identity, so the member's first sign-in lands on that user.
+// A member whose subject Registre erased resolves to nobody.
 func (r *Registre) resolveUser(tx *gorm.DB, member directory.Member) (int64, error) {
+	if r.erased != nil {
+		erased, err := r.erased.Erased(tx.Statement.Context, r.issuer, member.Subject)
+		if err != nil || erased {
+			return 0, err
+		}
+	}
 	var userID int64
 	err := tx.Raw(`SELECT user_id FROM porte_identities WHERE provider = ? AND subject = ?`,
 		r.issuer, member.Subject).Scan(&userID).Error
