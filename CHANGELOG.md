@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.13.4 - 2026-11-12
+
+### Fixed
+
+- The audit trail records the signer's real IP. The sign and decline routes read `X-Real-IP` by hand, which behind Cloudflare and Traefik holds the Cloudflare edge, and from a direct caller holds whatever it sent. They now take the host of `RemoteAddr` as tronc's real-IP middleware resolved it (`TRUSTED_PROXIES=private,cloudflare` in production), so a spoofed header from an untrusted peer is ignored and the port is no longer stored.
+
 ## 0.13.3 - 2026-11-12
 
 ### Fixed
