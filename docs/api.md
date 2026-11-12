@@ -95,7 +95,7 @@ These carry no session. The signer's token from the invitation email is the cred
 | GET | `/api/sign/{token}/status` | token | Progress roster — name, role, status, order, `signed_at`, `is_you`. No emails, IPs or user agents |
 | GET | `/api/sign/{token}/opened.gif` | token | Tracking pixel; stamps `email_opened_at` and fires `signer.email_opened` |
 | GET | `/api/sign/{token}/file` | token | The PDF to sign, `Content-Type: application/pdf` |
-| POST | `/api/sign/{token}` | token | `{ fields: [{ field_id, value }] }` → `{ status: "signed" }`. Records IP (`X-Real-IP` when present) and user agent |
+| POST | `/api/sign/{token}` | token | `{ fields: [{ field_id, value }] }` → `{ status: "signed" }`. Records the client IP (RemoteAddr as tronc RealIP resolved it, see TRUSTED_PROXIES) and user agent |
 | POST | `/api/sign/{token}/decline` | token | Moves the signer and document to `declined` |
 
 ## Certificates

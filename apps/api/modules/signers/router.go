@@ -1,6 +1,7 @@
 package signers
 
 import (
+	"net"
 	"net/http"
 	"strconv"
 
@@ -26,14 +27,15 @@ func ownerIDFrom(r *http.Request) (int64, bool) {
 	return identity.UserID, ok
 }
 
-// clientIP returns the request's client IP, honouring X-Real-IP when a trusted
-// proxy has forwarded the connection.
+// clientIP returns the host of RemoteAddr, which tronc's real-IP middleware has
+// already rewritten to the visitor when a trusted proxy forwarded the request.
+// No forwarded header is read here: behind Traefik, X-Real-Ip names the
+// Cloudflare edge, and from an untrusted peer any header is the caller's own.
 func clientIP(request *http.Request) string {
-	ip := request.RemoteAddr
-	if forwarded := request.Header.Get("X-Real-IP"); forwarded != "" {
-		ip = forwarded
+	if host, _, err := net.SplitHostPort(request.RemoteAddr); err == nil {
+		return host
 	}
-	return ip
+	return request.RemoteAddr
 }
 
 // DocumentRoutes returns the router that mounts the signer-management
