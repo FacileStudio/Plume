@@ -71,7 +71,7 @@ func TestImportRunsBeforeTheFirstSync(t *testing.T) {
 	testDB.Create(&local)
 	addMember(t, local.ID, alice, RoleOwner)
 	addMember(t, local.ID, carol, RoleMember)
-	registre := NewRegistre(testDB, directory.Client{Issuer: server.URL}, slog.Default())
+	registre := NewRegistre(testDB, directory.Client{Issuer: server.URL}, nil, slog.Default())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

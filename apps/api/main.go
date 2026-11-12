@@ -199,6 +199,7 @@ type authParts struct {
 	oidc       *oidc.Kit
 	users      *kit.Store
 	identities porte.IdentityStore
+	erased     porte.ErasedSubjects
 }
 
 // buildAuth constructs porte: one session manager and the OIDC kit over the
@@ -228,8 +229,13 @@ func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *s
 	if err != nil {
 		return authParts{}, err
 	}
+	var erased porte.ErasedSubjects
+	if appEnv.OIDC != nil {
+		erased = spaces.ErasedLedger(db, appEnv.OIDC.Issuer)
+	}
 	oidcKit, err := oidc.New(ctx, cfg, oidc.Deps{
 		Users:      users,
+		Erased:     erased,
 		Identities: store.Identities(),
 		Sessions:   sessions,
 		Codes:      store.LoginCodes(),
@@ -248,7 +254,7 @@ func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *s
 	if err != nil {
 		return authParts{}, err
 	}
-	return authParts{sessions: sessions, oidc: oidcKit, users: users, identities: store.Identities()}, nil
+	return authParts{sessions: sessions, oidc: oidcKit, users: users, identities: store.Identities(), erased: erased}, nil
 }
 
 func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, porteParts authParts) *services {
@@ -257,7 +263,7 @@ func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, portePa
 	docService := documents.NewService(db, smtpService, webhookService, appEnv.Domain, appEnv.UploadDir)
 	signingService := signing.NewService(db, appEnv.UploadDir, docService)
 	spaceService, registre, deletions := newSpaces(db, appEnv, appLogger,
-		erasureDeps{users: porteParts.users, freeze: signingService.FreezeAuditTrail})
+		erasureDeps{users: porteParts.users, freeze: signingService.FreezeAuditTrail, erased: porteParts.erased})
 	return &services{
 		auth:       auth.NewService(db, porteParts.sessions, porteParts.users, appLogger),
 		smtp:       smtpService,

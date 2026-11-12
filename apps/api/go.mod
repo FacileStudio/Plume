@@ -4,12 +4,12 @@ go 1.26.11
 
 require (
 	github.com/FacileStudio/Journal/sdk/journal v0.0.0-20260708221941-db985ad2b1ba
-	github.com/FacileStudio/porte v0.18.4
-	github.com/FacileStudio/porte/directory v0.4.0
+	github.com/FacileStudio/porte v0.19.0
+	github.com/FacileStudio/porte/directory v0.5.0
 	github.com/FacileStudio/porte/mcpauth v0.2.1
 	github.com/FacileStudio/tronc v0.22.1
 	github.com/FacileStudio/tronc/testdb v0.1.2
-	github.com/go-chi/chi/v5 v5.3.1
+	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-pdf/fpdf v0.9.0
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/pdfcpu/pdfcpu v0.13.0

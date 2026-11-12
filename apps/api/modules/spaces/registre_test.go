@@ -78,7 +78,7 @@ func TestApplyLinksProvisionsAndIsIdempotent(t *testing.T) {
 			{Subject: "sub-erin", Email: "erin@facile.studio", Role: directory.RoleOwner},
 		}},
 	}}
-	registre := NewRegistre(testDB, directory.Client{Issuer: testIssuer}, slog.Default())
+	registre := NewRegistre(testDB, directory.Client{Issuer: testIssuer}, nil, slog.Default())
 	if err := registre.Apply(ctx, snapshot); err != nil {
 		t.Fatalf("apply: %v", err)
 	}

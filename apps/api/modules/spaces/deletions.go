@@ -24,13 +24,16 @@ type Deletions struct {
 // DeletionsConfig is what NewDeletions builds the receiver from. Users is the
 // kit store whose EraseAccount deletes the account; Freeze writes a final
 // document's audit trail before the owner's name and email are erased; Erase
-// is porte's own rows eraser, pg.Store.EraseIdentity.
+// is porte's own rows eraser, pg.Store.EraseIdentity; Holds is
+// pg.Store.HoldsIdentity, so a handled subject that an account holds again is
+// erased again on the next push or poll.
 type DeletionsConfig struct {
 	ORM       *gorm.DB
 	Client    directory.Client
 	Users     *kit.Store
 	Freeze    func(ctx context.Context, docID int64) error
 	Erase     func(context.Context, string, string) error
+	Holds     func(context.Context, string, string) (bool, error)
 	UploadDir string
 	Logger    *slog.Logger
 }
@@ -42,10 +45,19 @@ func NewDeletions(cfg DeletionsConfig) *Deletions {
 		Client:          cfg.Client,
 		OnPersonDeleted: d.ErasePerson,
 		Erase:           cfg.Erase,
+		Holds:           cfg.Holds,
 		State:           deletionState{orm: cfg.ORM},
 		Logger:          cfg.Logger,
 	}
 	return d
+}
+
+// ErasedLedger answers whether Registre erased a subject Plume handled, from
+// the state the receiver saves, for oidc.Deps.Erased and the snapshot sync. It
+// never runs the receiver and reads the state on every call, so it needs only
+// the issuer and answers the same on any replica.
+func ErasedLedger(orm *gorm.DB, issuer string) *directory.Deletions {
+	return &directory.Deletions{Client: directory.Client{Issuer: issuer}, State: deletionState{orm: orm}}
 }
 
 // Run polls until ctx ends. Start it in exactly one replica.

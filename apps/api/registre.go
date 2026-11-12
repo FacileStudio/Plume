@@ -7,6 +7,7 @@ import (
 
 	"github.com/FacileStudio/Plume/apps/api/internal/env"
 	"github.com/FacileStudio/Plume/apps/api/modules/spaces"
+	"github.com/FacileStudio/porte"
 	"github.com/FacileStudio/porte/directory"
 	"github.com/FacileStudio/porte/kit"
 	portepg "github.com/FacileStudio/porte/pg"
@@ -19,11 +20,12 @@ import (
 const firstImportRetry = 15 * time.Second
 
 // erasureDeps is what the deletion receiver needs from the rest of the app:
-// the kit store that deletes the account and the signing service's audit
-// trail freeze.
+// the kit store that deletes the account, the signing service's audit trail
+// freeze and the erased-subjects ledger the OIDC kit refuses sign-ins from.
 type erasureDeps struct {
 	users  *kit.Store
 	freeze func(ctx context.Context, docID int64) error
+	erased porte.ErasedSubjects
 }
 
 // newSpaces builds the spaces service and, when OIDC is configured, the
@@ -44,11 +46,12 @@ func newSpaces(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, erasure e
 		ClientID:     appEnv.OIDC.ClientID,
 		ClientSecret: appEnv.OIDC.ClientSecret,
 	}
+	store := portepg.New(sqlDB)
 	deletions := spaces.NewDeletions(spaces.DeletionsConfig{
 		ORM: db, Client: client, Users: erasure.users, Freeze: erasure.freeze,
-		Erase: portepg.New(sqlDB).EraseIdentity, UploadDir: appEnv.UploadDir, Logger: appLogger,
+		Erase: store.EraseIdentity, Holds: store.HoldsIdentity, UploadDir: appEnv.UploadDir, Logger: appLogger,
 	})
-	return service.ManagedBy(appEnv.OIDC.Issuer), spaces.NewRegistre(db, client, appLogger), deletions
+	return service.ManagedBy(appEnv.OIDC.Issuer), spaces.NewRegistre(db, client, erasure.erased, appLogger), deletions
 }
 
 // startRegistreSync runs the import and then the sync, and polls the deletion

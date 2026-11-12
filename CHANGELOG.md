@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixed
+
+- An account re-created for a person Registre already erased (a bearer token minted before the erasure, an MCP first call, a late snapshot) is erased again on the next deletion push or poll, with no restart. Sign-in, MCP provisioning and the profile sync refuse a subject Plume erased, and the Registre snapshot sync no longer provisions one. porte v0.19.0 (`Deletions.Holds`, `oidc.Deps.Erased`), porte/directory v0.5.0.
+
 ## 0.13.2 - 2026-11-11
 
 ### Fixed
