@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+## 0.14.0 - 2026-11-13
+
+### Changed
+
+- Database: the schema is ordered goose SQL under `apps/api/migrations/`, applied at boot by `tronc/migrate` behind a Postgres advisory lock. GORM `AutoMigrate` and the hand-written `CREATE TABLE IF NOT EXISTS` and `CREATE INDEX IF NOT EXISTS` statements are gone from the boot path. The GORM structs stay as the query layer: `TestGORMModelsMatchTheMigratedSchema` fails when a struct names a column the migrations do not create, or a type its field cannot hold. `scripts/check.sh` fails on an `.AutoMigrate(` call outside a test file.
+- Database: `00001_baseline.sql` is production's schema as `pg_dump --schema-only` printed it on 2026-11-13, including porte's tables, `directory_deletion_state` and tronc/mcp's `mcp_actions`. On its first boot, a database built before this release (Plume's tables, no applied migration) is stamped at version 1 with tronc/migrate's `baseline` command, so the baseline is recorded without running. A database built from the migrations dumps identical to production. `apps/api/schema.sql` is the normalized dump of the whole set. `TestThePorteTablesMatchPortePG` and `TestTheMCPSchemaIsInTheMigrations` fail when a library bump changes those tables.
+- Boot: the data steps that ran at every boot still run at every boot, after the migrations and in the same order (`schemas.Reconcile`): the space `facile_id` backfill, the avatar column backfill, the porte local identity re-key, the pre-porte session carry-over, the password and OIDC subject adoption, and the Registre picture backfill. The `DROP INDEX IF EXISTS idx_signers_token` before AutoMigrate, which then rebuilt the same non-unique index, is gone: the baseline holds the index. The document hash backfill is unchanged.
+- build: `github.com/FacileStudio/tronc/migrate` v0.1.1 with `pressly/goose/v3` v3.27.3; goose raises `segmentio/asm` from v1.1.3 to v1.2.1.
+
+### Added
+
+- `docker run <image> migrate status` (also `up`, `version`, `baseline <n>`) answers without a shell.
+- Database: `00002_column_defaults.sql` gives every `created_at`, `updated_at` and `joined_at` a `now()` default, and gives the users columns porte/kit does not write the values the kit's `OnCreate` writes (`''` and `0001-01-01 00:00:00+00`). A row inserted outside GORM no longer gets NULL there. It has a Down.
+
+### Rollback
+
+- Rolling back to v0.13.x takes the 00002 defaults off again, because AutoMigrate removes every default its struct tags do not declare, while `goose_db_version` still records version 2. The rehearsal (old, new, old, new binary on a copy of production's schema) showed exactly that. Before deploying this release or a later one after such a rollback, run `DELETE FROM goose_db_version WHERE version_id = 2`. Accounts created in between are still filled, because `OnCreate` writes the same values.
+
 ## 0.13.4 - 2026-11-12
 
 ### Fixed
