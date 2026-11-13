@@ -115,8 +115,7 @@ func TestARecycledAddressIsNotHandedToANewSubject(t *testing.T) {
 
 func TestTheKitLeavesOnlyTheseColumnsToFillNewAccount(t *testing.T) {
 	store := resetUsers(t)
-	want := []string{"avatar_url", "avatar_source", "avatar_upload_path", "oidc_subject", "password_hash",
-		"oidc_access_token", "oidc_refresh_token", "oidc_token_expiry", "profile_synced_at"}
+	want := []string{"oidc_subject"}
 	if got := store.Unwritten(); !slices.Equal(got, want) {
 		t.Fatalf("Unwritten() = %v, want %v", got, want)
 	}

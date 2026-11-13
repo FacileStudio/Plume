@@ -16,6 +16,7 @@ import (
 	documentation "github.com/FacileStudio/Plume/apps/api/internal/documentation"
 	"github.com/FacileStudio/Plume/apps/api/internal/env"
 	"github.com/FacileStudio/Plume/apps/api/internal/nuage"
+	"github.com/FacileStudio/Plume/apps/api/migrations"
 	"github.com/FacileStudio/Plume/apps/api/modules/auth"
 	"github.com/FacileStudio/Plume/apps/api/modules/clients"
 	"github.com/FacileStudio/Plume/apps/api/modules/documents"
@@ -44,6 +45,7 @@ import (
 	"github.com/FacileStudio/tronc/httpx"
 	"github.com/FacileStudio/tronc/logger"
 	troncmiddleware "github.com/FacileStudio/tronc/middleware"
+	"github.com/FacileStudio/tronc/migrate"
 	"github.com/FacileStudio/tronc/spa"
 	"github.com/go-chi/chi/v5"
 
@@ -87,10 +89,6 @@ func run() error {
 		return err
 	}
 
-	if err := schemas.MigrateWithIssuer(db, appEnv.IssuerForMigration()); err != nil {
-		appLogger.Error("failed to run migrations", slog.Any("error", err))
-		return err
-	}
 	sqlDB, err := db.DB()
 	if err != nil {
 		appLogger.Error("failed to access database handle", slog.Any("error", err))
@@ -101,6 +99,18 @@ func run() error {
 			appLogger.Error("failed to close database", slog.Any("error", err))
 		}
 	}()
+
+	if handled, err := migrate.Command(context.Background(), os.Args, migrations.Config(sqlDB, appLogger)); handled {
+		if err != nil {
+			appLogger.Error("migrate", slog.Any("error", err))
+		}
+		return err
+	}
+
+	if err := schemas.MigrateWithIssuer(context.Background(), db, appEnv.IssuerForMigration(), appLogger); err != nil {
+		appLogger.Error("failed to run migrations", slog.Any("error", err))
+		return err
+	}
 
 	porteParts, err := buildAuth(context.Background(), db, appEnv, appLogger)
 	if err != nil {

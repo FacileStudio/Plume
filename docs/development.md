@@ -47,9 +47,21 @@ The API listens on `:8080` unless `PORT` says otherwise, and serves no SPA in th
 dev server talks to the API cross-origin, which is why the default `DOMAIN` is
 `http://localhost:5173`: it doubles as the CORS origin.
 
-Migrations run automatically on every start through `schemas.Migrate`, which is GORM
-`AutoMigrate` plus two hand-written index statements. There is no migration file to write
-and no down migration — adding a column means adding a struct field.
+Migrations run automatically at startup (`schemas.MigrateWithIssuer`). To change the schema,
+add the next numbered file under `apps/api/migrations/` with both `-- +goose Up` and
+`-- +goose Down`, update the struct in `schemas/` by hand, and regenerate `apps/api/schema.sql`
+from a database the migrations built:
+
+```sh
+PGTZ=UTC pg_dump --schema-only --no-owner --no-privileges --no-comments --no-tablespaces --schema=public \
+  --exclude-table=goose_db_version --exclude-table=goose_db_version_id_seq "$DATABASE_URL" \
+  | grep -vE '^(SET |SELECT pg_catalog\.set_config|\\restrict|\\unrestrict|--|CREATE SCHEMA)' | cat -s
+```
+
+Never edit a migration that has shipped: the ledger records it as applied and the change never
+runs. The test schemas persist between runs for the same reason, so after editing an unshipped
+file, drop the `plume_*` schemas in the test database. `go run . migrate status` lists what is
+applied. `scripts/check.sh` fails on any `.AutoMigrate(` outside a test file.
 
 ## Tests
 

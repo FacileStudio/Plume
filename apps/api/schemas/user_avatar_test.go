@@ -138,7 +138,6 @@ func TestBackfillAvatarColumns(t *testing.T) {
 func TestFillPictureURLs(t *testing.T) {
 	db := requireDB(t)
 	for _, statement := range []string{
-		porteSchema,
 		`INSERT INTO users (id, email, password_hash, oidc_picture_url) VALUES
 			(1, 'stale@facile.studio', '', ''), (2, 'kept@facile.studio', '', 'https://sso.test/avatars/other'),
 			(3, 'elsewhere@facile.studio', '', '')`,

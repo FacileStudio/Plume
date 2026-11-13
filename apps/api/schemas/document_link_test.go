@@ -2,27 +2,13 @@ package schemas
 
 import "testing"
 
-func TestMigrateAddsLinkColumnsToAPopulatedDocumentsTable(t *testing.T) {
+func TestAnExternalRefIsUniquePerOwnerOnlyWhenSet(t *testing.T) {
 	db := requireDB(t)
-	for _, column := range []string{"external_ref", "nuage_space_facile_id", "nuage_linked_to", "nuage_published_at"} {
-		if err := db.Exec(`ALTER TABLE documents DROP COLUMN IF EXISTS ` + column).Error; err != nil {
-			t.Fatalf("drop %s: %v", column, err)
-		}
-	}
-	if err := db.Exec(`DROP INDEX IF EXISTS idx_documents_owner_external_ref`).Error; err != nil {
-		t.Fatalf("drop index: %v", err)
-	}
 	if err := db.Exec(`TRUNCATE documents RESTART IDENTITY CASCADE`).Error; err != nil {
 		t.Fatalf("clear documents: %v", err)
 	}
 	if err := db.Exec(`INSERT INTO documents (name, status, owner_id) VALUES ('old-a', 'completed', 1), ('old-b', 'draft', 1)`).Error; err != nil {
-		t.Fatalf("insert legacy documents: %v", err)
-	}
-
-	for i := 0; i < 2; i++ {
-		if err := Migrate(db); err != nil {
-			t.Fatalf("migrate %d: %v", i+1, err)
-		}
+		t.Fatalf("insert unlinked documents: %v", err)
 	}
 
 	var rows []Document
@@ -31,7 +17,7 @@ func TestMigrateAddsLinkColumnsToAPopulatedDocumentsTable(t *testing.T) {
 	}
 	for _, row := range rows {
 		if row.ExternalRef != "" || row.NuageSpaceFacileID != "" || row.NuageLinkedTo != "" || row.NuagePublishedAt != nil {
-			t.Errorf("legacy document %s picked up link data: %+v", row.Name, row)
+			t.Errorf("document %s written without link data holds some: %+v", row.Name, row)
 		}
 	}
 

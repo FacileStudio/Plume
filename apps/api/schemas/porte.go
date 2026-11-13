@@ -18,7 +18,7 @@ import (
 // passwords still move, because they are what keeps people signed in and able
 // to sign in again.
 func AdoptPorte(db *gorm.DB, issuer string) error {
-	statements := []string{porteSchema, carryLegacySessionsOver, adoptExistingPasswords}
+	statements := []string{rekeyLocalIdentities, carryLegacySessionsOver, adoptExistingPasswords}
 	for _, statement := range statements {
 		if err := db.Exec(statement).Error; err != nil {
 			return err
@@ -57,77 +57,22 @@ UPDATE users u
    AND coalesce(u.oidc_picture_url, '') = '';
 `
 
-// porteSchema is porte/pg's Schema with its porte_users table left out and the
-// foreign keys repointed at Plume's own users.
+// rekeyLocalIdentities is porte v0.3.0 re-keying password identities off the
+// email address and onto the account id. porte's tables come from the
+// baseline migration, a private copy of porte/pg's Schema with porte_users
+// left out and the foreign keys pointed at Plume's users, so this UPDATE is
+// copied rather than received: without it every password login answers
+// "invalid email or password" while the build, the vet and the whole suite
+// stay green.
 //
-// porte offers UserStore as the escape hatch for exactly this. This users row
-// carries the avatar columns, an upload path and the mailbox ownership every
-// account, folder and email hangs off; moving it would be a rewrite of
-// everything except authentication. The other three stores come from porte/pg
-// unchanged — they only ever touch the tables below.
-//
-// Kept verbatim from porte otherwise, column for column: pg's queries are
-// written against these names, and a divergence here surfaces as a runtime
-// error on the login path rather than at boot.
-const porteSchema = `
-CREATE TABLE IF NOT EXISTS porte_identities (
-	user_id         bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-	provider        text NOT NULL,
-	subject         text NOT NULL,
-	password_hash   text NOT NULL DEFAULT '',
-	access_token    text NOT NULL DEFAULT '',
-	refresh_token   text NOT NULL DEFAULT '',
-	token_expiry    timestamptz,
-	roles           jsonb,
-	roles_synced_at timestamptz,
-	synced_at       timestamptz,
-	created_at      timestamptz DEFAULT now(),
-	PRIMARY KEY (provider, subject)
-);
-CREATE INDEX IF NOT EXISTS porte_identities_user_idx ON porte_identities (user_id);
-ALTER TABLE porte_identities ADD COLUMN IF NOT EXISTS created_at timestamptz;
-ALTER TABLE porte_identities ALTER COLUMN created_at SET DEFAULT now();
-
+// It is idempotent, since after it runs the predicate is false for every row,
+// and it is deliberately allowed to fail. The only way it can is one account
+// holding two password identities at once, which the address key made
+// reachable, and refusing to boot is the right answer to ambiguous
+// credentials.
+const rekeyLocalIdentities = `
 UPDATE porte_identities SET subject = user_id::text
  WHERE provider = 'local' AND subject <> user_id::text;
-
-CREATE TABLE IF NOT EXISTS porte_sessions (
-	id           bigserial PRIMARY KEY,
-	token_hash   text NOT NULL UNIQUE,
-	user_id      bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-	label        text NOT NULL DEFAULT '',
-	created_at   timestamptz NOT NULL DEFAULT now(),
-	last_used_at timestamptz NOT NULL DEFAULT now(),
-	expires_at   timestamptz
-);
-CREATE INDEX IF NOT EXISTS porte_sessions_user_idx ON porte_sessions (user_id);
-CREATE INDEX IF NOT EXISTS porte_sessions_expiry_idx ON porte_sessions (expires_at)
-	WHERE expires_at IS NOT NULL;
-
-CREATE TABLE IF NOT EXISTS porte_login_codes (
-	code_hash   text PRIMARY KEY,
-	user_id     bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-	expires_at  timestamptz NOT NULL,
-	consumed_at timestamptz
-);
-ALTER TABLE porte_login_codes ADD COLUMN IF NOT EXISTS consumed_at timestamptz;
-ALTER TABLE porte_login_codes ADD COLUMN IF NOT EXISTS provider text NOT NULL DEFAULT '',
-	ADD COLUMN IF NOT EXISTS subject text NOT NULL DEFAULT '';
-
-CREATE TABLE IF NOT EXISTS porte_magic_links (
-	token_hash  text PRIMARY KEY,
-	user_id     bigint NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-	ip          text NOT NULL DEFAULT '',
-	created_at  timestamptz NOT NULL,
-	expires_at  timestamptz NOT NULL,
-	consumed_at timestamptz
-);
-
-CREATE TABLE IF NOT EXISTS directory_deletion_state (
-	id         integer PRIMARY KEY,
-	state      bytea NOT NULL,
-	updated_at timestamptz NOT NULL DEFAULT now()
-);
 `
 
 // carryLegacySessionsOver moves the pre-porte sessions table across instead of
@@ -172,7 +117,7 @@ $$;
 //
 // The subject is the account id, which is what porte/local keys a password
 // identity on since v0.3.0. Inserting the address here would write a fresh
-// address-keyed row after the re-key UPDATE in porteSchema had already run past
+// address-keyed row after rekeyLocalIdentities had already run past
 // it, so the account would be left with a credential nothing looks up.
 //
 // users.password_hash is deliberately left in place. Blanking it in the same

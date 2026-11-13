@@ -76,7 +76,8 @@ Full reference: [docs/configuration.md](docs/configuration.md).
 apps/
   api/       Go backend — modules/ (auth, documents, signers, fields, signing,
              verify, spaces, clients, smtp, webhooks, reminders), internal/
-             (middleware, env, authcrypto, hashing, pdfutil), schemas/ (GORM)
+             (middleware, env, authcrypto, hashing, pdfutil), schemas/ (GORM),
+             migrations/ (goose SQL)
   client/    SvelteKit SPA — adapter-static, built and served by the API binary
 docs/        Architecture, configuration, development, deployment, API
 scripts/     check.sh, the repository quality gate

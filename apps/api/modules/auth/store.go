@@ -12,6 +12,9 @@ import (
 // created, which the kit's insert leaves NULL: empty strings for the text
 // columns and Go's zero time for the two timestamps. oidc_subject stays NULL,
 // as it does on every GORM-created row, because its unique index needs it.
+// Since migration 00002 the column defaults write the same values; this stays
+// so an account is still filled on a schema whose defaults a rollback to an
+// AutoMigrate release took away.
 const fillNewAccountSQL = `UPDATE users SET
 	avatar_url = '', avatar_source = '', avatar_upload_path = '', password_hash = '',
 	oidc_access_token = '', oidc_refresh_token = '',

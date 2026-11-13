@@ -18,7 +18,8 @@ apps/
     main.go             Entrypoint, router setup, graceful shutdown
     internal/           Shared infra (middleware, env, database, httpjson, pdfutil, hashing)
     modules/            Domain modules (auth, documents, signers, fields, signing, smtp, webhooks, verify, reminders)
-    schemas/            GORM models and migrations
+    schemas/            GORM models (the query layer) and the boot data steps (Reconcile)
+    migrations/         Ordered goose SQL, embedded and applied at boot; schema.sql is the normalized dump
   client/               SvelteKit SPA (adapter-static), served by the API binary
     src/lib/backend.ts  API client with all typed endpoints
     src/lib/components/ Field editor and signature pad — the two surfaces muse cannot express
@@ -99,7 +100,7 @@ Read through `tronc/env`. See `.env.example` and `apps/api/.env.example`.
 - `theme.svelte.ts` stays app-side: unlike `@facile/client/theme` it writes `.dark` in system mode on a dark OS, which Plume's `dark:` utilities need.
 - Document workflow: `draft` -> `pending` -> `completed` / `declined`.
 - Modules are self-contained: each has routes, service, and handlers. Subrouters are composed in `main.go` via `RegisterRoutes` + `*Routes` helper functions.
-- Migrations run automatically on startup via `schemas.Migrate(db)` (GORM AutoMigrate).
+- Migrations are ordered SQL in `apps/api/migrations/`, applied at boot by `tronc/migrate`, then the idempotent data steps in `schemas.Reconcile`. AutoMigrate never runs (`scripts/check.sh` fails on it); add a numbered file with Up and Down, update the struct by hand, regenerate `apps/api/schema.sql` (command in `docs/development.md`). `docker run <image> migrate status` works without a shell. Rolling back to v0.13.x needs `DELETE FROM goose_db_version WHERE version_id = 2` before releasing forward again (`docs/deployment.md`).
 - PDF uploads stored on filesystem (`UPLOAD_DIR`), persisted via named Docker volume `plume_uploads`.
 - Webhook dispatch uses HMAC-SHA256 signing.
 - Reminder ticker runs in a background goroutine with configurable per-user interval.

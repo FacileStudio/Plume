@@ -37,7 +37,8 @@ and CORS is only relevant when you run the Vite dev server on `:5173`.
 | `internal/pdfutil` | Field flattening (fpdf overlay + pdfcpu watermark), Unicode fonts |
 | `internal/documentation` | Assembles the OpenAPI document from per-module registrations |
 | `modules/*` | Domain modules; each owns its router, service and types |
-| `schemas/` | GORM models and `Migrate` |
+| `schemas/` | GORM models (the query layer), `MigrateWithIssuer` and the boot data steps in `Reconcile` |
+| `migrations/` | Ordered goose SQL, embedded and applied at boot by `tronc/migrate` |
 
 Modules are composed in `main.go`. Some register a top-level subrouter
 (`documents.RegisterRoutes`), and some contribute nested routes to another module's
@@ -64,12 +65,26 @@ once at boot, backfilling SHA-256 hashes for documents stored before hashing exi
 
 ## Data model
 
-Ten tables, all `int64` primary keys, migrated by GORM `AutoMigrate` on every start.
+The schema is the ordered SQL under `apps/api/migrations/`, applied at boot by `tronc/migrate`
+behind a Postgres advisory lock. `00001_baseline.sql` is the production schema GORM
+`AutoMigrate` had built, as `pg_dump` printed it on 2026-11-13; `apps/api/schema.sql` is the
+normalized dump of the whole set. The GORM structs no longer create anything:
+`TestGORMModelsMatchTheMigratedSchema` fails when a struct names a column the migrations do
+not create, or a type its field cannot hold. The porte tables, `directory_deletion_state` and
+tronc/mcp's `mcp_actions` are in the baseline too; `TestThePorteTablesMatchPortePG` and
+`TestTheMCPSchemaIsInTheMigrations` fail when a library bump changes their shape.
+
+After the migrations, `schemas.Reconcile` runs the idempotent data steps the old boot code
+ran, in the same order: a `facile_id` for any space without one, the avatar column backfill,
+and `AdoptPorte` (the local identity re-key, the pre-porte session carry-over, the password
+and OIDC subject adoption, the Registre picture backfill).
+
+The domain tables, all with `int64` primary keys:
 
 | Table | Key columns | Relationships |
 |---|---|---|
 | `users` | `email` unique, `password_hash` (legacy, unread), `locale` (default `en`), `reminder_interval_days` (default 3), `avatar_source`, `oidc_picture_url`, `oidc_access_token`, `oidc_refresh_token`, `profile_synced_at` | owns everything else |
-| `sessions` | `token` primary key, `user_id`, `expires_at` | belongs to a user |
+| `porte_sessions`, `porte_identities` | porte's sessions and sign-in identities, keyed on `users.id` | cascade on user delete |
 | `spaces` | `name`, `description`, `owner_id` | groups documents |
 | `space_members` | `space_id`, `user_id`, `role` (default `member`) | unique on `(space_id, user_id)`, cascades on delete |
 | `documents` | `status` (default `draft`), `storage_path`, `original_hash`, `signed_hash`, `owner_id`, `space_id`, `client_id`, `sequential` | has many signers and fields |
@@ -79,8 +94,9 @@ Ten tables, all `int64` primary keys, migrated by GORM `AutoMigrate` on every st
 | `webhooks` | `url`, `secret`, `enabled`, `last_sent_at` | per owner |
 | `smtp_configs` | `owner_id` unique, `host`, `port`, `username`, `password`, `from_email`, `from_name` | one per owner |
 
-`Migrate` also drops the legacy non-unique `idx_signers_token` index and creates the unique
-`idx_space_members_space_user` index.
+`space_members` is unique on `(space_id, user_id)`, `spaces.facile_id` and
+`spaces.registre_space_id` are unique, and `documents` is unique on `(owner_id, external_ref)`
+when `external_ref` is set.
 
 Document status moves `draft` → `pending` → `completed` or `declined`.
 

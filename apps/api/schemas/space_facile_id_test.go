@@ -12,9 +12,6 @@ var facileIDShape = regexp.MustCompile(`^fac_[0-9a-f]{24}$`)
 func TestMigrateGivesExistingSpacesAFacileID(t *testing.T) {
 	db := requireDB(t)
 
-	if err := db.Exec(`DROP INDEX IF EXISTS idx_spaces_facile_id`).Error; err != nil {
-		t.Fatalf("drop index: %v", err)
-	}
 	if err := db.Exec(`TRUNCATE spaces RESTART IDENTITY CASCADE`).Error; err != nil {
 		t.Fatalf("clear spaces: %v", err)
 	}

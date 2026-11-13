@@ -88,13 +88,24 @@ set to `https://plume.facile.studio`; without it, signing emails link to
 
 ## Migrations
 
-There is no migration step to run. `schemas.Migrate` executes GORM `AutoMigrate` on every
-boot, which means:
+There is no migration step to run. At every boot the binary applies the pending files under
+`apps/api/migrations/` through `tronc/migrate`, holding a Postgres advisory lock, so two
+instances booting together cannot both migrate. Then it runs the idempotent data steps in
+`schemas.Reconcile`. A failure aborts startup and the container exits 1, which Dokploy
+surfaces as a failed deploy.
 
-- Deploys are additive-safe. Adding a struct field adds a column.
-- Removing or renaming a field does **not** drop or rename the column. The old column stays
-  behind, unread.
-- Two instances booting simultaneously both run `AutoMigrate`. Deploy one at a time.
+A database built before v0.14.0 (Plume's tables, no applied migration) is stamped at the
+baseline on its first boot: tronc/migrate's `baseline 1` records `00001_baseline.sql` as
+applied without running it, the log says `database predates migrations, recording the
+baseline`, and the later migrations run. The image answers the subcommands without a shell:
+
+```sh
+docker run --rm -e DATABASE_URL=... <image> migrate status
+docker run --rm -e DATABASE_URL=... <image> migrate up
+```
+
+The image runs the full configuration loader first, so pass the same environment as the
+service (`APP_ENV=production` needs the `OIDC_*` variables).
 
 A background goroutine also backfills `original_hash` for documents stored before hashing
 existed. It logs `hash backfill complete` with a count, or warns and gives up. It reads every
@@ -104,6 +115,13 @@ usual.
 ## Rollback
 
 The binary and the SPA ship in the same image, so rolling back the image rolls back both.
-The database does not roll back — `AutoMigrate` has already added the new columns, and an
-older binary simply ignores them. That is fine for additive changes and is the only reason
-rollback is safe at all.
+The database does not roll back: a migration that added a column has run, and an older
+binary simply ignores the column. Write migrations additive for that reason.
+
+Rolling back to v0.13.x, the last AutoMigrate release, needs one extra step before releasing
+forward again. Its AutoMigrate removes every column default the struct tags do not declare,
+which takes off the defaults `00002_column_defaults.sql` set, while `goose_db_version` still
+records version 2. Before deploying v0.14.0 or later again, run
+`DELETE FROM goose_db_version WHERE version_id = 2` so the next boot applies 00002 again.
+Accounts created in between are still filled, because `modules/auth`'s `OnCreate` writes the
+same values.

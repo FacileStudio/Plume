@@ -1,52 +1,57 @@
 package schemas
 
 import (
-	mcpkit "github.com/FacileStudio/tronc/mcp"
+	"context"
+	"log/slog"
+
+	"github.com/FacileStudio/Plume/apps/api/migrations"
 	"gorm.io/gorm"
 )
 
-// Migrate brings the schema up to date and then hands authentication to
-// porte. AdoptPorte runs last because it repoints foreign keys at users(id)
-// and reads the columns AutoMigrate has just guaranteed exist.
+// Migrate applies the migrations and then the boot data steps, with no OIDC
+// issuer and no migration log. The tests build their schemas through it, so
+// they run exactly the SQL production runs.
 func Migrate(db *gorm.DB) error {
-	return MigrateWithIssuer(db, "")
+	return MigrateWithIssuer(context.Background(), db, "", slog.New(slog.DiscardHandler))
 }
 
-// MigrateWithIssuer is Migrate with the OIDC issuer, which the identity
-// backfill needs: porte matches an account on (provider, subject) and the
-// provider is the issuer, so backfilling with a placeholder would leave every
-// existing SSO user unmatched and quietly fall through to the email path. It also
-// creates mcp_actions, the MCP actions waiting for a person's confirmation, from
-// tronc/mcp's idempotent DDL.
-func MigrateWithIssuer(db *gorm.DB, issuer string) error {
-	db.Exec("DROP INDEX IF EXISTS idx_signers_token")
-
-	if err := db.AutoMigrate(&User{}, &Space{}, &SpaceMember{}, &Document{}, &Signer{}, &Field{}, &Webhook{}, &SmtpConfig{}, &Client{}); err != nil {
+// MigrateWithIssuer applies the ordered migrations under migrations/ and then
+// Reconcile. The issuer is what the identity backfill needs: porte matches an
+// account on (provider, subject) and the provider is the issuer, so
+// backfilling with a placeholder would leave every existing SSO user
+// unmatched and quietly fall through to the email path.
+func MigrateWithIssuer(ctx context.Context, db *gorm.DB, issuer string, logger *slog.Logger) error {
+	sqlDB, err := db.DB()
+	if err != nil {
 		return err
 	}
-
-	db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_space_members_space_user ON space_members (space_id, user_id)")
-
-	if err := db.Exec("UPDATE spaces SET facile_id = 'fac_' || substr(md5(random()::text || id::text || clock_timestamp()::text), 1, 24) WHERE facile_id IS NULL OR facile_id = ''").Error; err != nil {
+	if err := migrations.Up(ctx, migrations.Config(sqlDB, logger)); err != nil {
 		return err
 	}
-	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_spaces_facile_id ON spaces (facile_id)").Error; err != nil {
+	return Reconcile(db, issuer)
+}
+
+// Reconcile runs the idempotent data steps that ran at every boot before the
+// schema moved to migrations, in the same order. It changes rows, never the
+// schema: a facile_id for every space, the avatar columns, and the
+// credentials porte reads. AdoptPorte runs last because it reads the users
+// rows the avatar backfill has just settled.
+func Reconcile(db *gorm.DB, issuer string) error {
+	if err := db.Exec(backfillFacileIDs).Error; err != nil {
 		return err
 	}
-
-	if err := db.Exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_documents_owner_external_ref ON documents (owner_id, external_ref) WHERE external_ref <> ''").Error; err != nil {
-		return err
-	}
-
-	if err := db.Exec(mcpkit.PendingSchema).Error; err != nil {
-		return err
-	}
-
 	if err := backfillAvatarColumns(db); err != nil {
 		return err
 	}
 	return AdoptPorte(db, issuer)
 }
+
+// backfillFacileIDs gives every space that predates facile_id, or was written
+// without Space.BeforeCreate, its suite-wide id. A NULL never collides in the
+// unique idx_spaces_facile_id, so the rows it reaches can always be updated.
+const backfillFacileIDs = `UPDATE spaces
+	SET facile_id = 'fac_' || substr(md5(random()::text || id::text || clock_timestamp()::text), 1, 24)
+	WHERE facile_id IS NULL OR facile_id = ''`
 
 // backfillAvatarColumns moves the avatar state onto the two columns that now own it.
 //
