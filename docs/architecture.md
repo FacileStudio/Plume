@@ -127,6 +127,39 @@ Document status moves `draft` → `pending` → `completed` or `declined`.
    `GET /api/documents/{id}/audit-trail` generate two more PDFs on first request and cache
    them next to the document. Editing a document invalidates both.
 
+## The signer audit trail
+
+When a signer signs or declines, `modules/signers` stamps the signer row with `signed_at`
+(the time of the answer), `ip_address` and `user_agent`. The certificate and the audit-trail
+PDFs print all three. Since v0.13.4, `ip_address` is the host of `RemoteAddr` after tronc's
+real-IP middleware, which reads the forwarded address only from peers in `TRUSTED_PROXIES`
+(`private,cloudflare` in production).
+
+### Rows that hold a proxy address
+
+Rows written before v0.13.4 do not hold the signer's address. The routes read `X-Real-IP` by
+hand, and in production that header carried the address of a proxy hop inside the server.
+These rows are every `signers` row with a non-empty `ip_address` and a `signed_at` before the
+v0.13.4 deploy at 2026-11-12 10:57 UTC:
+
+```sql
+SELECT id FROM signers WHERE ip_address <> '' AND signed_at < '2026-11-12 10:57:38+00';
+```
+
+A read-only count on 2026-11-13 found 23 such rows, all with status `signed`. Their
+`created_at` runs from 2026-05-14 17:23 to 2026-07-03 15:30 UTC and their `signed_at` from
+2026-05-14 17:54 to 2026-07-21 15:03 UTC. Every one holds one of four addresses in
+`10.0.1.0/24`, the private subnet of the Docker overlay network that connects the reverse
+proxy to Plume.
+
+These rows, and the certificate and audit-trail PDFs that print them, stay unchanged. The
+audit trail is evidence: a value rewritten after the fact would make every trail less
+trustworthy, and the signer's real address was never recorded, so there is nothing true to
+write. For these rows the IP shows only that the request passed through Plume's reverse
+proxy. It identifies no signer, device or network. The rest of the record is unaffected:
+`signed_at`, the user agent, the view and email-open times and the document hashes are what
+they always were.
+
 ## Verification
 
 `POST /api/verify` and `GET /api/verify/{hash}` are public and unauthenticated. They take a

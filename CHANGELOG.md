@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Documentation
+
+- `docs/architecture.md` names the 23 production signer rows written before v0.13.4 whose `ip_address` holds a proxy address instead of the signer's, explains what that address means, and records why the rows and their PDFs stay unchanged.
+
 ## 0.14.0 - 2026-11-13
 
 ### Changed
