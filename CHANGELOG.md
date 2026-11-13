@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.14.3 - 2026-11-13
+
+### Added
+
+- The client loads Vision's tracker (`https://vision.facile.studio/s.js`, with `data-mask`) on `plume.facile.studio` only, and never on a `/share/` signing page, whose path carries the signer's token. `script-src` allows the Vision origin next to the inline script hashes.
+
 ## 0.14.2 - 2026-11-13
 
 ### Changed
