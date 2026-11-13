@@ -13,7 +13,8 @@
 		USER_COLORS,
 		cn,
 		icons,
-		toast
+		toast,
+		Tooltip
 	} from '@facile/muse';
 	import { t } from '$lib/i18n/index.svelte';
 
@@ -438,18 +439,20 @@
 									</span>
 
 									{#if isSelected}
-										<button
-											type="button"
-											aria-label={t('editor.deleteField')}
-											class="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-fc-pill bg-fc-danger text-fc-danger-fg transition-transform hover:scale-110"
-											onpointerdown={(e: PointerEvent) => {
-												e.preventDefault();
-												e.stopPropagation();
-												askDelete(field.id);
-											}}
-										>
-											<iconify-icon icon={icons.close} width="14" height="14" class="pointer-events-none block"></iconify-icon>
-										</button>
+										<Tooltip text={t('editor.deleteField')} describe={false} class="contents">
+											<button
+												type="button"
+												aria-label={t('editor.deleteField')}
+												class="absolute -right-2 -top-2 flex size-5 items-center justify-center rounded-fc-pill bg-fc-danger text-fc-danger-fg transition-transform hover:scale-110"
+												onpointerdown={(e: PointerEvent) => {
+													e.preventDefault();
+													e.stopPropagation();
+													askDelete(field.id);
+												}}
+											>
+												<iconify-icon icon={icons.close} width="14" height="14" class="pointer-events-none block"></iconify-icon>
+											</button>
+										</Tooltip>
 
 										<!-- svelte-ignore a11y_no_static_element_interactions -->
 										<div

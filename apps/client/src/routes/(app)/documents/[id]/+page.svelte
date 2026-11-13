@@ -19,7 +19,8 @@
 		Spinner,
 		Switch,
 		icons,
-		toast
+		toast,
+		Tooltip
 	} from '@facile/muse';
 	import FieldEditor from '$lib/components/field-editor.svelte';
 	import { formatRelative, formatShortDate } from '$lib/i18n/format';
@@ -440,16 +441,17 @@
 			>
 				{#snippet actions()}
 					{#if doc && doc.status !== 'completed' && doc.status !== 'declined'}
-						<Button
-							variant="secondary"
-							size="sm"
-							icon={icons.plus}
-							onclick={openAddSigner}
-							disabled={doc.status !== 'draft'}
-							title={doc.status !== 'draft' ? t('doc.signers.addDisabled') : undefined}
-						>
-							{t('docNew.addSigner')}
-						</Button>
+						<Tooltip text={t('doc.signers.addDisabled')} disabled={doc.status === 'draft'}>
+							<Button
+								variant="secondary"
+								size="sm"
+								icon={icons.plus}
+								onclick={openAddSigner}
+								disabled={doc.status !== 'draft'}
+							>
+								{t('docNew.addSigner')}
+							</Button>
+						</Tooltip>
 					{/if}
 				{/snippet}
 
