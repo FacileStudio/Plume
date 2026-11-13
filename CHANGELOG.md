@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+## 0.14.4 - 2026-11-13
+
+### Changed
+
+- muse v0.21.0: icon buttons show their label as a muse tooltip on hover and keyboard focus.
+
+### Fixed
+
+- The field editor's delete handle and the disabled Add signer button show a muse tooltip instead of none or a native `title`.
+
 ## 0.14.3 - 2026-11-13
 
 ### Added
