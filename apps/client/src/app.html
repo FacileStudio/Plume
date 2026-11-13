@@ -45,6 +45,16 @@
 
 		<meta name="color-scheme" content="light dark" />
 
+		<script>
+			(function () {
+				if (location.hostname !== 'plume.facile.studio' || location.pathname.indexOf('/share/') === 0) return;
+				var s = document.createElement('script');
+				s.async = true;
+				s.src = 'https://vision.facile.studio/s.js';
+				s.setAttribute('data-mask', '');
+				document.head.appendChild(s);
+			})();
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

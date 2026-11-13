@@ -442,19 +442,23 @@ func newNuagePublisher(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger) *
 // landing page.
 var externalConnect = []string{"https://api-ardoise.facile.studio"}
 
+// externalScript lists the origins the built client loads scripts from besides
+// itself: Vision's tracker, which app.html loads on the production host.
+var externalScript = []string{"https://vision.facile.studio"}
+
 // securityConfig extends tronc's default security headers with what the built
 // client needs: the inline scripts adapter-static writes into its pages, which
 // script-src 'self' would otherwise block, and the external origins above. A
 // client directory that cannot be hashed is logged and leaves the default
 // script policy, which only reports.
 func securityConfig(clientDir string, appLogger *slog.Logger) troncmiddleware.SecurityConfig {
-	sources := map[string][]string{"connect-src": externalConnect}
+	sources := map[string][]string{"connect-src": externalConnect, "script-src": externalScript}
 	if spa.Available(clientDir) {
 		hashes, err := spa.InlineScriptHashes(clientDir)
 		if err != nil {
 			appLogger.Warn("failed to hash the client's inline scripts", slog.Any("error", err))
 		} else {
-			sources["script-src"] = hashes
+			sources["script-src"] = append(sources["script-src"], hashes...)
 		}
 	}
 	return troncmiddleware.SecurityConfig{CSPSources: sources}
