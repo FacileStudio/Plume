@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Security
+
+- porte v0.20.1 and porte/mcpauth v0.3.1. porte v0.20.0 marked browser logins with `b-`, which about one plain session token in 4096 also starts with, so such a token could confirm a pending MCP action. The mark is now `b~`, outside the base64url alphabet. Browser logins from v0.16.0 still work but must sign in once more before confirming on `/pending`.
+
 ## 0.16.0 - 2026-11-14
 
 ### Added
