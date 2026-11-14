@@ -11,6 +11,8 @@
 	let busy = $state('');
 	let notOwnSession = $state(false);
 
+	const OWN_SESSION_REFUSAL = "only the person's own session can confirm actions";
+
 	const focused = $derived(page.url.searchParams.get('action') ?? '');
 	const ordered = $derived([
 		...actions.filter((action) => action.id === focused),
@@ -25,8 +27,17 @@
 	 * the mobile or desktop app. Signing in again in the browser fixes it.
 	 */
 	function refusedSession(err: unknown): boolean {
-		notOwnSession = err instanceof ApiError && err.status === 403;
+		notOwnSession =
+			err instanceof ApiError &&
+			err.status === 403 &&
+			err.code === 'permission_denied' &&
+			err.message === OWN_SESSION_REFUSAL;
 		return notOwnSession;
+	}
+
+	/** The server's own words for any other refusal, else the fallback text. */
+	function reason(err: unknown, fallback: string): string {
+		return err instanceof ApiError && err.status === 403 ? err.message : fallback;
 	}
 
 	/** Loads the open actions. */
@@ -36,7 +47,7 @@
 			actions = (await api.pending.list()).actions;
 			notOwnSession = false;
 		} catch (err) {
-			if (!refusedSession(err)) toast.danger(t('pending.loadFailed'));
+			if (!refusedSession(err)) toast.danger(reason(err, t('pending.loadFailed')));
 		}
 		loading = false;
 	}

@@ -3,9 +3,22 @@ package mcp_test
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
+
+	"github.com/FacileStudio/porte/mcpauth"
 )
+
+// TestThePendingPageKnowsPortesRefusal fails when porte rewords the own-session
+// refusal the confirm page matches to show its sign-in notice.
+func TestThePendingPageKnowsPortesRefusal(t *testing.T) {
+	page, err := os.ReadFile("../../../client/src/routes/(app)/pending/+page.svelte")
+	must(t, err)
+	if mcpauth.ErrNotOwnSession.Code != "permission_denied" || !strings.Contains(string(page), `"`+mcpauth.ErrNotOwnSession.Message+`"`) {
+		t.Fatalf("pending/+page.svelte must match porte's refusal %q (%s)", mcpauth.ErrNotOwnSession.Message, mcpauth.ErrNotOwnSession.Code)
+	}
+}
 
 // TestPendingPageConfirmsOnlyFromTheSession opens a send through a client that cannot
 // ask, refuses it to a delegated token, then confirms it from the person's session.
