@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.15.0 - 2026-11-14
+
+### Added
+
+- The landing page shows an animated signing demo built on mise-en-scene v0.2.1: a signature field is placed, sent, then signed. It switches to a phone layout below 640 px.
+
+### Changed
+
+- muse v0.22.0: Magnetik for titles and body text.
+- The landing copy is shorter, in all four languages, with four features (fields, signing order, proof, self-hosting). The old "PKI-based digital signatures" claim is gone because Plume does not use PKI signatures.
+- The footer tagline reads "Document signing on your own server."
+
 ## 0.14.4 - 2026-11-13
 
 ### Changed
