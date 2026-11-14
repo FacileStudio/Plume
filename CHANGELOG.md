@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.3 - 2026-11-14
+
+### Fixed
+
+- The reminder ticker runs on one replica only. Each instance takes a Postgres advisory lock (tronc `joblock`, key `plume-reminders`), so a rolling deploy with two copies up no longer sends a reminder twice. tronc v0.24.0.
+
 ## 0.17.2 - 2026-11-14
 
 ### Fixed

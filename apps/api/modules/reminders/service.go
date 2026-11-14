@@ -11,6 +11,7 @@ import (
 	"github.com/FacileStudio/Plume/apps/api/modules/webhooks"
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 	"github.com/FacileStudio/tronc/errors"
+	"github.com/FacileStudio/tronc/joblock"
 
 	"gorm.io/gorm"
 )
@@ -30,18 +31,23 @@ type Service struct {
 	webhookSvc *webhooks.Service
 	domain     string
 	now        func() time.Time
+	tick       time.Duration
+	run        func(context.Context) (int, error)
 }
 
 // NewService wires the reminder service to its database, the smtp and webhooks
 // services it dispatches through, and the public domain used to build links.
 func NewService(orm *gorm.DB, smtpSvc *smtp.Service, webhookSvc *webhooks.Service, domain string) *Service {
-	return &Service{
+	s := &Service{
 		orm:        orm,
 		smtpSvc:    smtpSvc,
 		webhookSvc: webhookSvc,
 		domain:     domain,
 		now:        func() time.Time { return time.Now().UTC() },
+		tick:       tickInterval,
 	}
+	s.run = s.RunOnce
+	return s
 }
 
 func (s *Service) RemindSigner(ctx context.Context, ownerID string, signerID string) (*RemindResponse, error) {
@@ -248,13 +254,25 @@ func shouldRemind(createdAt time.Time, lastRemindedAt *time.Time, intervalDays i
 }
 
 // Start launches the background reminder ticker in its own goroutine, running
-// until ctx is cancelled.
+// until ctx is cancelled. Only the replica holding the Postgres advisory lock
+// "plume-reminders" ticks, so a second instance never sends a reminder twice.
 func Start(ctx context.Context, service *Service, logger *slog.Logger) {
-	go service.loop(ctx, logger)
+	sqlDB, err := service.orm.DB()
+	if err != nil {
+		logger.Error("reminder ticker not started", slog.Any("error", err))
+		return
+	}
+	go func() {
+		_ = joblock.Hold(ctx, sqlDB, "plume-reminders", func(ctx context.Context) {
+			service.loop(ctx, logger)
+		}, joblock.WithOnError(func(err error) {
+			logger.Warn("reminder lock", slog.Any("error", err))
+		}))
+	}()
 }
 
 func (s *Service) loop(ctx context.Context, logger *slog.Logger) {
-	ticker := time.NewTicker(tickInterval)
+	ticker := time.NewTicker(s.tick)
 	defer ticker.Stop()
 
 	for {
@@ -264,7 +282,7 @@ func (s *Service) loop(ctx context.Context, logger *slog.Logger) {
 			return
 		case <-ticker.C:
 			runCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-			count, err := s.RunOnce(runCtx)
+			count, err := s.run(runCtx)
 			cancel()
 			if err != nil {
 				logger.Warn("reminder run failed", slog.Any("error", err))
