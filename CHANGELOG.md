@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.17.0 - 2026-11-14
+
+### Changed
+
+- Landing: Plume is sold as the hosted Facile app. The title, footer line and feature cards no longer say "on your own server" or "self-hosted", in all four languages. New slogan "Faites signer vos documents en un lien.", subtitle and meta description.
+- Landing: "Créer un compte gratuit" is the main button in the hero and the closing call, with "Se connecter avec Facile" beside it.
+- Landing: the signing demo shows the client signing on a phone before the contract is completed, and the send button no longer looks active once sent.
+- Landing: three demo cards (signers in order with reminders, certificate and audit trail, Ardoise contracts coming back signed and filed in Nuage), a "works with" row for Ardoise, Nuage and Bulle, a feature list, a Plume plan note with the suite pricing link, and a developer block (API, webhooks, MCP, source).
+- muse v0.24.0.
+
+### Fixed
+
+- muse's inline `Icon` draws every glyph in Plume's bundled collections (`registerIcons`). Before, any icon outside muse's own set, such as `solar:document-add-linear`, rendered as an empty box.
+
 ## 0.16.1 - 2026-11-14
 
 ### Security
