@@ -62,3 +62,19 @@ func TestMCPDeletionsStayInReach(t *testing.T) {
 		t.Fatalf("a sent document keeps its fields, got %q", text)
 	}
 }
+
+// TestMCPFieldLookupHidesWhichIdsExist answers a stranger the same way for a field id
+// that does not exist, a field on the owner's own draft and a field on a space draft.
+func TestMCPFieldLookupHidesWhichIdsExist(t *testing.T) {
+	f := newFixture(t)
+	personal := f.boxOf(t, f.draft(t, "Personal").Document.ID)
+	shared := f.draft(t, "Shared")
+	must(t, f.db.Model(&schemas.Document{}).Where("id = ?", shared.Document.ID).Update("space_id", f.space.ID).Error)
+	stranger := f.connect(t, "stranger")
+	want := refused(t, stranger, "plume_delete_field", map[string]any{"field_id": 999_999})
+	for name, fieldID := range map[string]int64{"personal": personal, "space": f.boxOf(t, shared.Document.ID)} {
+		if got := refused(t, stranger, "plume_delete_field", map[string]any{"field_id": fieldID}); got != want {
+			t.Fatalf("a %s field must answer like a missing one: got %q, want %q", name, got, want)
+		}
+	}
+}
