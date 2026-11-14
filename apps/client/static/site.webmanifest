@@ -1,7 +1,7 @@
 {
   "name": "Plume",
   "short_name": "Plume",
-  "description": "Upload a PDF, place the signature fields and send the link to your client. Simple and legally binding.",
+  "description": "Send a PDF, your client signs from their phone, and you get the signed copy with its proof. Free to start.",
   "icons": [
     {
       "src": "/icon-192.png",

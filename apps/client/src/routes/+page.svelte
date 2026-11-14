@@ -105,7 +105,7 @@
 			</section>
 
 			<div class="{width} pb-20">
-				<ForDevelopers rows={devRows} description={t('landing.dev.line')} />
+				<ForDevelopers rows={devRows} description={t('landing.dev.line')} selfHostHref={t('landing.dev.selfHostHref')} />
 			</div>
 		</main>
 

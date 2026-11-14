@@ -168,5 +168,11 @@ export const landing = {
 		'Le code de Plume, la référence de son API et son guide d’installation.',
 		'El código de Plume, la referencia de su API y su guía de instalación.',
 		'Der Code von Plume, die API-Referenz und die Installationsanleitung.'
+	],
+	'landing.dev.selfHostHref': [
+		'https://suite.facile.studio/en/auto-hebergement',
+		'https://suite.facile.studio/auto-hebergement',
+		'https://suite.facile.studio/es/auto-hebergement',
+		'https://suite.facile.studio/de/auto-hebergement'
 	]
 } satisfies Record<string, Row>;
