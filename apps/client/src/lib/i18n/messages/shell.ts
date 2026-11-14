@@ -54,10 +54,10 @@ export const shell = {
 	'time.justNow': ['just now', 'à l’instant', 'ahora mismo', 'gerade eben'],
 	'login.title': ['Sign in — Plume', 'Connexion — Plume', 'Iniciar sesión — Plume', 'Anmelden — Plume'],
 	'login.tagline': [
-		'Send it. Sign it. Seal it.',
-		'Envoyez. Signez. Scellez.',
-		'Envía. Firma. Sella.',
-		'Senden. Unterschreiben. Besiegeln.'
+		'Document signing on your own server.',
+		'La signature de documents sur votre serveur.',
+		'Firma de documentos en tu propio servidor.',
+		'Dokumente signieren auf dem eigenen Server.'
 	],
 	'login.failed': [
 		'Sign-in failed. Try again.',

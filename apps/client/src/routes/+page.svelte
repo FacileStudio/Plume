@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { LandingFooter, LandingHeader, SignInWithFacile } from '@facile/muse';
-	import LandingOffers from '$lib/components/LandingOffers.svelte';
+	import { Icon, LandingFooter, LandingHeader, PricingPlans, SignInWithFacile } from '@facile/muse';
+	import SignDemo from '$lib/components/landing/SignDemo.svelte';
 	import { currentUser } from '$lib';
 	import { rememberLocale, t } from '$lib/i18n/index.svelte';
 
@@ -11,12 +11,11 @@
 
 	let ready = $state(false);
 
-	const heroLines = $derived(t('landing.heroTitle').split('|'));
-
 	const features = [
-		{ icon: 'solar:document-add-linear', id: 'fields' },
-		{ icon: 'solar:shield-check-linear', id: 'binding' },
-		{ icon: 'solar:lock-linear', id: 'hosted' }
+		{ icon: 'solar:layers-linear', id: 'fields' },
+		{ icon: 'solar:users-group-rounded-linear', id: 'order' },
+		{ icon: 'solar:shield-check-linear', id: 'proof' },
+		{ icon: 'solar:server-linear', id: 'hosted' }
 	] as const;
 
 	onMount(async () => {
@@ -34,7 +33,7 @@
 </svelte:head>
 
 {#if ready}
-	<div class="min-h-screen bg-background text-foreground">
+	<div class="min-h-dvh overflow-x-clip bg-fc-page text-fc-fg">
 		<LandingHeader appName="Plume" icon={brandIcon} skipHref="#main">
 			{#snippet actions()}
 				<SignInWithFacile href={signInHref} />
@@ -42,42 +41,41 @@
 		</LandingHeader>
 
 		<main id="main">
-			<section class="mx-auto max-w-5xl px-6 py-24 text-center">
-				<h1 class="font-heading text-5xl font-semibold leading-[1.1] tracking-tight">
-					{heroLines[0]}<br />{heroLines[1]}
-				</h1>
-				<p class="mx-auto mt-6 max-w-xl text-lg text-muted-foreground">{t('landing.heroText')}</p>
-				<div class="mt-10 flex justify-center">
-					<SignInWithFacile href={signInHref} />
-				</div>
-			</section>
-
-			<section class="mx-auto max-w-5xl px-6 py-20">
-				<div class="grid gap-6 md:grid-cols-3">
-					{#each features as feature (feature.id)}
-						<div class="rounded-fc-md bg-muted/50 p-6">
-							<div class="mb-3 flex size-10 items-center justify-center rounded-fc-md bg-background">
-								<iconify-icon icon={feature.icon} width="20" height="20" class="block shrink-0"
-								></iconify-icon>
-							</div>
-							<h3 class="text-base font-semibold">{t(`landing.feature.${feature.id}.title`)}</h3>
-							<p class="mt-1.5 text-sm text-muted-foreground">
-								{t(`landing.feature.${feature.id}.text`)}
-							</p>
-						</div>
-					{/each}
-				</div>
-			</section>
-
-			<section class="mx-auto max-w-5xl px-6 py-20 text-center">
-				<h2 class="font-heading text-3xl font-semibold tracking-tight">{t('landing.ctaTitle')}</h2>
-				<p class="mt-4 text-muted-foreground">{t('landing.ctaText')}</p>
+			<section class="mx-auto max-w-5xl px-4 pt-20 pb-12 text-center sm:px-6 sm:pt-24">
+				<h1 class="font-fc-title text-fc-3xl font-bold tracking-tight">{t('landing.heroTitle')}</h1>
+				<p class="mx-auto mt-5 max-w-xl text-fc-md text-fc-fg-muted">{t('landing.heroText')}</p>
 				<div class="mt-8 flex justify-center">
 					<SignInWithFacile href={signInHref} />
 				</div>
 			</section>
 
-			<LandingOffers />
+			<section class="mx-auto max-w-5xl px-4 pb-8 sm:px-6">
+				<SignDemo />
+			</section>
+
+			<section class="mx-auto max-w-5xl px-4 py-12 sm:px-6">
+				<ul class="grid gap-4 sm:grid-cols-2">
+					{#each features as feature (feature.id)}
+						<li class="rounded-fc-lg bg-fc-surface p-6">
+							<span class="mb-3 flex size-10 items-center justify-center rounded-fc-md bg-fc-component">
+								<Icon icon={feature.icon} size={20} />
+							</span>
+							<h2 class="text-fc-lg font-bold">{t(`landing.feature.${feature.id}.title`)}</h2>
+							<p class="mt-1.5 text-fc-sm text-fc-fg-muted">{t(`landing.feature.${feature.id}.text`)}</p>
+						</li>
+					{/each}
+				</ul>
+			</section>
+
+			<PricingPlans title={t('landing.pricing')} class="mx-auto w-full max-w-5xl px-4 py-16 sm:px-6" />
+
+			<section class="mx-auto max-w-5xl px-4 py-20 text-center sm:px-6">
+				<h2 class="font-fc-title text-fc-2xl font-bold tracking-tight">{t('landing.ctaTitle')}</h2>
+				<p class="mt-3 text-fc-fg-muted">{t('landing.ctaText')}</p>
+				<div class="mt-8 flex justify-center">
+					<SignInWithFacile href={signInHref} />
+				</div>
+			</section>
 		</main>
 
 		<LandingFooter
