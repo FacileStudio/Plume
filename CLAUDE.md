@@ -103,7 +103,7 @@ Read through `tronc/env`. See `.env.example` and `apps/api/.env.example`.
 - Migrations are ordered SQL in `apps/api/migrations/`, applied at boot by `tronc/migrate`, then the idempotent data steps in `schemas.Reconcile`. AutoMigrate never runs (`scripts/check.sh` fails on it); add a numbered file with Up and Down, update the struct by hand, regenerate `apps/api/schema.sql` (command in `docs/development.md`). `docker run <image> migrate status` works without a shell. Rolling back to v0.13.x needs `DELETE FROM goose_db_version WHERE version_id = 2` before releasing forward again (`docs/deployment.md`).
 - PDF uploads stored on filesystem (`UPLOAD_DIR`), persisted via named Docker volume `plume_uploads`.
 - Webhook dispatch uses HMAC-SHA256 signing.
-- Reminder ticker runs in a background goroutine with configurable per-user interval.
+- Reminder ticker runs in a background goroutine with configurable per-user interval, on the replica holding the `plume-reminders` advisory lock (tronc `joblock`): two copies during a rolling deploy never both tick.
 - The client renders `@facile/muse` components on muse's own tokens. `app.css` is the muse
   import plus an `@theme inline` block aliasing this app's semantic names (`bg-background`,
   `text-muted-foreground`, …) onto `fc-*`, which is what keeps the landing and
