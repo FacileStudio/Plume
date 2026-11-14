@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css';
-	import { Toaster, provideLocale } from '@facile/muse';
+	import { Toaster, provideLocale, registerIcons } from '@facile/muse';
+	import { museIconData } from '$lib/icons/register';
 	import { browser } from '$app/environment';
 	import { bindLocale, localeSource } from '$lib/i18n/index.svelte';
 	import { theme } from '$lib/theme.svelte';
@@ -9,6 +10,8 @@
 	import solar from '$lib/icons/solar.json';
 
 	let { children } = $props();
+
+	registerIcons({ ...museIconData(solar), ...museIconData(mdi) });
 
 	const i18n = provideLocale(localeSource);
 	bindLocale(() => i18n.locale);
