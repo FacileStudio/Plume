@@ -1,8 +1,9 @@
 <script lang="ts">
-	import { Cursor, Roll, Stage, Window, cursorAt, grow, type Act } from '@facile/mise-en-scene';
+	import { Cursor, Roll, Stage, Window, cursorAt, type Act } from '@facile/mise-en-scene';
 	import { Badge, Button, USER_COLORS } from '@facile/muse';
 	import { tick } from 'svelte';
 	import SignDemoPaper from './SignDemoPaper.svelte';
+	import SignDemoPhone from './SignDemoPhone.svelte';
 	import { t } from '$lib/i18n/index.svelte';
 
 	type Status = 'draft' | 'pending' | 'completed';
@@ -13,9 +14,12 @@
 	let placed = $state(false);
 	let status = $state<Status>('draft');
 	let inked = $state(false);
+	let phone = $state(false);
+	let tapped = $state(false);
 	let cursor = $state(cursorAt(700, 420));
 	let tool = $state<HTMLElement>();
 	let send = $state<HTMLElement>();
+	let phoneButton = $state<HTMLElement>();
 
 	const signerState = $derived(
 		inked ? t('status.signed') : status === 'pending' ? t('status.pending') : t('status.draft')
@@ -25,6 +29,8 @@
 		placed = false;
 		status = 'draft';
 		inked = false;
+		phone = false;
+		tapped = false;
 		cursor = cursorAt(700, 420);
 	}
 
@@ -43,11 +49,16 @@
 		await tick();
 		await act.move(cursor, act.point(send, 0.5, 0.6));
 		await act.click(cursor, () => (status = 'pending'));
-		await act.wait(300);
+		await act.wait(700);
+		phone = true;
+		await act.wait(700);
+		await act.move(cursor, act.point(phoneButton, 0.5, 0.6));
+		await act.click(cursor, () => (tapped = true));
+		await act.wait(1100);
 		cursor.visible = false;
-		await act.wait(1100);
+		phone = false;
 		inked = true;
-		await act.wait(1100);
+		await act.wait(900);
 		status = 'completed';
 		await act.wait(2200);
 		reset();
@@ -101,23 +112,22 @@
 					{#if !compact}
 						<div class="sd-group">
 							<p class="sd-heading">{t('editor.placed', { count: placed ? 1 : 0 })}</p>
-							{#if placed}
-								<div class="sd-placed" in:grow={{ duration: 320 }}>
-									<span class="sd-row">
-										<span class="sd-dot sd-dot-small" style="background: {USER_COLORS[0]}"></span>
-										<span class="sd-name">{t('field.type.signature')}</span>
-										<span class="sd-page">{t('editor.pageShort', { page: 1 })}</span>
-									</span>
-								</div>
-							{/if}
+							<div class="sd-placed" class:sd-unplaced={!placed}>
+								<span class="sd-row">
+									<span class="sd-dot sd-dot-small" style="background: {USER_COLORS[0]}"></span>
+									<span class="sd-name">{t('field.type.signature')}</span>
+									<span class="sd-page">{t('editor.pageShort', { page: 1 })}</span>
+								</span>
+							</div>
 						</div>
 					{/if}
 					<span bind:this={send} class="sd-send">
-						<Button icon="solar:plain-linear" class="w-full">{t('doc.send')}</Button>
+						<Button icon="solar:plain-linear" class="w-full" disabled={status !== 'draft'}>{t('doc.send')}</Button>
 					</span>
 				</div>
 			</div>
 		</Window>
+		<SignDemoPhone shown={phone} inked={tapped} {compact} bind:button={phoneButton} />
 		<Cursor {cursor} />
 	{/snippet}
 </Stage>
@@ -199,6 +209,10 @@
 	}
 	.sd-placed {
 		padding-bottom: 2px;
+		transition: opacity 0.3s ease;
+	}
+	.sd-unplaced {
+		opacity: 0;
 	}
 	.sd-row {
 		display: flex;

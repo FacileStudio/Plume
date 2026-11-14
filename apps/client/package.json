@@ -10,7 +10,7 @@
 		"preview": "vite preview",
 		"icons": "bun run scripts/build-icons.ts",
 		"prepare": "svelte-kit sync || echo ''",
-		"test": "bun run scripts/check-messages.ts",
+		"test": "bun run scripts/check-messages.ts && bun run scripts/check-icons.ts",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch"
 	},
@@ -36,7 +36,7 @@
 	"dependencies": {
 		"@facile/client": "github:FacileStudio/facile-client#v0.1.1",
 		"@facile/mise-en-scene": "github:FacileStudio/mise-en-scene#v0.2.2",
-		"@facile/muse": "github:FacileStudio/muse#v0.23.0",
+		"@facile/muse": "github:FacileStudio/muse#v0.24.0",
 		"iconify-icon": "^3.0.2",
 		"pdfjs-dist": "^6.5.438"
 	}

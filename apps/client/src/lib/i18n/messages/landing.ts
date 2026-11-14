@@ -3,75 +3,170 @@ import type { Row } from '../row';
 /** Strings of the public landing page. */
 export const landing = {
 	'landing.title': [
-		'Plume · Document signing on your own server',
-		'Plume · La signature de documents sur votre serveur',
-		'Plume · Firma de documentos en tu propio servidor',
-		'Plume · Dokumente signieren auf dem eigenen Server'
+		'Plume · Get your documents signed with one link',
+		'Plume · Faites signer vos documents en un lien',
+		'Plume · Haz firmar tus documentos con un enlace',
+		'Plume · Dokumente per Link unterschreiben lassen'
 	],
 	'landing.description': [
-		'Upload a PDF, place the fields and send the link. Plume returns the signed copy with its proof.',
-		"Importez un PDF, placez les champs et envoyez le lien. Plume vous rend la copie signée avec sa preuve.",
-		'Sube un PDF, coloca los campos y envía el enlace. Plume te devuelve la copia firmada con su prueba.',
-		'PDF hochladen, Felder platzieren, Link senden. Plume liefert die signierte Kopie samt Nachweis.'
+		'Send a PDF, your client signs from their phone, and you get the signed copy with its proof. Free to start.',
+		'Envoyez un PDF, votre client signe depuis son téléphone, et vous recevez la copie signée avec sa preuve. Gratuit pour commencer.',
+		'Envía un PDF, tu cliente firma desde su móvil y recibes la copia firmada con su prueba. Gratis para empezar.',
+		'Senden Sie ein PDF, Ihr Kunde unterschreibt am Handy, und Sie erhalten die unterschriebene Kopie samt Nachweis. Kostenlos starten.'
 	],
 	'landing.heroTitle': [
-		'Get your PDFs signed',
-		'Faites signer vos PDF',
-		'Haz firmar tus PDF',
-		'PDFs unterschreiben lassen'
+		'Get your documents signed with one link.',
+		'Faites signer vos documents en un lien.',
+		'Haz firmar tus documentos con un enlace.',
+		'Dokumente per Link unterschreiben lassen.'
 	],
 	'landing.heroText': [
-		'Upload a PDF, place the fields, send the link. You get back a signed copy.',
-		'Importez un PDF, placez les champs, envoyez le lien. Vous recevez la copie signée.',
-		'Sube un PDF, coloca los campos y envía el enlace. Recibes la copia firmada.',
-		'PDF hochladen, Felder platzieren, Link senden. Zurück kommt die signierte Kopie.'
+		'Send a PDF, your client signs from their phone, and you get the signed copy with its proof.',
+		'Envoyez un PDF, votre client signe depuis son téléphone, et vous recevez la copie signée avec sa preuve.',
+		'Envía un PDF, tu cliente firma desde su móvil y recibes la copia firmada con su prueba.',
+		'Senden Sie ein PDF, Ihr Kunde unterschreibt am Handy, und Sie erhalten die unterschriebene Kopie samt Nachweis.'
 	],
 	'landing.demo.label': [
-		'A signature field is placed on a contract, sent, then signed.',
-		'Un champ de signature est placé sur un contrat, envoyé, puis signé.',
-		'Se coloca un campo de firma en un contrato, se envía y se firma.',
-		'Ein Signaturfeld wird auf einen Vertrag gesetzt, versendet und unterschrieben.'
+		'A signature field is placed on a contract and sent. The client signs on their phone and the contract is completed.',
+		'Un champ de signature est placé sur un contrat, puis envoyé. Le client signe sur son téléphone et le contrat est terminé.',
+		'Se coloca un campo de firma en un contrato y se envía. El cliente firma en su móvil y el contrato queda completado.',
+		'Ein Signaturfeld wird auf einen Vertrag gesetzt und versendet. Der Kunde unterschreibt am Handy, der Vertrag ist abgeschlossen.'
 	],
-	'landing.demo.document': [
-		'Service agreement',
-		'Contrat de prestation',
-		'Contrato de servicios',
-		'Dienstleistungsvertrag'
+	'landing.demo.document': ['Service agreement', 'Contrat de prestation', 'Contrato de servicios', 'Dienstleistungsvertrag'],
+	'landing.cards.title': [
+		'From sending to the signed copy',
+		'De l’envoi à la copie signée',
+		'Del envío a la copia firmada',
+		'Vom Versand bis zur unterschriebenen Kopie'
+	],
+	'landing.card.order.title': [
+		'Several signers, in your order',
+		'Plusieurs signataires, dans votre ordre',
+		'Varios firmantes, en tu orden',
+		'Mehrere Unterzeichner, in Ihrer Reihenfolge'
+	],
+	'landing.card.order.text': [
+		'Each one gets the link in turn, and Plume reminds the late ones.',
+		'Chacun reçoit le lien à son tour, et Plume relance les retardataires.',
+		'Cada uno recibe el enlace por turno, y Plume avisa a los rezagados.',
+		'Jeder erhält den Link der Reihe nach, und Plume erinnert die Säumigen.'
+	],
+	'landing.card.proof.title': [
+		'A certificate with every signed PDF',
+		'Un certificat avec chaque PDF signé',
+		'Un certificado con cada PDF firmado',
+		'Ein Zertifikat zu jedem unterschriebenen PDF'
+	],
+	'landing.card.proof.text': [
+		'An audit trail comes with it, and anyone can check the document on the verify page.',
+		'Un journal d’audit l’accompagne, et chacun peut vérifier le document sur la page de vérification.',
+		'Lo acompaña un registro de auditoría, y cualquiera puede verificar el documento en la página de verificación.',
+		'Ein Prüfprotokoll liegt bei, und jeder kann das Dokument auf der Prüfseite kontrollieren.'
+	],
+	'landing.card.ardoise.title': [
+		'Your Ardoise contracts come back signed',
+		'Vos contrats Ardoise reviennent signés',
+		'Tus contratos de Ardoise vuelven firmados',
+		'Ihre Ardoise-Verträge kommen unterschrieben zurück'
+	],
+	'landing.card.ardoise.text': [
+		'Send a contract from Ardoise. Once it is signed, Ardoise knows and the copy is filed in Nuage.',
+		'Envoyez un contrat depuis Ardoise. Une fois signé, Ardoise le sait et la copie se range dans Nuage.',
+		'Envía un contrato desde Ardoise. Una vez firmado, Ardoise lo sabe y la copia se guarda en Nuage.',
+		'Senden Sie einen Vertrag aus Ardoise. Ist er unterschrieben, weiß Ardoise es und die Kopie landet in Nuage.'
+	],
+	'landing.demo.queued': ['Up next', 'À suivre', 'A continuación', 'Als Nächstes'],
+	'landing.demo.certificate': ['Certificate', 'Certificat', 'Certificado', 'Zertifikat'],
+	'landing.demo.audit': ['Audit trail', 'Journal d’audit', 'Registro de auditoría', 'Prüfprotokoll'],
+	'landing.demo.verified': ['Verified', 'Vérifié', 'Verificado', 'Geprüft'],
+	'landing.demo.sentFromArdoise': ['Sent for signature', 'Envoyé en signature', 'Enviado a firmar', 'Zur Unterschrift gesendet'],
+	'landing.features.title': [
+		'Everything a signature needs',
+		'Tout ce qu’il faut pour signer',
+		'Todo lo que necesita una firma',
+		'Alles, was eine Unterschrift braucht'
 	],
 	'landing.feature.fields.title': ['Fields on any page', 'Des champs sur chaque page', 'Campos en cualquier página', 'Felder auf jeder Seite'],
 	'landing.feature.fields.text': [
-		'Drop signature, text, date and checkbox fields where each signer needs them.',
-		'Posez signature, texte, date et case à cocher là où chaque signataire en a besoin.',
-		'Coloca firma, texto, fecha y casillas donde cada firmante los necesite.',
-		'Signatur-, Text-, Datums- und Kontrollkästchenfelder genau dort, wo jeder Unterzeichner sie braucht.'
+		'Signature, text, date and checkbox, where each signer needs them.',
+		'Signature, texte, date et case à cocher, là où chaque signataire en a besoin.',
+		'Firma, texto, fecha y casilla, donde cada firmante los necesite.',
+		'Unterschrift, Text, Datum und Kontrollkästchen, genau dort, wo sie gebraucht werden.'
 	],
-	'landing.feature.order.title': ['Signing order', 'Ordre de signature', 'Orden de firma', 'Reihenfolge'],
-	'landing.feature.order.text': [
-		'Signers sign in parallel or one after another, and Plume reminds the late ones.',
-		"Les signataires signent en parallèle ou l'un après l'autre, et Plume relance les retardataires.",
-		'Los firmantes firman en paralelo o uno tras otro, y Plume recuerda a los rezagados.',
-		'Parallel oder nacheinander unterschreiben, und Plume erinnert die Säumigen.'
+	'landing.feature.clients.title': ['Filed by client', 'Classé par client', 'Ordenado por cliente', 'Nach Kunden geordnet'],
+	'landing.feature.clients.text': [
+		'Find every document under the client who signed it.',
+		'Retrouvez chaque document sous le client qui l’a signé.',
+		'Encuentra cada documento bajo el cliente que lo firmó.',
+		'Jedes Dokument finden Sie beim Kunden, der es unterschrieben hat.'
 	],
-	'landing.feature.proof.title': ['Proof you can check', 'Une preuve vérifiable', 'Una prueba verificable', 'Prüfbarer Nachweis'],
-	'landing.feature.proof.text': [
-		'Each signed PDF comes with a certificate and an audit trail. Anyone can verify it by its hash.',
-		"Chaque PDF signé est livré avec un certificat et un journal d'audit. Tout le monde peut le vérifier par son empreinte.",
-		'Cada PDF firmado incluye un certificado y un registro de auditoría. Cualquiera puede verificarlo por su hash.',
-		'Jedes signierte PDF kommt mit Zertifikat und Prüfprotokoll. Jeder kann es über seinen Hash prüfen.'
+	'landing.feature.spaces.title': ['Shared with your team', 'Partagé avec votre équipe', 'Compartido con tu equipo', 'Mit Ihrem Team geteilt'],
+	'landing.feature.spaces.text': [
+		'A shared space lets your team send and follow the same documents.',
+		'Un espace partagé permet à votre équipe d’envoyer et de suivre les mêmes documents.',
+		'Un espacio compartido permite a tu equipo enviar y seguir los mismos documentos.',
+		'In einem geteilten Bereich versendet und verfolgt Ihr Team dieselben Dokumente.'
 	],
-	'landing.feature.hosted.title': ['Self-hosted', 'Auto-hébergé', 'Autoalojado', 'Selbst gehostet'],
-	'landing.feature.hosted.text': [
-		'Your PDFs stay on your server. No third-party signing service sees them.',
-		'Vos PDF restent sur votre serveur. Aucun service de signature tiers ne les voit.',
-		'Tus PDF se quedan en tu servidor. Ningún servicio de firma externo los ve.',
-		'Deine PDFs bleiben auf deinem Server. Kein fremder Signaturdienst sieht sie.'
+	'landing.with.ardoise': [
+		'Your Ardoise contracts go out for signature here.',
+		'Vos contrats Ardoise partent en signature ici.',
+		'Tus contratos de Ardoise se firman aquí.',
+		'Ihre Ardoise-Verträge werden hier unterschrieben.'
 	],
-	'landing.ctaTitle': ['Send your first document', 'Envoyez votre premier document', 'Envía tu primer documento', 'Sende dein erstes Dokument'],
+	'landing.with.nuage': [
+		'Every signed PDF is filed in Nuage.',
+		'Chaque PDF signé se range dans Nuage.',
+		'Cada PDF firmado se guarda en Nuage.',
+		'Jedes unterschriebene PDF landet in Nuage.'
+	],
+	'landing.with.bulle': [
+		'Reminds a signer, once you approve.',
+		'Relance un signataire, après votre accord.',
+		'Recuerda a un firmante, con tu permiso.',
+		'Erinnert Unterzeichner, nach Ihrer Freigabe.'
+	],
+	'landing.pricing': ['Pricing', 'Tarifs', 'Precios', 'Preise'],
+	'landing.plan.included': [
+		'Included in every plan, the free one too.',
+		'Inclus dans chaque offre, gratuite comprise.',
+		'Incluido en todos los planes, también el gratuito.',
+		'In jedem Tarif enthalten, auch im kostenlosen.'
+	],
+	'landing.ctaTitle': ['Send your first document', 'Envoyez votre premier document', 'Envía tu primer documento', 'Senden Sie Ihr erstes Dokument'],
 	'landing.ctaText': [
-		'Sign in with your Facile account.',
-		'Connectez-vous avec votre compte Facile.',
-		'Inicia sesión con tu cuenta de Facile.',
-		'Melde dich mit deinem Facile-Konto an.'
+		'A free Facile account is all you need.',
+		'Un compte Facile gratuit suffit.',
+		'Basta con una cuenta gratuita de Facile.',
+		'Ein kostenloses Facile-Konto genügt.'
 	],
-	'landing.pricing': ['Pricing', 'Tarifs', 'Precios', 'Preise']
+	'landing.dev.line': [
+		'Open source, and you can run it yourself.',
+		'Open source, et installable chez vous.',
+		'Código abierto, y puedes instalarlo tú mismo.',
+		'Open Source, auch selbst betreibbar.'
+	],
+	'landing.dev.api': [
+		'Create and send documents from your code with an API token.',
+		'Créez et envoyez des documents depuis votre code, avec un jeton d’API.',
+		'Crea y envía documentos desde tu código con un token de API.',
+		'Dokumente aus Ihrem Code erstellen und senden, mit einem API-Token.'
+	],
+	'landing.dev.webhooks': [
+		'A call to your URL when a document is signed, declined or archived.',
+		'Un appel vers votre URL quand un document est signé, refusé ou archivé.',
+		'Una llamada a tu URL cuando un documento se firma, se rechaza o se archiva.',
+		'Ein Aufruf Ihrer URL, wenn ein Dokument unterschrieben, abgelehnt oder archiviert wird.'
+	],
+	'landing.dev.mcp': [
+		'An MCP server at /mcp. Sending, reminding and deleting wait for your approval.',
+		'Un serveur MCP sur /mcp. Envoyer, relancer et supprimer attendent votre accord.',
+		'Un servidor MCP en /mcp. Enviar, recordar y eliminar esperan tu permiso.',
+		'Ein MCP-Server unter /mcp. Senden, Erinnern und Löschen warten auf Ihre Freigabe.'
+	],
+	'landing.dev.source': [
+		'The code of Plume, its API reference and its setup guide.',
+		'Le code de Plume, la référence de son API et son guide d’installation.',
+		'El código de Plume, la referencia de su API y su guía de instalación.',
+		'Der Code von Plume, die API-Referenz und die Installationsanleitung.'
+	]
 } satisfies Record<string, Row>;

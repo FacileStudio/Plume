@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Bar, grow } from '@facile/mise-en-scene';
+	import { Bar } from '@facile/mise-en-scene';
 	import { USER_COLORS } from '@facile/muse';
 	import { t } from '$lib/i18n/index.svelte';
 
@@ -25,8 +25,7 @@
 		</div>
 	{/if}
 	<div class="sd-slot">
-		{#if placed}
-			<div class="sd-field" style="--sd-signer: {USER_COLORS[0]}" in:grow={{ duration: 320 }}>
+		<div class="sd-field" class:sd-unplaced={!placed} style="--sd-signer: {USER_COLORS[0]}">
 				<svg class="sd-ink" class:sd-inked={inked} viewBox="0 0 180 44" aria-hidden="true">
 					<path
 						pathLength="1"
@@ -35,7 +34,6 @@
 				</svg>
 				<span class="sd-field-label" class:sd-gone={inked}>{t('field.type.signature')} · {signer}</span>
 			</div>
-		{/if}
 		<Bar w="38%" />
 	</div>
 </div>
@@ -89,6 +87,13 @@
 		background: color-mix(in oklab, var(--sd-signer) 24%, transparent);
 		font-size: 12px;
 		font-weight: 700;
+		transition:
+			opacity 0.3s ease,
+			transform 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+	}
+	.sd-unplaced {
+		opacity: 0;
+		transform: scale(0.92);
 	}
 	.sd-field-label {
 		transition: opacity 0.3s ease;
@@ -115,6 +120,7 @@
 	}
 	@media (prefers-reduced-motion: reduce) {
 		.sd-inked,
+		.sd-field,
 		.sd-field-label {
 			transition: none;
 		}
