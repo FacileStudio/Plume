@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.17.1 - 2026-11-14
+
+### Fixed
+
+- Landing: the For developers block has a "Self-host" button to the Suite self-hosting page (https://suite.facile.studio/auto-hebergement, or its en, es and de version).
+- Landing: the plan note "Included in every plan, the free one too." shows once under the pricing cards instead of on each card (muse v0.25.1).
+
+### Changed
+
+- The static title, meta description, link preview image and web manifest use the current copy ("Get your documents signed with one link."); the old ones still said "E-signatures without the bloat" and "legally binding".
+- build(client): muse v0.25.1.
+
 ## 0.17.0 - 2026-11-14
 
 ### Changed
