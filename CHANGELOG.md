@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.15.1 - 2026-11-14
+
+### Changed
+
+- muse v0.23.0: the landing footer is left-aligned on phones.
+- mise-en-scene v0.2.2: `vite dev` serves the landing without extra Vite config.
+
 ## 0.15.0 - 2026-11-14
 
 ### Added
