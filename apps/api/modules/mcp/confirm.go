@@ -12,23 +12,28 @@ import (
 )
 
 // The sensitive actions: sending a draft emails its signers, a reminder emails one
-// signer again, and deleting a document removes it and its file for good.
+// signer again, deleting a document removes it and its file for good, and deleting a
+// client or a draft's field removes it for good.
 const (
-	kindSend   = "send_document"
-	kindRemind = "remind_signer"
-	kindDelete = "delete_document"
+	kindSend         = "send_document"
+	kindRemind       = "remind_signer"
+	kindDelete       = "delete_document"
+	kindDeleteClient = "delete_client"
+	kindDeleteField  = "delete_field"
 )
 
-var errTarget = errors.NotFound("this action names no document or signer")
+var errTarget = errors.NotFound("this action names no document, signer, client or field")
 
 // kinds are the sensitive actions. Each fingerprint covers the target as it was when the
 // person was asked, so an edit in between closes the action instead of emailing or
 // deleting something the person did not see.
 func (t *toolset) kinds() map[string]mcpkit.Kind {
 	return map[string]mcpkit.Kind{
-		kindSend:   {Tool: toolSend, Fingerprint: t.sendFingerprint, Run: t.runSend},
-		kindRemind: {Tool: toolRemind, Fingerprint: t.remindFingerprint, Run: t.runRemind},
-		kindDelete: {Tool: toolDelete, Fingerprint: t.deleteFingerprint, Run: t.runDelete},
+		kindSend:         {Tool: toolSend, Fingerprint: t.sendFingerprint, Run: t.runSend},
+		kindRemind:       {Tool: toolRemind, Fingerprint: t.remindFingerprint, Run: t.runRemind},
+		kindDelete:       {Tool: toolDelete, Fingerprint: t.deleteFingerprint, Run: t.runDelete},
+		kindDeleteClient: {Tool: toolDeleteClient, Fingerprint: t.deleteClientFingerprint, Run: t.runDeleteClient},
+		kindDeleteField:  {Tool: toolDeleteField, Fingerprint: t.deleteFieldFingerprint, Run: t.runDeleteField},
 	}
 }
 

@@ -22,9 +22,12 @@ const (
 	toolDelete       = "plume_delete_document"
 	toolClients      = "plume_list_clients"
 	toolSaveClient   = "plume_save_client"
+	toolDeleteClient = "plume_delete_client"
+	toolDeleteField  = "plume_delete_field"
 	hintDocument     = "Call plume_list_documents for the ids of the documents you can reach."
 	hintSigner       = "Call plume_get_document for the ids of a document's signers."
 	hintClient       = "Call plume_list_clients for the ids of your clients."
+	hintField        = "Call plume_get_document for the ids of a draft's fields."
 	hintSpace        = "plume_list_documents lists the spaces you belong to."
 )
 
@@ -40,14 +43,11 @@ type toolset struct {
 // userOf reads the Plume user id from the verified token, refused the way RequireAuth
 // refuses it: a deleted account never acts.
 func (t *toolset) userOf(ctx context.Context, req *sdk.CallToolRequest) (int64, error) {
-	identity, ok := mcpauth.Identity(req.Extra.TokenInfo)
-	if !ok {
+	account, err := mcpauth.AccountExists(ctx, req.Extra.TokenInfo, t.Accounts.Identity)
+	if err != nil {
 		return 0, errNoCaller
 	}
-	if _, err := t.Accounts.Identity(ctx, identity.UserID); err != nil {
-		return 0, errNoCaller
-	}
-	return identity.UserID, nil
+	return account.UserID, nil
 }
 
 // id renders a numeric id the way Plume's services take it.

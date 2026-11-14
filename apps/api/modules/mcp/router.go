@@ -14,13 +14,9 @@ func RegisterRoutes(router chi.Router, service *Service) {
 }
 
 // RegisterPendingRoutes mounts the confirm page's API under /mcp/pending on the /api
-// router, for the signed-in person. A nil service, as in the docs test, still mounts the
-// routes.
+// router, behind requireAuth. A nil service, as in the docs test, still mounts the routes.
 func RegisterPendingRoutes(router chi.Router, service *Service, requireAuth func(http.Handler) http.Handler) {
-	router.Route("/mcp/pending", func(r chi.Router) {
-		r.Use(requireAuth)
-		service.pending().Routes(r)
-	})
+	service.pending().Mount(router, requireAuth)
 }
 
 // pending is the confirm page, nil on a nil service.

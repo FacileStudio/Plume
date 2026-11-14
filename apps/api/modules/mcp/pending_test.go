@@ -26,12 +26,34 @@ func TestPendingPageConfirmsOnlyFromTheSession(t *testing.T) {
 	if res := pageCall(t, http.MethodPost, base+"/"+actionID+"/confirm", f.users["owner"], "bulle"); res.StatusCode != http.StatusForbidden {
 		t.Fatalf("a delegated token must not confirm, got %d", res.StatusCode)
 	}
+	checkNotOwnSessionRefused(t, base+"/"+actionID+"/confirm", f.users["owner"])
 	if res := pageCall(t, http.MethodPost, base+"/"+actionID+"/confirm", f.users["stranger"], ""); res.StatusCode == http.StatusOK {
 		t.Fatal("a stranger must not confirm the owner's action")
 	}
 	res := pageCall(t, http.MethodPost, base+"/"+actionID+"/confirm", f.users["owner"], "")
 	if res.StatusCode != http.StatusOK || f.status(doc.Document.ID) != "pending" {
 		t.Fatalf("the person's session must send the draft, got %d and %s", res.StatusCode, f.status(doc.Document.ID))
+	}
+}
+
+// checkNotOwnSessionRefused refuses a confirm from the person's CLI or API token session
+// and from a browser cookie sent next to an Authorization header.
+func checkNotOwnSessionRefused(t *testing.T, url string, userID int64) {
+	t.Helper()
+	for name, header := range map[string][2]string{
+		"a CLI session":           {"X-Test-Session", "cli"},
+		"an Authorization header": {"Authorization", "Bearer token"},
+	} {
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, url, nil)
+		must(t, err)
+		req.Header.Set("X-Test-User", itoa(userID))
+		req.Header.Set(header[0], header[1])
+		res, err := http.DefaultClient.Do(req)
+		must(t, err)
+		res.Body.Close()
+		if res.StatusCode != http.StatusForbidden {
+			t.Fatalf("%s must not confirm, got %d", name, res.StatusCode)
+		}
 	}
 }
 

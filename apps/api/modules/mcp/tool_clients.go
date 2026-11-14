@@ -28,7 +28,7 @@ func (t *toolset) listClients(ctx context.Context, req *sdk.CallToolRequest, in 
 			kept = append(kept, c)
 		}
 	}
-	page, next, err := pageOf(kept, in.Cursor, clientPage)
+	page, next, err := mcpkit.Page(kept, in.Cursor, clientPage)
 	if err != nil {
 		return nil, clientsOutput{}, err
 	}

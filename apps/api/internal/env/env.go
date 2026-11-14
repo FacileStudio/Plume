@@ -3,11 +3,11 @@ package env
 import (
 	"github.com/FacileStudio/porte"
 
-	"crypto/sha256"
 	"fmt"
 	"strings"
 
 	troncenv "github.com/FacileStudio/tronc/env"
+	mcpkit "github.com/FacileStudio/tronc/mcp"
 )
 
 // OIDCConfig holds the OIDC provider settings loaded from the environment.
@@ -28,8 +28,7 @@ type OIDCConfig struct {
 // MCPStateKey derives the key that signs MCP confirmation state from the client
 // secret, which is secret, stable across restarts and set whenever OIDC is.
 func (o OIDCConfig) MCPStateKey() []byte {
-	sum := sha256.Sum256([]byte("plume-mcp-state:" + o.ClientSecret))
-	return sum[:]
+	return mcpkit.StateKey("plume", o.ClientSecret)
 }
 
 // NuageConfig holds the settings for archiving signed documents in Nuage.

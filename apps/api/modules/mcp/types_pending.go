@@ -7,6 +7,24 @@ type PendingItem struct {
 	mcpkit.PendingItem
 	Document *PendingDocument `json:"document,omitempty"`
 	Signer   *PendingSigner   `json:"signer,omitempty"`
+	Client   *PendingClient   `json:"client,omitempty"`
+	Field    *PendingField    `json:"field,omitempty"`
+}
+
+// PendingClient is the client a deletion targets, as it is now.
+type PendingClient struct {
+	ID      int64  `json:"id"`
+	Name    string `json:"name"`
+	Email   string `json:"email"`
+	Company string `json:"company"`
+}
+
+// PendingField is the draft field a deletion targets, as it is now.
+type PendingField struct {
+	ID    int64  `json:"id"`
+	Type  string `json:"type"`
+	Page  int    `json:"page"`
+	Label string `json:"label"`
 }
 
 // PendingDocument is the document an action targets, as it is now.
