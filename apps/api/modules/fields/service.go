@@ -3,6 +3,7 @@ package fields
 import (
 	"context"
 	stderrors "errors"
+	"net/http"
 	"strconv"
 
 	"github.com/FacileStudio/Plume/apps/api/modules/documents"
@@ -146,6 +147,30 @@ func (s *Service) Delete(ctx context.Context, ownerID string, docID string, fiel
 		return errors.Internal("failed to delete field", err)
 	}
 	return nil
+}
+
+// Find reads one field by id on a document ownerID can reach, the reach of the
+// document routes. A missing field and a field out of reach both answer "field
+// not found", so the answer never tells which field ids exist.
+func (s *Service) Find(ctx context.Context, ownerID string, fieldID int64) (*FieldResponse, error) {
+	var record schemas.Field
+	if err := s.orm.WithContext(ctx).Where("id = ?", fieldID).First(&record).Error; err != nil {
+		if stderrors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.NotFound("field not found")
+		}
+		return nil, errors.Internal("failed to read field", err)
+	}
+	if _, err := s.docService.Get(ctx, ownerID, strconv.FormatInt(record.DocumentID, 10)); err != nil {
+		return nil, hideReach(err)
+	}
+	return toFieldResponse(&record), nil
+}
+
+func hideReach(err error) error {
+	if status := errors.Status(err); status == http.StatusNotFound || status == http.StatusForbidden {
+		return errors.NotFound("field not found")
+	}
+	return err
 }
 
 func toFieldResponse(record *schemas.Field) *FieldResponse {

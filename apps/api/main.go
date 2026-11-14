@@ -44,6 +44,7 @@ import (
 	"github.com/FacileStudio/tronc/httpjson"
 	"github.com/FacileStudio/tronc/httpx"
 	"github.com/FacileStudio/tronc/logger"
+	mcpkit "github.com/FacileStudio/tronc/mcp"
 	troncmiddleware "github.com/FacileStudio/tronc/middleware"
 	"github.com/FacileStudio/tronc/migrate"
 	"github.com/FacileStudio/tronc/spa"
@@ -157,6 +158,9 @@ func run() error {
 	reminders.Start(shutdownSignal, svc.reminders, appLogger)
 	auth.StartSessionCleanup(shutdownSignal, svc.auth)
 	startRegistreSync(shutdownSignal, svc)
+	if svc.mcp != nil {
+		go mcpkit.KeepPruned(shutdownSignal, mcpkit.PostgresPending{DB: sqlDB}, 0, 0, appLogger)
+	}
 
 	serverErrCh := make(chan error, 1)
 	go func() {

@@ -48,7 +48,8 @@ func encoded(t testing.TB, pages int) string {
 }
 
 // requireTestSession stands in for porte on the confirm page: X-Test-User is the
-// signed-in user, and X-Test-Actor makes the request a delegated token.
+// signed-in user's browser session, X-Test-Actor makes the request a delegated token,
+// and X-Test-Session: cli a session a CLI or API token login minted.
 func requireTestSession(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		userID, err := strconv.ParseInt(r.Header.Get("X-Test-User"), 10, 64)
@@ -56,9 +57,12 @@ func requireTestSession(next http.Handler) http.Handler {
 			http.Error(w, "unauthenticated", http.StatusUnauthorized)
 			return
 		}
-		identity := porte.Identity{UserID: userID, SessionID: 1, Actor: r.Header.Get("X-Test-Actor")}
+		identity := porte.Identity{UserID: userID, SessionID: 1, BrowserSession: true, Actor: r.Header.Get("X-Test-Actor")}
 		if identity.Actor != "" {
-			identity.SessionID = 0
+			identity.SessionID, identity.BrowserSession = 0, false
+		}
+		if r.Header.Get("X-Test-Session") == "cli" {
+			identity.BrowserSession = false
 		}
 		next.ServeHTTP(w, r.WithContext(porte.WithIdentity(r.Context(), identity)))
 	})

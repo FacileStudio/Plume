@@ -25,7 +25,7 @@ type documentOut struct {
 	} `json:"signers"`
 }
 
-// TestMCPConformance runs tronc's conformance kit over the three confirmed tools.
+// TestMCPConformance runs tronc's conformance kit over the five confirmed tools.
 func TestMCPConformance(t *testing.T) {
 	f := newFixture(t)
 	mcptest.Run(t, mcptest.Config{
@@ -35,6 +35,8 @@ func TestMCPConformance(t *testing.T) {
 			{Tool: "plume_send_document", Setup: f.freshDraft},
 			{Tool: "plume_remind_signer", Setup: f.freshSigner},
 			{Tool: "plume_delete_document", Setup: f.freshDoomed},
+			{Tool: "plume_delete_client", Setup: f.freshClient},
+			{Tool: "plume_delete_field", Setup: f.freshField},
 		},
 	})
 }

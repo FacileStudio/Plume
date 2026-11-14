@@ -16,10 +16,16 @@
 		ondismiss: (action: PendingAction) => void;
 	} = $props();
 
-	const kind = $derived(
-		action.kind === 'send_document' ? 'send' : action.kind === 'remind_signer' ? 'remind' : 'delete'
-	);
-	const tone = $derived(kind === 'delete' ? 'danger' : kind === 'send' ? 'accent' : 'info');
+	const kinds = {
+		send_document: 'send',
+		remind_signer: 'remind',
+		delete_document: 'delete',
+		delete_client: 'deleteClient',
+		delete_field: 'deleteField'
+	} as const;
+	const kind = $derived(kinds[action.kind] ?? 'delete');
+	const destructive = $derived(kind === 'delete' || kind === 'deleteClient' || kind === 'deleteField');
+	const tone = $derived(destructive ? 'danger' : kind === 'send' ? 'accent' : 'info');
 	const doc = $derived(action.document);
 	const statusKey = $derived(
 		({ draft: 'status.draft', pending: 'status.pending', completed: 'status.completed', declined: 'status.declined' } as const)[
@@ -41,6 +47,8 @@
 	function note(): string {
 		if (kind === 'send') return t('pending.sendNote');
 		if (kind === 'remind') return t('pending.remindNote', { name: action.signer?.name ?? '' });
+		if (kind === 'deleteClient') return t('pending.deleteClientNote');
+		if (kind === 'deleteField') return t('pending.deleteFieldNote');
 		return t('pending.deleteNote');
 	}
 </script>
@@ -60,6 +68,10 @@
 				<p class="break-words text-fc-md font-medium text-fc-fg">{doc.name}</p>
 				{#if action.signer}
 					<p class="break-words text-fc-sm text-fc-fg-muted">{action.signer.name} · {action.signer.email}</p>
+				{:else if action.field}
+					<p class="break-words text-fc-sm text-fc-fg-muted">
+						{t('pending.fieldOnPage', { type: action.field.label || action.field.type, page: action.field.page })}
+					</p>
 				{:else}
 					{#each doc.signers as signer (signer)}
 						<p class="break-words text-fc-sm text-fc-fg-muted">{signer}</p>
@@ -67,6 +79,19 @@
 				{/if}
 			</div>
 			<Badge class="shrink-0 whitespace-nowrap">{t(statusKey)}</Badge>
+		</a>
+		<p class="text-fc-sm text-fc-fg-muted">{note()}</p>
+	{:else if action.client}
+		<a href={`/clients/${action.client.id}`} class="flex items-start gap-3 rounded-fc-md bg-fc-surface p-4">
+			<iconify-icon icon="solar:user-circle-linear" width="24" height="24" class="shrink-0 text-fc-fg-muted"></iconify-icon>
+			<div class="flex min-w-0 flex-1 flex-col gap-1">
+				<p class="break-words text-fc-md font-medium text-fc-fg">{action.client.name}</p>
+				{#if action.client.company || action.client.email}
+					<p class="break-words text-fc-sm text-fc-fg-muted">
+						{[action.client.company, action.client.email].filter(Boolean).join(' · ')}
+					</p>
+				{/if}
+			</div>
 		</a>
 		<p class="text-fc-sm text-fc-fg-muted">{note()}</p>
 	{:else}
@@ -85,10 +110,10 @@
 		</Button>
 		{#if action.state === 'ready'}
 			<Button
-				variant={kind === 'delete' ? 'danger' : 'primary'}
+				variant={destructive ? 'danger' : 'primary'}
 				class="w-full sm:w-auto [@media(pointer:coarse)]:h-11"
 				disabled={busy}
-				icon={kind === 'delete' ? icons.remove : icons.mail}
+				icon={destructive ? icons.remove : icons.mail}
 				onclick={() => onconfirm(action)}
 			>
 				{t(`pending.confirm.${kind}`)}

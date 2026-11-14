@@ -15,8 +15,6 @@ const (
 	statusSent     = "sent"
 	statusReminded = "reminded"
 	statusDeleted  = "deleted"
-	waiting        = "Nothing happened yet: your client cannot ask the user to confirm. Give the user confirm_url and " +
-		"ask them to confirm there. Do not call this tool again for the same target; the request stays open for 7 days."
 )
 
 var (
@@ -142,7 +140,7 @@ func (t *toolset) ask(ctx context.Context, req *sdk.CallToolRequest, q question)
 	if result != nil {
 		return result, actionOutput{}, nil
 	}
-	out.Status, out.ConfirmURL, out.Message = outcome.Status, outcome.ConfirmURL, waiting
+	out.Status, out.ConfirmURL, out.Message = outcome.Status, outcome.ConfirmURL, outcome.Message
 	return nil, out, nil
 }
 
@@ -157,19 +155,30 @@ func (t *toolset) resume(ctx context.Context, req *sdk.CallToolRequest, s sensit
 		return nil, actionOutput{}, mcpkit.Failure(err, s.retryHint)
 	}
 	if outcome.Status == mcpkit.StatusDeclined {
-		return nil, actionOutput{Status: mcpkit.StatusDeclined, Message: "The user declined. Nothing happened."}, nil
+		return nil, actionOutput{Status: mcpkit.StatusDeclined, Message: outcome.Message}, nil
 	}
 	_, targetID, _ := refOf(outcome.Action)
-	out := actionOutput{Status: s.done, Message: s.doneMessage}
-	if s.kind == kindRemind {
-		out.SignerID = targetID
-		return nil, out, nil
-	}
-	out.DocumentID = targetID
+	out := doneOutput(s, targetID)
 	if s.kind == kindSend {
 		if view, err := t.documentView(ctx, userID, targetID); err == nil {
 			out.Document = &view.Document
 		}
 	}
 	return nil, out, nil
+}
+
+// doneOutput is what the model reads once the action ran on targetID.
+func doneOutput(s sensitive, targetID int64) actionOutput {
+	out := actionOutput{Status: s.done, Message: s.doneMessage}
+	switch s.kind {
+	case kindRemind:
+		out.SignerID = targetID
+	case kindDeleteClient:
+		out.ClientID = targetID
+	case kindDeleteField:
+		out.FieldID = targetID
+	default:
+		out.DocumentID = targetID
+	}
+	return out
 }

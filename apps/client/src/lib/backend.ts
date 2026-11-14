@@ -207,7 +207,7 @@ export const api = {
 /** An action an AI client asked for, waiting on the confirm page. */
 export interface PendingAction {
 	id: string;
-	kind: 'send_document' | 'remind_signer' | 'delete_document';
+	kind: 'send_document' | 'remind_signer' | 'delete_document' | 'delete_client' | 'delete_field';
 	client_id: string;
 	summary: string;
 	created_at: string;
@@ -215,6 +215,8 @@ export interface PendingAction {
 	state: 'ready' | 'changed' | 'missing';
 	document?: { id: number; name: string; status: string; signers: string[] };
 	signer?: { id: number; name: string; email: string };
+	client?: { id: number; name: string; email: string; company: string };
+	field?: { id: number; type: string; page: number; label: string };
 }
 
 export interface SmtpConfig {

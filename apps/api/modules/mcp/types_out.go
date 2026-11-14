@@ -51,13 +51,24 @@ type signerOut struct {
 	LastRemindedAt *time.Time `json:"last_reminded_at,omitempty"`
 }
 
-// documentOutput is a document with its signers: plume_get_document's result and what
-// the tools that change a draft return.
+// fieldOut is one field placed on the document, for the signer who fills it.
+type fieldOut struct {
+	ID       int64  `json:"id"`
+	SignerID int64  `json:"signer_id"`
+	Type     string `json:"type"`
+	Page     int    `json:"page"`
+	Required bool   `json:"required"`
+	Label    string `json:"label,omitempty"`
+}
+
+// documentOutput is a document with its signers and fields: plume_get_document's result
+// and what the tools that change a draft return.
 type documentOutput struct {
 	Status   string      `json:"status,omitempty"`
 	Document documentOut `json:"document"`
 	Client   *clientOut  `json:"client,omitempty"`
 	Signers  []signerOut `json:"signers"`
+	Fields   []fieldOut  `json:"fields,omitempty"`
 }
 
 // signerOutput is plume_add_signer's and plume_remove_signer's result.
@@ -67,11 +78,13 @@ type signerOutput struct {
 	Signer     *signerOut `json:"signer,omitempty"`
 }
 
-// actionOutput is the result of a confirmed tool: send, remind or delete.
+// actionOutput is the result of a confirmed tool: send, remind or a delete.
 type actionOutput struct {
 	Status     string       `json:"status"`
 	DocumentID int64        `json:"document_id,omitempty"`
 	SignerID   int64        `json:"signer_id,omitempty"`
+	ClientID   int64        `json:"client_id,omitempty"`
+	FieldID    int64        `json:"field_id,omitempty"`
 	Document   *documentOut `json:"document,omitempty"`
 	ConfirmURL string       `json:"confirm_url,omitempty"`
 	Message    string       `json:"message,omitempty"`

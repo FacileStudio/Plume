@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Added
+
+- MCP: `plume_delete_client` and `plume_delete_field`, both confirmed like the other deletes. `plume_get_document` lists the document's fields with their ids. `docs/mcp.md` lists every tool and the ones left out on purpose (voiding a sent document, field placement, signer routes, settings, spaces).
+
+### Changed
+
+- tronc v0.23.1, porte v0.20.0, porte/mcpauth v0.3.0, porte/forfait v0.1.3. tronc v0.23.1 keeps one OAuth client from reusing a pending action another client opened.
+- The confirm page accepts only the person's own browser session (porte `mcpauth.RequireOwnSession`). A bearer, an API token, a CLI session or a cookie minted before this release gets 403, and `/pending` asks the person to sign in again in the browser. Everyone signs in once after the upgrade before confirming. Any other refusal shows the server's message.
+- `plume_delete_field` answers "field not found" for a field out of reach, as for a missing one, so it no longer tells which field ids exist.
+- MCP uses the kit's state key, account check, pager and waiting text, and prunes resolved and expired pending actions hourly.
+
 ## 0.15.1 - 2026-11-14
 
 ### Changed

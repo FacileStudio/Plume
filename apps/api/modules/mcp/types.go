@@ -53,6 +53,16 @@ type signerRef struct {
 	SignerID int64 `json:"signer_id" jsonschema:"a signer id from plume_get_document"`
 }
 
+// clientRef names one client.
+type clientRef struct {
+	ClientID int64 `json:"client_id" jsonschema:"a client id from plume_list_clients"`
+}
+
+// fieldRef names one field.
+type fieldRef struct {
+	FieldID int64 `json:"field_id" jsonschema:"a field id from the fields of plume_get_document"`
+}
+
 // clientsInput is plume_list_clients's input.
 type clientsInput struct {
 	Query  string `json:"query,omitempty" jsonschema:"keep clients whose name, company or email contains this, case ignored"`

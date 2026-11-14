@@ -33,7 +33,7 @@ func (t *toolset) listDocuments(ctx context.Context, req *sdk.CallToolRequest, i
 	if err != nil {
 		return nil, listOutput{}, err
 	}
-	page, next, err := pageOf(matching(all, in.Query), in.Cursor, documentPage)
+	page, next, err := mcpkit.Page(matching(all, in.Query), in.Cursor, documentPage)
 	if err != nil {
 		return nil, listOutput{}, err
 	}
@@ -109,6 +109,7 @@ func (t *toolset) documentView(ctx context.Context, userID, docID int64) (docume
 	for i, s := range list {
 		out.Signers[i] = signerOf(s, count)
 	}
+	out.Fields = fieldsOf(placed)
 	return out, nil
 }
 

@@ -6,9 +6,9 @@ import (
 
 // list is the curated tool set. Reads are open world: teammates and the people who sign
 // name the documents, signers and clients. Sending, reminding and deleting are the
-// sensitive tools.
+// sensitive tools. docs/mcp.md lists what is left out on purpose.
 func (t *toolset) list() []mcpkit.Tool {
-	return append(append(t.reads(), t.writes()...), t.sensitive()...)
+	return append(append(append(t.reads(), t.writes()...), t.sensitive()...), t.deletions()...)
 }
 
 // reads are the three read-only tools.
@@ -24,9 +24,9 @@ func (t *toolset) reads() []mcpkit.Tool {
 		}, t.listDocuments),
 		mcpkit.NewTool(mcpkit.ToolSpec{
 			Name: toolGet, Title: "Get a document",
-			Description: "Show one document with its client and its signers: name, email, role, status, order, how " +
-				"many fields each fills, and when they viewed, signed or were last reminded. Signing links are private " +
-				"to each signer and never returned.",
+			Description: "Show one document with its client, its signers (name, email, role, status, order, how " +
+				"many fields each fills, and when they viewed, signed or were last reminded) and its fields (id, " +
+				"signer, type, page). Signing links are private to each signer and never returned.",
 			Annotations: &mcpkit.Annotations{ReadOnly: true, Idempotent: true, OpenWorld: true},
 		}, t.getDocument),
 		mcpkit.NewTool(mcpkit.ToolSpec{
@@ -119,5 +119,25 @@ func (t *toolset) sensitive() []mcpkit.Tool {
 				"pending_confirmation and a confirm_url to give the user. Nothing is deleted before they confirm.",
 			Annotations: &mcpkit.Annotations{Destructive: true, Idempotent: true},
 		}, t.deleteDocument),
+	}
+}
+
+// deletions are the confirmed tools that remove a client or a draft's field.
+func (t *toolset) deletions() []mcpkit.Tool {
+	return []mcpkit.Tool{
+		mcpkit.NewTool(mcpkit.ToolSpec{
+			Name: toolDeleteClient, Title: "Delete a client",
+			Description: "Delete one of the user's clients for good. The documents filed under it stay, with no " +
+				"client. The user always confirms: in your client when it can ask, otherwise the result has status " +
+				"pending_confirmation and a confirm_url to give the user. Nothing is deleted before they confirm.",
+			Annotations: &mcpkit.Annotations{Destructive: true, Idempotent: true},
+		}, t.deleteClient),
+		mcpkit.NewTool(mcpkit.ToolSpec{
+			Name: toolDeleteField, Title: "Delete a field",
+			Description: "Delete one field, such as a signature box, from a draft; field ids are in " +
+				"plume_get_document. A document already sent keeps its fields. The user always confirms, as with " +
+				"plume_delete_client.",
+			Annotations: &mcpkit.Annotations{Destructive: true, Idempotent: true},
+		}, t.deleteField),
 	}
 }

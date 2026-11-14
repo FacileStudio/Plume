@@ -42,6 +42,15 @@ func fieldsPerSigner(list []fields.FieldResponse) map[int64]int {
 	return count
 }
 
+// fieldsOf renders the fields placed on a document.
+func fieldsOf(list []fields.FieldResponse) []fieldOut {
+	out := make([]fieldOut, len(list))
+	for i, f := range list {
+		out[i] = fieldOut{ID: f.ID, SignerID: f.SignerID, Type: f.FieldType, Page: f.Page, Required: f.Required, Label: f.Label}
+	}
+	return out
+}
+
 // clientOf renders one client, with long notes cut.
 func clientOf(c *clients.ClientResponse) clientOut {
 	notes, _ := mcpkit.Clip(c.Notes, notesLimit)
@@ -70,19 +79,4 @@ func contains(query string, values ...string) bool {
 		}
 	}
 	return false
-}
-
-// pageOf cuts one page of size items at the cursor's offset and returns the cursor of
-// the next page, empty on the last one.
-func pageOf[T any](items []T, cursor string, size int) ([]T, string, error) {
-	offset := 0
-	if err := mcpkit.DecodeCursor(cursor, &offset); err != nil || offset < 0 {
-		return nil, "", mcpkit.ErrCursor
-	}
-	offset = min(offset, len(items))
-	end := min(offset+size, len(items))
-	if end < len(items) {
-		return items[offset:end], mcpkit.EncodeCursor(end), nil
-	}
-	return items[offset:end], "", nil
 }
