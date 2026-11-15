@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- A completed document's signed PDF and `signed_hash` never change. The signed file is served whatever the file times say and is no longer re-rendered, and `signed_hash` is written once and never overwritten, so a volume restore that resets file times cannot invalidate copies already handed out. If the file is missing while a hash is stored, the download renders a new file, keeps the stored hash and logs an error with the document id.
+- A completed document's signed PDF and `signed_hash` never change. The signed file is created exactly once (a unique temporary render, hard-linked into place), so concurrent first downloads and the Nuage publish job agree on the same bytes and the hash. It is then served whatever the file times say and is never re-rendered or deleted by a later signature. `signed_hash` is written once and never overwritten. A pending document's download now renders to `<name>_pending.pdf`, so it can never become the final file. If the file is missing while a hash is stored, the download renders a new file, keeps the stored hash and logs an error with the document id. A stale `_signed.pdf` left by an older release on a pending document is removed once, when the document completes.
 - Signing and declining are atomic. One transaction claims the signer with a conditional update, writes the field values and sets the document status, so two requests with the same signing link can no longer both succeed or overwrite each other's values. The loser gets "already signed or declined".
 
 ### Security

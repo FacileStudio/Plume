@@ -5,9 +5,11 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/FacileStudio/Plume/apps/api/internal/hashing"
 	"github.com/FacileStudio/Plume/apps/api/modules/smtp"
 	"github.com/FacileStudio/Plume/apps/api/modules/webhooks"
 	"github.com/FacileStudio/Plume/apps/api/schemas"
@@ -92,5 +94,109 @@ func TestCompletedMissingSignedFileKeepsStoredHash(t *testing.T) {
 	}
 	if got := storedHash(t, id); got != "recorded-proof" {
 		t.Fatalf("stored hash overwritten: %s", got)
+	}
+}
+
+func TestConcurrentFirstRendersOfACompletedDocumentAgree(t *testing.T) {
+	svc, id, signedPath := completedDocument(t)
+	ctx := context.Background()
+
+	const callers = 10
+	var wg sync.WaitGroup
+	start := make(chan struct{})
+	failures := make(chan error, callers)
+	for i := 0; i < callers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, err := svc.GetFilePathByDocID(ctx, id)
+			failures <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(failures)
+	for err := range failures {
+		if err != nil {
+			t.Fatalf("fetch: %v", err)
+		}
+	}
+
+	onDisk, err := hashing.SHA256File(signedPath)
+	if err != nil {
+		t.Fatalf("hash signed file: %v", err)
+	}
+	if got := storedHash(t, id); got != onDisk {
+		t.Fatalf("signed_hash %s does not match the file on disk %s", got, onDisk)
+	}
+	leftovers, _ := filepath.Glob(filepath.Join(filepath.Dir(signedPath), "*.tmp"))
+	if len(leftovers) != 0 {
+		t.Fatalf("temporary renders left behind: %v", leftovers)
+	}
+}
+
+func TestPendingRenderNeverWritesTheSignedPath(t *testing.T) {
+	svc, id, signedPath := completedDocument(t)
+	if err := testDB.Model(&schemas.Document{}).Where("id = ?", id).Update("status", "pending").Error; err != nil {
+		t.Fatalf("set pending: %v", err)
+	}
+	path, err := svc.GetFilePathByDocID(context.Background(), id)
+	if err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	if path == signedPath {
+		t.Fatal("a pending document was served from the signed path")
+	}
+	if _, err := os.Stat(signedPath); !os.IsNotExist(err) {
+		t.Fatalf("pending render created the signed file: %v", err)
+	}
+	if got := storedHash(t, id); got != "" {
+		t.Fatalf("pending render recorded a hash: %s", got)
+	}
+}
+
+func TestSignatureInvalidationLeavesACompletedFileAlone(t *testing.T) {
+	svc, id, signedPath := completedDocument(t)
+	ctx := context.Background()
+	if _, err := svc.GetFilePathByDocID(ctx, id); err != nil {
+		t.Fatalf("fetch: %v", err)
+	}
+	before, _ := os.ReadFile(signedPath)
+	hash := storedHash(t, id)
+
+	svc.InvalidateGeneratedFiles(ctx, id)
+
+	after, err := os.ReadFile(signedPath)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("signed file changed or vanished: %v", err)
+	}
+	if got := storedHash(t, id); got != hash || hash == "" {
+		t.Fatalf("signed_hash = %q, want %q", got, hash)
+	}
+}
+
+func TestDroppingTheLegacySignedFileHonoursTheHash(t *testing.T) {
+	svc, id, signedPath := completedDocument(t)
+	if err := os.WriteFile(signedPath, []byte("stale"), 0o600); err != nil {
+		t.Fatalf("write legacy: %v", err)
+	}
+	if err := testDB.Model(&schemas.Document{}).Where("id = ?", id).Update("signed_hash", "proof").Error; err != nil {
+		t.Fatalf("seed hash: %v", err)
+	}
+	if err := svc.DropLegacySignedFile(testDB, id); err != nil {
+		t.Fatalf("drop: %v", err)
+	}
+	if _, err := os.Stat(signedPath); err != nil {
+		t.Fatal("a file with a recorded hash was dropped")
+	}
+	if err := testDB.Model(&schemas.Document{}).Where("id = ?", id).Update("signed_hash", "").Error; err != nil {
+		t.Fatalf("clear hash: %v", err)
+	}
+	if err := svc.DropLegacySignedFile(testDB, id); err != nil {
+		t.Fatalf("drop: %v", err)
+	}
+	if _, err := os.Stat(signedPath); !os.IsNotExist(err) {
+		t.Fatal("the legacy file was not dropped")
 	}
 }

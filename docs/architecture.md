@@ -125,14 +125,20 @@ Document status moves `draft` → `pending` → `completed` or `declined`.
    `pdfutil.FlattenFields` builds a transparent overlay PDF with `fpdf` at 1:1 page
    dimensions and applies it to the original as a pdfcpu watermark. pdfcpu does the merge
    because it reads arbitrary real-world PDFs, which fpdf's page importer does not. The
-   stamped file is cached next to the original. While the document is `pending` the cache is
-   regenerated whenever the original is newer. Once the document is `completed` the signed
-   file is frozen: it is served whatever the file times say and never re-rendered, because
-   rendering is not reproducible and a new render would change the hash of every copy
-   already handed out. `signed_hash` is written once, when the document is `completed` and
-   the column is empty, and never overwritten. If the file is missing while `signed_hash`
-   is set, the download renders a new file, keeps the stored hash and logs an error with
-   the document id.
+   stamped file is cached next to the original, in one of two places. While the document is not
+   `completed`, a throwaway rendering goes to `<name>_pending.pdf`. It is regenerated whenever
+   the original is newer, removed on every signature, and never hashed. Once the document is
+   `completed`, the signed file `<name>_signed.pdf` is created exactly once: the first render
+   goes to a unique temporary file and is hard-linked into place, which fails if the target
+   exists, so concurrent downloads and the Nuage publish job, on any replica sharing the
+   volume, end up with the same bytes. After that it is frozen. It is served whatever the file
+   times say, never re-rendered and never deleted by a signature. Rendering is not
+   reproducible, and a new render would change the hash of every copy already handed out.
+   `signed_hash` is the SHA-256 of that file, written once while the column is empty and never
+   overwritten. If the file is missing while `signed_hash` is set, the download renders a new
+   file, keeps the stored hash and logs an error with the document id. A `_signed.pdf` that an
+   older release left beside a still-pending document is removed once, inside the transaction
+   that completes it, while `signed_hash` is empty.
 6. **Attest.** `GET /api/documents/{id}/certificate` and
    `GET /api/documents/{id}/audit-trail` generate two more PDFs on first request and cache
    them next to the document. Editing a document invalidates both.
