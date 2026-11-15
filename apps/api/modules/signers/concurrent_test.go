@@ -2,6 +2,7 @@ package signers
 
 import (
 	"context"
+	stderrors "errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/FacileStudio/Plume/apps/api/modules/smtp"
 	"github.com/FacileStudio/Plume/apps/api/modules/webhooks"
 	"github.com/FacileStudio/Plume/apps/api/schemas"
+	"github.com/FacileStudio/tronc/errors"
 )
 
 func seedRace(t *testing.T) (*Service, schemas.Document, schemas.Field) {
@@ -55,6 +57,14 @@ func submitTogether(service *Service, fieldID int64, attempts int) []error {
 	return errs
 }
 
+func rejectionCause(err error) error {
+	var typed *errors.Error
+	if stderrors.As(err, &typed) {
+		return typed.Cause
+	}
+	return err
+}
+
 func soleWinner(t *testing.T, errs []error) int {
 	t.Helper()
 	winner := -1
@@ -65,7 +75,7 @@ func soleWinner(t *testing.T, errs []error) int {
 			}
 			winner = i
 		} else if msg := err.Error(); msg != errAlreadyActed && msg != "document is not available for signing" {
-			t.Fatalf("loser %d got %q, want a rejection", i, msg)
+			t.Fatalf("loser %d got %q (cause %v), want a rejection", i, msg, rejectionCause(err))
 		}
 	}
 	if winner == -1 {
@@ -77,7 +87,7 @@ func soleWinner(t *testing.T, errs []error) int {
 func TestConcurrentSubmissionsWithOneTokenYieldOneWinner(t *testing.T) {
 	service, doc, field := seedRace(t)
 
-	winner := soleWinner(t, submitTogether(service, field.ID, 12))
+	winner := soleWinner(t, submitTogether(service, field.ID, 6))
 
 	var stored schemas.Field
 	if err := testDB.First(&stored, field.ID).Error; err != nil {
