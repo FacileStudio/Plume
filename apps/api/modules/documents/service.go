@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	stderrors "errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -110,30 +111,53 @@ func (s *Service) resolveFilePath(ctx context.Context, record *schemas.Document)
 	return originalPath, nil
 }
 
-// getOrCreateSignedFile returns a path to a signed rendering of doc,
-// regenerating it if stale or absent. signed_hash is the fingerprint of the
-// final, fully-signed document used by verification, so it is only persisted
-// once the document is completed: a pending document may still be stamped
-// for download, but its intermediate hash must not be recorded as the
-// authoritative one.
+// getOrCreateSignedFile returns a path to a signed rendering of doc. A
+// pending document is re-rendered whenever the cache is stale or absent and
+// never records a hash, because its intermediate hash is not the
+// authoritative one. A completed document is frozen: see completedSignedFile.
 func (s *Service) getOrCreateSignedFile(ctx context.Context, doc *schemas.Document, originalPath string) (string, error) {
 	signedPath := signedFilePath(originalPath)
-
-	finalized := doc.Status == "completed"
+	if doc.Status == "completed" {
+		return s.completedSignedFile(ctx, doc, originalPath, signedPath)
+	}
 
 	if signedInfo, err := os.Stat(signedPath); err == nil {
 		if origInfo, origErr := os.Stat(originalPath); origErr == nil && signedInfo.ModTime().After(origInfo.ModTime()) {
-			if finalized {
-				s.fillSignedHash(ctx, doc, signedPath)
-			}
 			return signedPath, nil
 		}
 		_ = os.Remove(signedPath)
 	}
+	if err := s.renderSignedFile(ctx, doc, originalPath, signedPath); err != nil {
+		return "", err
+	}
+	return signedPath, nil
+}
 
+// completedSignedFile serves the signed file of a completed document. The
+// file on disk is the proof every distributed copy is checked against, so it
+// is served whatever the mtimes say and never deleted or re-rendered. Only a
+// missing file is rendered again, so the download keeps working; the stored
+// hash stays untouched and the mismatch is logged.
+func (s *Service) completedSignedFile(ctx context.Context, doc *schemas.Document, originalPath string, signedPath string) (string, error) {
+	if _, err := os.Stat(signedPath); err == nil {
+		s.fillSignedHash(ctx, doc, signedPath)
+		return signedPath, nil
+	}
+	if doc.SignedHash != "" {
+		slog.Error("signed file of a completed document is missing, rendering a new one that will not match the stored signed_hash",
+			slog.Int64("document_id", doc.ID))
+	}
+	if err := s.renderSignedFile(ctx, doc, originalPath, signedPath); err != nil {
+		return "", err
+	}
+	s.fillSignedHash(ctx, doc, signedPath)
+	return signedPath, nil
+}
+
+func (s *Service) renderSignedFile(ctx context.Context, doc *schemas.Document, originalPath string, signedPath string) error {
 	var fields []schemas.Field
 	if err := s.orm.WithContext(ctx).Where("document_id = ? AND value != ''", doc.ID).Find(&fields).Error; err != nil {
-		return "", errors.Internal("failed to load fields", err)
+		return errors.Internal("failed to load fields", err)
 	}
 
 	overlays := make([]pdfutil.FieldOverlay, len(fields))
@@ -151,23 +175,23 @@ func (s *Service) getOrCreateSignedFile(ctx context.Context, doc *schemas.Docume
 
 	if err := pdfutil.FlattenFields(originalPath, signedPath, overlays); err != nil {
 		_ = os.Remove(signedPath)
-		return "", errors.Internal("failed to generate signed document", err)
+		return errors.Internal("failed to generate signed document", err)
 	}
-	if finalized {
-		s.fillSignedHash(ctx, doc, signedPath)
-	}
-	return signedPath, nil
+	return nil
 }
 
+// fillSignedHash records the hash of a completed document's signed file once.
+// It writes only while signed_hash is empty and never overwrites a value.
 func (s *Service) fillSignedHash(ctx context.Context, doc *schemas.Document, signedPath string) {
+	if doc.SignedHash != "" {
+		return
+	}
 	hash, err := hashing.SHA256File(signedPath)
 	if err != nil {
 		return
 	}
-	if doc.SignedHash == hash {
-		return
-	}
-	if err := s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("id = ?", doc.ID).Update("signed_hash", hash).Error; err != nil {
+	res := s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("id = ? AND signed_hash = ''", doc.ID).Update("signed_hash", hash)
+	if res.Error != nil || res.RowsAffected == 0 {
 		return
 	}
 	doc.SignedHash = hash
