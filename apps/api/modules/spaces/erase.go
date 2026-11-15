@@ -170,7 +170,7 @@ func (d *Deletions) removeFiles(erased erasedFiles) {
 	for i, id := range erased.documentIDs {
 		if stored := erased.storagePath[i]; stored != "" {
 			original := filepath.Join(d.uploadDir, filepath.Clean("/"+stored))
-			paths = append(paths, original, strings.TrimSuffix(original, ".pdf")+"_signed.pdf")
+			paths = append(paths, original, strings.TrimSuffix(original, ".pdf")+"_signed.pdf", strings.TrimSuffix(original, ".pdf")+"_pending.pdf")
 		}
 		paths = append(paths,
 			filepath.Join(d.uploadDir, "audit", fmt.Sprintf("audit_%d.pdf", id)),

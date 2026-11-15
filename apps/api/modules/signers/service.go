@@ -454,7 +454,10 @@ func (s *Service) recordSignature(ctx context.Context, doc *schemas.Document, si
 		}
 		var err error
 		pendingCount, err = completeIfLast(tx, doc.ID)
-		return err
+		if err != nil || pendingCount > 0 {
+			return err
+		}
+		return s.docService.DropLegacySignedFile(tx, doc.ID)
 	})
 	return pendingCount, err
 }

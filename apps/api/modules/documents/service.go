@@ -112,32 +112,34 @@ func (s *Service) resolveFilePath(ctx context.Context, record *schemas.Document)
 }
 
 // getOrCreateSignedFile returns a path to a signed rendering of doc. A
-// pending document is re-rendered whenever the cache is stale or absent and
-// never records a hash, because its intermediate hash is not the
-// authoritative one. A completed document is frozen: see completedSignedFile.
+// pending document gets its own throwaway rendering at pendingFilePath, which
+// is re-rendered whenever it is stale or absent and never recorded. Only a
+// completed document uses the signed path, and it is frozen: see
+// completedSignedFile.
 func (s *Service) getOrCreateSignedFile(ctx context.Context, doc *schemas.Document, originalPath string) (string, error) {
-	signedPath := signedFilePath(originalPath)
 	if doc.Status == "completed" {
-		return s.completedSignedFile(ctx, doc, originalPath, signedPath)
+		return s.completedSignedFile(ctx, doc, originalPath, signedFilePath(originalPath))
 	}
 
-	if signedInfo, err := os.Stat(signedPath); err == nil {
-		if origInfo, origErr := os.Stat(originalPath); origErr == nil && signedInfo.ModTime().After(origInfo.ModTime()) {
-			return signedPath, nil
+	pendingPath := pendingFilePath(originalPath)
+	if pendingInfo, err := os.Stat(pendingPath); err == nil {
+		if origInfo, origErr := os.Stat(originalPath); origErr == nil && pendingInfo.ModTime().After(origInfo.ModTime()) {
+			return pendingPath, nil
 		}
-		_ = os.Remove(signedPath)
+		_ = os.Remove(pendingPath)
 	}
-	if err := s.renderSignedFile(ctx, doc, originalPath, signedPath); err != nil {
+	if err := s.renderSignedFile(ctx, doc, originalPath, pendingPath); err != nil {
 		return "", err
 	}
-	return signedPath, nil
+	return pendingPath, nil
 }
 
 // completedSignedFile serves the signed file of a completed document. The
 // file on disk is the proof every distributed copy is checked against, so it
 // is served whatever the mtimes say and never deleted or re-rendered. Only a
-// missing file is rendered again, so the download keeps working; the stored
-// hash stays untouched and the mismatch is logged.
+// missing file is rendered again, once, through publishSignedFile, so the
+// download keeps working; the stored hash stays untouched and the mismatch is
+// logged.
 func (s *Service) completedSignedFile(ctx context.Context, doc *schemas.Document, originalPath string, signedPath string) (string, error) {
 	if _, err := os.Stat(signedPath); err == nil {
 		s.fillSignedHash(ctx, doc, signedPath)
@@ -147,11 +149,33 @@ func (s *Service) completedSignedFile(ctx context.Context, doc *schemas.Document
 		slog.Error("signed file of a completed document is missing, rendering a new one that will not match the stored signed_hash",
 			slog.Int64("document_id", doc.ID))
 	}
-	if err := s.renderSignedFile(ctx, doc, originalPath, signedPath); err != nil {
+	if err := s.publishSignedFile(ctx, doc, originalPath, signedPath); err != nil {
 		return "", err
 	}
 	s.fillSignedHash(ctx, doc, signedPath)
 	return signedPath, nil
+}
+
+// publishSignedFile renders to a unique temporary file beside signedPath and
+// links it into place. A hard link fails when the target exists, which makes
+// the creation atomic across goroutines and replicas on a shared volume: the
+// first render wins, every other one is dropped, and the file at signedPath is
+// never replaced. An existing target counts as success.
+func (s *Service) publishSignedFile(ctx context.Context, doc *schemas.Document, originalPath string, signedPath string) error {
+	suffix := make([]byte, 8)
+	if _, err := rand.Read(suffix); err != nil {
+		return errors.Internal("failed to generate signed document", err)
+	}
+	tmpPath := signedPath + "." + hex.EncodeToString(suffix) + ".tmp"
+	defer os.Remove(tmpPath)
+
+	if err := s.renderSignedFile(ctx, doc, originalPath, tmpPath); err != nil {
+		return err
+	}
+	if err := os.Link(tmpPath, signedPath); err != nil && !stderrors.Is(err, os.ErrExist) {
+		return errors.Internal("failed to store signed document", err)
+	}
+	return nil
 }
 
 func (s *Service) renderSignedFile(ctx context.Context, doc *schemas.Document, originalPath string, signedPath string) error {
@@ -201,21 +225,46 @@ func signedFilePath(originalPath string) string {
 	return strings.TrimSuffix(originalPath, ".pdf") + "_signed.pdf"
 }
 
-// InvalidateGeneratedFiles removes cached derived PDFs (flattened signed file,
-// audit trail, certificate) so subsequent downloads regenerate them from the
-// latest field values and signer state. Safe to call when no cache exists.
+// pendingFilePath is where the throwaway rendering of a document that is not
+// completed lives, apart from the signed path a completed document owns.
+func pendingFilePath(originalPath string) string {
+	return strings.TrimSuffix(originalPath, ".pdf") + "_pending.pdf"
+}
+
+// DropLegacySignedFile removes a stale signed file that an earlier release
+// left beside a document that was still pending. The request that completes
+// the document calls it inside its transaction, before the document becomes
+// completed and anything can render or publish the final file, and it does
+// nothing once a signed_hash exists.
+func (s *Service) DropLegacySignedFile(tx *gorm.DB, docID int64) error {
+	var record schemas.Document
+	if err := tx.Select("id", "storage_path", "signed_hash").First(&record, docID).Error; err != nil {
+		return errors.Internal("failed to read document", err)
+	}
+	if record.SignedHash != "" || record.StoragePath == "" {
+		return nil
+	}
+	if err := os.Remove(signedFilePath(filepath.Join(s.uploadDir, record.StoragePath))); err != nil && !stderrors.Is(err, os.ErrNotExist) {
+		return errors.Internal("failed to drop the stale signed file", err)
+	}
+	return nil
+}
+
+// InvalidateGeneratedFiles removes the cached derived PDFs that depend on
+// signer state (the pending rendering, audit trail, certificate) so
+// subsequent downloads regenerate them. It never touches the signed file or
+// signed_hash of a completed document: that file is the proof, and a late
+// call from a slower signature request must not undo it. Safe to call when no
+// cache exists.
 func (s *Service) InvalidateGeneratedFiles(ctx context.Context, docID int64) {
 	record, err := s.FindByID(ctx, docID)
 	if err != nil || record.StoragePath == "" {
 		return
 	}
 	originalPath := filepath.Join(s.uploadDir, record.StoragePath)
-	_ = os.Remove(signedFilePath(originalPath))
+	_ = os.Remove(pendingFilePath(originalPath))
 	_ = os.Remove(filepath.Join(s.uploadDir, "audit", fmt.Sprintf("audit_%d.pdf", docID)))
 	_ = os.Remove(filepath.Join(s.uploadDir, "certificates", fmt.Sprintf("cert_%d.pdf", docID)))
-	if record.SignedHash != "" {
-		s.orm.WithContext(ctx).Model(&schemas.Document{}).Where("id = ?", docID).Update("signed_hash", "")
-	}
 }
 
 func (s *Service) List(ctx context.Context, ownerID string, status string, spaceID string, clientID string) ([]DocumentResponse, error) {
@@ -297,6 +346,7 @@ func (s *Service) Delete(ctx context.Context, ownerID string, docID string) erro
 		fullPath := filepath.Join(s.uploadDir, record.StoragePath)
 		os.Remove(fullPath)
 		os.Remove(signedFilePath(fullPath))
+		os.Remove(pendingFilePath(fullPath))
 	}
 	if err := s.orm.WithContext(ctx).Delete(record).Error; err != nil {
 		return errors.Internal("failed to delete document", err)
