@@ -116,6 +116,11 @@ Document status moves `draft` → `pending` → `completed` or `declined`.
 4. **Sign.** The signer opens `/share/<token>`, which reads
    `GET /api/sign/{token}` and `GET /api/sign/{token}/file`. Submitting posts field values
    and a signature image data URL to `POST /api/sign/{token}`, recording IP and user agent.
+   Signing and declining are atomic. One transaction locks the document row, claims the
+   signer with `UPDATE signers ... WHERE id = ? AND status = 'pending'`, writes the field
+   values and sets the document status. A second request with the same token claims
+   nothing, gets "already signed or declined", and writes nothing. Webhooks, emails, the
+   Nuage upload and cache invalidation run only after the commit.
 5. **Flatten.** Stamping happens lazily, when someone downloads the file.
    `pdfutil.FlattenFields` builds a transparent overlay PDF with `fpdf` at 1:1 page
    dimensions and applies it to the original as a pdfcpu watermark. pdfcpu does the merge

@@ -15,6 +15,7 @@ import (
 	"github.com/FacileStudio/tronc/errors"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 var validRoles = map[string]bool{
@@ -327,76 +328,178 @@ func (s *Service) MarkEmailOpened(ctx context.Context, token string) {
 	go s.webhookSvc.Dispatch(doc.OwnerID, webhooks.BuildSignerEvent(webhooks.EventSignerEmailOpened, doc, &signer, s.domain))
 }
 
-func (s *Service) SubmitSignature(ctx context.Context, token string, req *SubmitSignatureRequest, ipAddress string, userAgent string) error {
+// loadActionableSigner reads the signer behind token and checks everything
+// that must hold before it may sign or decline: the role, its own status, the
+// document being pending and, for a sequential document, its turn. It writes
+// nothing.
+func (s *Service) loadActionableSigner(ctx context.Context, token string, viewerMessage string) (schemas.Signer, *schemas.Document, error) {
 	var signer schemas.Signer
 	err := s.orm.WithContext(ctx).Where("token = ?", token).First(&signer).Error
 	if stderrors.Is(err, gorm.ErrRecordNotFound) {
-		return errors.NotFound("invalid signing link")
+		return signer, nil, errors.NotFound("invalid signing link")
 	}
 	if err != nil {
-		return errors.Internal("failed to read signer", err)
+		return signer, nil, errors.Internal("failed to read signer", err)
 	}
 	if signer.Role == "viewer" {
-		return errors.Invalid("viewers cannot sign this document")
+		return signer, nil, errors.Invalid(viewerMessage)
 	}
 	if signer.Status != "pending" {
-		return errors.Invalid("already signed or declined")
+		return signer, nil, errors.Invalid(errAlreadyActed)
 	}
 
 	doc, err := s.docService.FindByID(ctx, signer.DocumentID)
 	if err != nil {
-		return err
+		return signer, nil, err
 	}
 	if doc.Status != "pending" {
+		return signer, nil, errors.Invalid("document is not available for signing")
+	}
+	if err := s.ensureSignersTurn(ctx, doc, signer); err != nil {
+		return signer, nil, err
+	}
+	return signer, doc, nil
+}
+
+const errAlreadyActed = "already signed or declined"
+
+// lockDocument takes the document row lock for the rest of tx, so signers of
+// one document are serialized and a decline cannot interleave with a
+// completion.
+func lockDocument(tx *gorm.DB, docID int64) error {
+	var status string
+	err := tx.Model(&schemas.Document{}).Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", docID).Select("status").Scan(&status).Error
+	if err != nil {
+		return errors.Internal("failed to lock document", err)
+	}
+	return nil
+}
+
+type clientInfo struct {
+	ip        string
+	userAgent string
+}
+
+// claimSigner moves signer from pending to status with a conditional update,
+// then checks the document is still pending. It fails with the "already
+// signed or declined" error when another request got there first, and fills
+// signer in memory on success. The caller rolls back on any error.
+func claimSigner(tx *gorm.DB, docID int64, signer *schemas.Signer, status string, client clientInfo) error {
+	now := time.Now().UTC()
+	res := tx.Model(&schemas.Signer{}).Where("id = ? AND status = ?", signer.ID, "pending").Updates(map[string]any{
+		"status":     status,
+		"signed_at":  now,
+		"ip_address": client.ip,
+		"user_agent": client.userAgent,
+	})
+	if res.Error != nil {
+		return errors.Internal("failed to update signer status", res.Error)
+	}
+	if res.RowsAffected == 0 {
+		return errors.Invalid(errAlreadyActed)
+	}
+	var docStatus string
+	if err := tx.Model(&schemas.Document{}).Where("id = ?", docID).Select("status").Scan(&docStatus).Error; err != nil {
+		return errors.Internal("failed to read document", err)
+	}
+	if docStatus != "pending" {
 		return errors.Invalid("document is not available for signing")
 	}
+	signer.Status = status
+	signer.SignedAt = &now
+	signer.IPAddress = client.ip
+	signer.UserAgent = client.userAgent
+	return nil
+}
 
-	if err := s.ensureSignersTurn(ctx, doc, signer); err != nil {
-		return err
+func writeFieldValues(tx *gorm.DB, signerID int64, values []FieldValue) error {
+	for _, fv := range values {
+		if err := tx.Model(&schemas.Field{}).Where("id = ? AND signer_id = ?", fv.FieldID, signerID).Update("value", fv.Value).Error; err != nil {
+			return errors.Internal("failed to save field value", err)
+		}
 	}
+	return nil
+}
 
+// completeIfLast marks the document completed when no signer is pending any
+// more and returns how many still are.
+func completeIfLast(tx *gorm.DB, docID int64) (int64, error) {
+	var pendingCount int64
+	if err := tx.Model(&schemas.Signer{}).Where("document_id = ? AND status = ? AND role != ?", docID, "pending", "viewer").Count(&pendingCount).Error; err != nil {
+		return 0, errors.Internal("failed to count pending signers", err)
+	}
+	if pendingCount > 0 {
+		return pendingCount, nil
+	}
+	if err := tx.Model(&schemas.Document{}).Where("id = ?", docID).Update("status", "completed").Error; err != nil {
+		return 0, errors.Internal("failed to complete document", err)
+	}
+	return 0, nil
+}
+
+// recordSignature stores a signature in one transaction: the document lock,
+// the signer claim, the field values and, when nobody else is left to sign,
+// the completed status. It returns how many signers are still pending.
+func (s *Service) recordSignature(ctx context.Context, doc *schemas.Document, signer *schemas.Signer, values []FieldValue, client clientInfo) (int64, error) {
+	var pendingCount int64
+	err := s.orm.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockDocument(tx, doc.ID); err != nil {
+			return err
+		}
+		if err := claimSigner(tx, doc.ID, signer, "signed", client); err != nil {
+			return err
+		}
+		if err := writeFieldValues(tx, signer.ID, values); err != nil {
+			return err
+		}
+		var err error
+		pendingCount, err = completeIfLast(tx, doc.ID)
+		return err
+	})
+	return pendingCount, err
+}
+
+func (s *Service) validateSubmission(ctx context.Context, doc *schemas.Document, signer schemas.Signer, values []FieldValue) error {
 	var ownFields []schemas.Field
 	if err := s.orm.WithContext(ctx).Where("document_id = ? AND signer_id = ?", doc.ID, signer.ID).Find(&ownFields).Error; err != nil {
 		return errors.Internal("failed to load fields", err)
 	}
 
-	submitted := make(map[int64]string, len(req.Fields))
-	for _, fv := range req.Fields {
+	submitted := make(map[int64]string, len(values))
+	for _, fv := range values {
 		submitted[fv.FieldID] = fv.Value
 	}
 
 	if missing := missingRequiredFields(ownFields, submitted); len(missing) > 0 {
 		return errors.Invalid("required fields are missing: " + strings.Join(missing, ", "))
 	}
+	return nil
+}
 
-	for _, fv := range req.Fields {
-		if err := s.orm.WithContext(ctx).Model(&schemas.Field{}).Where("id = ? AND signer_id = ?", fv.FieldID, signer.ID).Update("value", fv.Value).Error; err != nil {
-			return errors.Internal("failed to save field value", err)
-		}
+func (s *Service) SubmitSignature(ctx context.Context, token string, req *SubmitSignatureRequest, ipAddress string, userAgent string) error {
+	signer, doc, err := s.loadActionableSigner(ctx, token, "viewers cannot sign this document")
+	if err != nil {
+		return err
+	}
+	if err := s.validateSubmission(ctx, doc, signer, req.Fields); err != nil {
+		return err
 	}
 
+	pendingCount, err := s.recordSignature(ctx, doc, &signer, req.Fields, clientInfo{ip: ipAddress, userAgent: userAgent})
+	if err != nil {
+		return err
+	}
+	s.afterSignature(ctx, doc, &signer, pendingCount)
+	return nil
+}
+
+func (s *Service) afterSignature(ctx context.Context, doc *schemas.Document, signer *schemas.Signer, pendingCount int64) {
 	s.docService.InvalidateGeneratedFiles(ctx, doc.ID)
-
-	now := time.Now().UTC()
-	signer.Status = "signed"
-	signer.SignedAt = &now
-	signer.IPAddress = ipAddress
-	signer.UserAgent = userAgent
-	if err := s.orm.WithContext(ctx).Save(&signer).Error; err != nil {
-		return errors.Internal("failed to update signer status", err)
-	}
-
-	var pendingCount int64
-	s.orm.WithContext(ctx).Model(&schemas.Signer{}).Where("document_id = ? AND status = ? AND role != ?", doc.ID, "pending", "viewer").Count(&pendingCount)
-	if pendingCount == 0 {
-		if err := s.docService.UpdateStatus(ctx, doc.ID, "completed"); err != nil {
-			return errors.Internal("failed to complete document", err)
-		}
-	} else if doc.Sequential {
+	if pendingCount > 0 && doc.Sequential {
 		s.notifyNextSequentialSigners(ctx, doc)
 	}
 
-	go s.webhookSvc.Dispatch(doc.OwnerID, webhooks.BuildSignerEvent(webhooks.EventSignerSigned, doc, &signer, s.domain))
+	go s.webhookSvc.Dispatch(doc.OwnerID, webhooks.BuildSignerEvent(webhooks.EventSignerSigned, doc, signer, s.domain))
 
 	if pendingCount == 0 {
 		doc.Status = "completed"
@@ -405,49 +508,31 @@ func (s *Service) SubmitSignature(ctx context.Context, token string, req *Submit
 	}
 
 	go s.smtpSvc.SendNotificationEmail(doc.OwnerID, doc.ID, signer.Name, doc.Name, "signed", s.domain)
+}
 
-	return nil
+func (s *Service) recordDecline(ctx context.Context, doc *schemas.Document, signer *schemas.Signer, client clientInfo) error {
+	return s.orm.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := lockDocument(tx, doc.ID); err != nil {
+			return err
+		}
+		if err := claimSigner(tx, doc.ID, signer, "declined", client); err != nil {
+			return err
+		}
+		if err := tx.Model(&schemas.Document{}).Where("id = ?", doc.ID).Update("status", "declined").Error; err != nil {
+			return errors.Internal("failed to update document status", err)
+		}
+		return nil
+	})
 }
 
 func (s *Service) DeclineSignature(ctx context.Context, token string, ipAddress string, userAgent string) error {
-	var signer schemas.Signer
-	err := s.orm.WithContext(ctx).Where("token = ?", token).First(&signer).Error
-	if stderrors.Is(err, gorm.ErrRecordNotFound) {
-		return errors.NotFound("invalid signing link")
-	}
-	if err != nil {
-		return errors.Internal("failed to read signer", err)
-	}
-	if signer.Role == "viewer" {
-		return errors.Invalid("viewers cannot act on this document")
-	}
-	if signer.Status != "pending" {
-		return errors.Invalid("already signed or declined")
-	}
-
-	doc, err := s.docService.FindByID(ctx, signer.DocumentID)
+	signer, doc, err := s.loadActionableSigner(ctx, token, "viewers cannot act on this document")
 	if err != nil {
 		return err
 	}
-	if doc.Status != "pending" {
-		return errors.Invalid("document is not available for signing")
-	}
 
-	if err := s.ensureSignersTurn(ctx, doc, signer); err != nil {
+	if err := s.recordDecline(ctx, doc, &signer, clientInfo{ip: ipAddress, userAgent: userAgent}); err != nil {
 		return err
-	}
-
-	now := time.Now().UTC()
-	signer.Status = "declined"
-	signer.SignedAt = &now
-	signer.IPAddress = ipAddress
-	signer.UserAgent = userAgent
-	if err := s.orm.WithContext(ctx).Save(&signer).Error; err != nil {
-		return errors.Internal("failed to update signer status", err)
-	}
-
-	if err := s.docService.UpdateStatus(ctx, doc.ID, "declined"); err != nil {
-		return errors.Internal("failed to update document status", err)
 	}
 
 	go s.webhookSvc.Dispatch(doc.OwnerID, webhooks.BuildSignerEvent(webhooks.EventSignerDeclined, doc, &signer, s.domain))
