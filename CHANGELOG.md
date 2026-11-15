@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- A completed document's signed PDF and `signed_hash` never change. The signed file is served whatever the file times say and is no longer re-rendered, and `signed_hash` is written once and never overwritten, so a volume restore that resets file times cannot invalidate copies already handed out. If the file is missing while a hash is stored, the download renders a new file, keeps the stored hash and logs an error with the document id.
+- Signing and declining are atomic. One transaction claims the signer with a conditional update, writes the field values and sets the document status, so two requests with the same signing link can no longer both succeed or overwrite each other's values. The loser gets "already signed or declined".
+
+### Security
+
+- The SMTP host can no longer be a private address. Plume refuses a host that resolves to a private, loopback, link-local or reserved range when saving the config and when connecting, and dials the resolved address. Self-hosters with an internal relay set `SMTP_ALLOW_PRIVATE_HOSTS=true`.
+- The client no longer loads a script from another origin. The Vision tracker is a pinned copy served from `/vision-tracker.js`, and `script-src` no longer lists `https://vision.facile.studio`. The tracker still sends its page-view beacons to Vision as images.
+
 ## 0.17.3 - 2026-11-14
 
 ### Fixed
