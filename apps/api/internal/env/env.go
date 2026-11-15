@@ -46,6 +46,11 @@ type Config struct {
 	UploadDir string
 	OIDC      *OIDCConfig
 	Nuage     *NuageConfig
+
+	// SMTPAllowPrivateHosts lets owners point their SMTP config at a host on
+	// a private network, from SMTP_ALLOW_PRIVATE_HOSTS. Off by default: any
+	// signed-in user could otherwise reach the internal network through it.
+	SMTPAllowPrivateHosts bool
 }
 
 // Load reads and validates the application configuration from the
@@ -88,6 +93,16 @@ func Load() (Config, error) {
 	if env.IsProduction() && env.OIDC == nil {
 		return Config{}, fmt.Errorf("OIDC_ISSUER is required in production: sign-in goes through Registre only")
 	}
+
+	return loadIntegrations(env)
+}
+
+func loadIntegrations(env Config) (Config, error) {
+	allowPrivate, err := troncenv.Bool("SMTP_ALLOW_PRIVATE_HOSTS", false)
+	if err != nil {
+		return Config{}, fmt.Errorf("SMTP_ALLOW_PRIVATE_HOSTS must be a boolean: %w", err)
+	}
+	env.SMTPAllowPrivateHosts = allowPrivate
 
 	nuage, err := loadNuage(env.OIDC)
 	if err != nil {

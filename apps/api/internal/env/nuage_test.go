@@ -28,3 +28,19 @@ func TestLoadNuage(t *testing.T) {
 		}
 	}
 }
+
+func TestLoadReadsSMTPAllowPrivateHosts(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("APP_ENV", "development")
+	for value, want := range map[string]bool{"": false, "false": false, "true": true} {
+		t.Setenv("SMTP_ALLOW_PRIVATE_HOSTS", value)
+		cfg, err := Load()
+		if err != nil || cfg.SMTPAllowPrivateHosts != want {
+			t.Errorf("SMTP_ALLOW_PRIVATE_HOSTS=%q: allow=%v err=%v, want %v", value, cfg.SMTPAllowPrivateHosts, err, want)
+		}
+	}
+	t.Setenv("SMTP_ALLOW_PRIVATE_HOSTS", "maybe")
+	if _, err := Load(); err == nil {
+		t.Error("a non-boolean SMTP_ALLOW_PRIVATE_HOSTS must fail startup")
+	}
+}

@@ -71,6 +71,10 @@ SMTP is not configured through the environment. Each user stores their own host,
 username, password, from-address and from-name in the `smtp_configs` table, through
 `/api/smtp`. A user with no SMTP config cannot send signing invitations.
 
+| Variable | Required | Default | What it does |
+|---|---|---|---|
+| `SMTP_ALLOW_PRIVATE_HOSTS` | no | `false` | By default Plume refuses an SMTP host that resolves to a private, loopback, link-local or otherwise reserved address, when saving the config and again when connecting. Any signed-in user could otherwise use the test endpoint to probe the network Plume runs in. Set `true` when your relay lives on an internal address. Anyone who can sign in can then point Plume at any host inside that network |
+
 ## The failure mode worth knowing
 
 Every configuration error is fatal and silent-ish: `env.Load` returns an error, `run()` logs
