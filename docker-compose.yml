@@ -65,6 +65,7 @@ services:
       JOURNAL_TOKEN: ${JOURNAL_TOKEN:-}
       NUAGE_URL: ${NUAGE_URL:-}
       NUAGE_AUDIENCE: ${NUAGE_AUDIENCE:-}
+      SMTP_ALLOW_PRIVATE_HOSTS: ${SMTP_ALLOW_PRIVATE_HOSTS:-false}
     volumes:
       - uploads_data:/data/uploads
     depends_on:

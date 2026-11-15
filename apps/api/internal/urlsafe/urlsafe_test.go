@@ -1,6 +1,8 @@
 package urlsafe
 
 import (
+	"context"
+	"errors"
 	"net"
 	"testing"
 )
@@ -54,5 +56,17 @@ func probeAddresses() map[string]string {
 		"fc00::/7":       "fc00::1",
 		"fe80::/10":      "fe80::1",
 		"::1/128":        "::1",
+	}
+}
+
+func TestResolvePublicAddrRefusesPrivateTargets(t *testing.T) {
+	for _, host := range []string{"127.0.0.1", "10.1.2.3", "localhost", "::1"} {
+		if _, err := ResolvePublicAddr(context.Background(), host, "25"); !errors.Is(err, ErrPrivateAddress) {
+			t.Errorf("ResolvePublicAddr(%s) = %v, want ErrPrivateAddress", host, err)
+		}
+	}
+	addr, err := ResolvePublicAddr(context.Background(), "8.8.8.8", "25")
+	if err != nil || addr != "8.8.8.8:25" {
+		t.Errorf("ResolvePublicAddr(8.8.8.8) = %q, %v", addr, err)
 	}
 }

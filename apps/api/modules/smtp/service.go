@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"html"
 	"log/slog"
-	"net"
 	"net/smtp"
 	"strings"
 	"time"
@@ -23,10 +22,12 @@ const smtpDialTimeout = 10 * time.Second
 // Service stores the SMTP settings and sends the signing and notification
 // emails on behalf of owners.
 type Service struct {
-	orm *gorm.DB
+	orm          *gorm.DB
+	allowPrivate bool
 }
 
-// NewService wires the smtp service to its database.
+// NewService wires the smtp service to its database. Hosts on private or
+// reserved networks are refused until AllowPrivateHosts says otherwise.
 func NewService(orm *gorm.DB) *Service {
 	return &Service{orm: orm}
 }
@@ -40,14 +41,8 @@ func (s *Service) getConfig(ctx context.Context, ownerID int64) (*ConfigResponse
 }
 
 func (s *Service) saveConfig(ctx context.Context, ownerID int64, req *SaveConfigRequest) (*ConfigResponse, error) {
-	if req.Host == "" {
-		return nil, errors.Invalid("host is required")
-	}
-	if req.Port == 0 {
-		return nil, errors.Invalid("port is required")
-	}
-	if req.FromEmail == "" {
-		return nil, errors.Invalid("from_email is required")
+	if err := s.validateConfigRequest(ctx, req); err != nil {
+		return nil, err
 	}
 
 	var record schemas.SmtpConfig
@@ -114,7 +109,7 @@ func (s *Service) testConfig(ctx context.Context, ownerID int64, to string) erro
 		body:    `<p style="margin:0;color:#3f3f46;line-height:1.6;font-size:15px;">Your SMTP configuration is working correctly. Plume can now send emails on your behalf.</p>`,
 	})
 
-	if err := sendEmail(record, to, subject, body); err != nil {
+	if err := s.sendEmail(ctx, record, to, subject, body); err != nil {
 		return errors.Invalid(fmt.Sprintf("SMTP test failed: %s", err.Error()))
 	}
 	return nil
@@ -149,7 +144,7 @@ func (s *Service) SendSigningEmail(ownerID int64, signerName string, signerEmail
 		trackingPixel: trackingPixel,
 	})
 
-	if err := sendEmail(&record, signerEmail, subject, body); err != nil {
+	if err := s.sendEmail(context.Background(), &record, signerEmail, subject, body); err != nil {
 		slog.Error("failed to send signing email",
 			slog.String("signer_email", signerEmail),
 			slog.Int64("owner_id", ownerID),
@@ -193,7 +188,7 @@ func (s *Service) SendNotificationEmail(ownerID int64, docID int64, signerName s
 		ctaURL:   docURL,
 	})
 
-	if err := sendEmail(&config, user.Email, subject, body); err != nil {
+	if err := s.sendEmail(context.Background(), &config, user.Email, subject, body); err != nil {
 		slog.Error("failed to send notification email",
 			slog.String("owner_email", user.Email),
 			slog.Int64("owner_id", ownerID),
@@ -290,13 +285,10 @@ func sanitizeHeader(s string) string {
 	return r.Replace(s)
 }
 
-func sendEmail(config *schemas.SmtpConfig, to string, subject string, htmlBody string) error {
-	addr := net.JoinHostPort(config.Host, fmt.Sprintf("%d", config.Port))
-
-	dialer := &net.Dialer{Timeout: smtpDialTimeout}
-	conn, err := dialer.Dial("tcp", addr)
+func (s *Service) sendEmail(ctx context.Context, config *schemas.SmtpConfig, to string, subject string, htmlBody string) error {
+	conn, err := s.dial(ctx, config)
 	if err != nil {
-		return fmt.Errorf("connect %s: %w", addr, err)
+		return err
 	}
 	defer conn.Close()
 

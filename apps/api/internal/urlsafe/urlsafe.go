@@ -2,6 +2,7 @@ package urlsafe
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -80,6 +81,26 @@ func Validate(ctx context.Context, rawURL string) error {
 	return nil
 }
 
+// ErrPrivateAddress is returned when a host resolves only to private or
+// reserved addresses.
+var ErrPrivateAddress = errors.New("connections to private network addresses are not allowed")
+
+// ResolvePublicAddr resolves host and returns a dialable "ip:port" holding
+// the first public address, or ErrPrivateAddress when every address is
+// private or reserved. Dialing the returned address instead of the host name
+// closes the gap between the check and the connection.
+func ResolvePublicAddr(ctx context.Context, host string, port string) (string, error) {
+	addrs, err := net.DefaultResolver.LookupHost(ctx, host)
+	if err != nil {
+		return "", err
+	}
+	resolved := firstPublicAddr(addrs)
+	if resolved == "" {
+		return "", ErrPrivateAddress
+	}
+	return net.JoinHostPort(resolved, port), nil
+}
+
 // SafeTransport returns an http.Transport whose dialer resolves the target
 // host and refuses to connect to any address in a private or reserved IP
 // range, guarding outbound requests against SSRF.
@@ -90,19 +111,12 @@ func SafeTransport() *http.Transport {
 			if err != nil {
 				return nil, err
 			}
-
-			addrs, err := net.DefaultResolver.LookupHost(ctx, host)
+			target, err := ResolvePublicAddr(ctx, host, port)
 			if err != nil {
 				return nil, err
 			}
-
-			resolved := firstPublicAddr(addrs)
-			if resolved == "" {
-				return nil, fmt.Errorf("connections to private network addresses are not allowed")
-			}
-
 			dialer := &net.Dialer{Timeout: 10 * time.Second}
-			return dialer.DialContext(ctx, network, net.JoinHostPort(resolved, port))
+			return dialer.DialContext(ctx, network, target)
 		},
 	}
 }

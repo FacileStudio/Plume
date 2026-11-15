@@ -272,7 +272,7 @@ func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *s
 }
 
 func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, porteParts authParts) *services {
-	smtpService := smtp.NewService(db)
+	smtpService := smtp.NewService(db).AllowPrivateHosts(appEnv.SMTPAllowPrivateHosts)
 	webhookService := webhooks.NewService(db)
 	docService := documents.NewService(db, smtpService, webhookService, appEnv.Domain, appEnv.UploadDir)
 	signingService := signing.NewService(db, appEnv.UploadDir, docService)
