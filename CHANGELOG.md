@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.18.0 - 2026-11-16
+
 ### Changed
 
 - A document can be deleted only while it is a draft or declined. `DELETE /api/documents/{id}` answers 400 `invalid_argument` for a pending (sent) or completed document, `plume_delete_document` refuses it up front with a message instead of asking for confirmation, and the document list hides the delete action for those statuses. Erasing an account or a space is unchanged. The API reference no longer mentions a voided status.
