@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/FacileStudio/Plume/apps/api/modules/documents"
 	"github.com/FacileStudio/Plume/apps/api/modules/signers"
 	"github.com/FacileStudio/tronc/errors"
 	mcpkit "github.com/FacileStudio/tronc/mcp"
@@ -115,6 +116,9 @@ func (t *toolset) deleteDocument(ctx context.Context, req *sdk.CallToolRequest, 
 	doc, err := t.Documents.Get(ctx, id(userID), id(in.DocumentID))
 	if err != nil {
 		return nil, actionOutput{}, mcpkit.Failure(err, hintDocument)
+	}
+	if err := documents.CheckDeletable(doc.Status); err != nil {
+		return nil, actionOutput{}, mcpkit.Failure(err, "")
 	}
 	text := fmt.Sprintf("Delete the %s document %q, its signers and its file for good? This cannot be undone.", doc.Status, doc.Name)
 	return t.ask(ctx, req, question{kindDelete, in.DocumentID, text, actionOutput{DocumentID: in.DocumentID}})

@@ -132,11 +132,11 @@ func deleteDocumentRoute() []documentation.Route {
 			Method:      "DELETE",
 			Path:        "/documents/{id}",
 			Summary:     "Delete a document",
-			Description: "Deletes a document and its associated storage files. Only draft or voided documents can be deleted.",
+			Description: "Deletes a document and its associated storage files. Only draft or declined documents can be deleted; a sent (pending) or completed document is kept.",
 			Auth:        "bearer",
 			PathParams:  []documentation.Field{{Name: "id", Type: "int", Description: "Document ID"}},
 			Errors: []documentation.Error{
-				{Status: 400, Code: "invalid_argument", Description: "Document is sent or completed and cannot be deleted."},
+				{Status: 400, Code: "invalid_argument", Description: "Document is pending (sent) or completed and cannot be deleted."},
 				{Status: 404, Code: "not_found", Description: "Document not found."},
 			},
 		},

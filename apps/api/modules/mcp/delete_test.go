@@ -78,3 +78,21 @@ func TestMCPFieldLookupHidesWhichIdsExist(t *testing.T) {
 		}
 	}
 }
+
+// TestMCPDeleteRefusesSentAndCompletedUpFront refuses a pending or completed document
+// with a message instead of a confirmation, and still asks for a draft or declined one.
+func TestMCPDeleteRefusesSentAndCompletedUpFront(t *testing.T) {
+	f := newFixture(t)
+	owner := f.connect(t, "owner")
+	for _, status := range []string{"pending", "completed"} {
+		doc := f.sent(t, "Keep "+status)
+		must(t, f.db.Model(&schemas.Document{}).Where("id = ?", doc.Document.ID).Update("status", status).Error)
+		text := refused(t, owner, "plume_delete_document", map[string]any{"document_id": doc.Document.ID})
+		if !strings.Contains(text, "draft or declined") {
+			t.Fatalf("a %s document must be refused with the rule, got %q", status, text)
+		}
+		if f.status(doc.Document.ID) != status {
+			t.Fatalf("a %s document must stay", status)
+		}
+	}
+}
