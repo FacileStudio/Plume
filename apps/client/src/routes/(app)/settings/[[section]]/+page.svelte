@@ -54,7 +54,12 @@
 				avatar={user?.avatar_url || undefined}
 			/>
 		{:else if id === 'preferences'}
-			<PreferencesSection theme={theme.preference} onThemeChange={(next) => theme.set(next)} onLocaleChange={rememberLocale} />
+			<PreferencesSection
+				subscription={{ href: 'https://sso.facile.studio/spaces' }}
+				theme={theme.preference}
+				onThemeChange={(next) => theme.set(next)}
+				onLocaleChange={rememberLocale}
+			/>
 		{:else if id === 'notifications'}
 			<NotificationsPanel />
 		{:else if id === 'integrations'}
