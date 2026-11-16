@@ -337,9 +337,23 @@ func (s *Service) Update(ctx context.Context, ownerID string, docID string, req 
 	return toResponse(record), nil
 }
 
+var errNotDeletable = errors.Invalid("only draft or declined documents can be deleted; a sent or completed document is kept")
+
+// CheckDeletable returns nil for a draft or declined status, and an
+// invalid_argument error for a pending (sent) or completed one.
+func CheckDeletable(status string) error {
+	if status == "draft" || status == "declined" {
+		return nil
+	}
+	return errNotDeletable
+}
+
 func (s *Service) Delete(ctx context.Context, ownerID string, docID string) error {
 	record, err := s.findAccessible(ctx, ownerID, docID)
 	if err != nil {
+		return err
+	}
+	if err := CheckDeletable(record.Status); err != nil {
 		return err
 	}
 	if record.StoragePath != "" {

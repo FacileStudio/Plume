@@ -114,7 +114,7 @@ func (t *toolset) sensitive() []mcpkit.Tool {
 		}, t.remindSigner),
 		mcpkit.NewTool(mcpkit.ToolSpec{
 			Name: toolDelete, Title: "Delete a document",
-			Description: "Delete a document, its signers, fields and file for good, whatever its status. The user " +
+			Description: "Delete a draft or declined document, its signers, fields and file for good. A sent or completed document is refused. The user " +
 				"always confirms: in your client when it can ask, otherwise the result has status " +
 				"pending_confirmation and a confirm_url to give the user. Nothing is deleted before they confirm.",
 			Annotations: &mcpkit.Annotations{Destructive: true, Idempotent: true},

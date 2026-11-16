@@ -30,6 +30,8 @@
 	let confirmDelete = $state(false);
 	let pendingDelete = $state<Document | null>(null);
 
+	const canDelete = (doc: Document) => doc.status === 'draft' || doc.status === 'declined';
+
 	function askDelete(doc: Document) {
 		pendingDelete = doc;
 		confirmDelete = true;
@@ -132,15 +134,17 @@
 								<td><Badge tone={statusTone[doc.status]}>{t(`status.${doc.status}`)}</Badge></td>
 								<td>
 									<div class="flex justify-end">
-										<Button
-											variant="ghost-danger"
-											size="sm"
-											icon={icons.remove}
-											aria-label={t('documents.deleteAria', { name: doc.name })}
-											onclick={() => askDelete(doc)}
-										>
-											{t('common.delete')}
-										</Button>
+										{#if canDelete(doc)}
+											<Button
+												variant="ghost-danger"
+												size="sm"
+												icon={icons.remove}
+												aria-label={t('documents.deleteAria', { name: doc.name })}
+												onclick={() => askDelete(doc)}
+											>
+												{t('common.delete')}
+											</Button>
+										{/if}
 									</div>
 								</td>
 							</tr>
@@ -164,17 +168,19 @@
 							</a>
 							<Badge tone={statusTone[doc.status]}>{t(`status.${doc.status}`)}</Badge>
 						</div>
-						<div class="flex justify-end">
-							<Button
-								variant="ghost-danger"
-								size="lg"
-								icon={icons.remove}
-								aria-label={t('documents.deleteAria', { name: doc.name })}
-								onclick={() => askDelete(doc)}
-							>
-								{t('common.delete')}
-							</Button>
-						</div>
+						{#if canDelete(doc)}
+							<div class="flex justify-end">
+								<Button
+									variant="ghost-danger"
+									size="lg"
+									icon={icons.remove}
+									aria-label={t('documents.deleteAria', { name: doc.name })}
+									onclick={() => askDelete(doc)}
+								>
+									{t('common.delete')}
+								</Button>
+							</div>
+						{/if}
 					</Card>
 				{/each}
 			</div>

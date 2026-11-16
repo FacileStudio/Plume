@@ -19,7 +19,7 @@ contract with MCP clients: add fields, never rename or reshape one.
 | `plume_save_client` | write | no | Create a client or change some of its fields |
 | `plume_send_document` | write | yes | Email the signers of a draft |
 | `plume_remind_signer` | write | yes | Email a signer their link again |
-| `plume_delete_document` | write | yes | Delete a document, its signers, fields and file |
+| `plume_delete_document` | write | yes | Delete a draft or declined document, its signers, fields and file. A sent or completed document is refused up front, with no confirmation asked |
 | `plume_delete_client` | write | yes | Delete a client; its documents stay, with no client |
 | `plume_delete_field` | write | yes | Delete one field from a draft |
 
@@ -33,7 +33,7 @@ signing links never leave through MCP.
 
 | Not exposed | Why |
 |---|---|
-| Voiding or cancelling a sent document | Plume has no void: no REST route and no web action. A sent document can be deleted with `plume_delete_document`, which is confirmed. A void tool waits for the product feature. |
+| Voiding or cancelling a sent document | Plume has no void: no REST route and no web action. `plume_delete_document` refuses a sent or completed document: only a draft or declined one can be deleted. A void tool waits for the product feature. |
 | Creating, moving or resizing fields | Placing a field is visual work on the PDF page. Drafts get a default signature box per signer, and the returned `url` opens the field editor. `plume_delete_field` covers removing a box. |
 | Signing, declining, the signing file and status | These are the signer's routes, authorised by the signer's private token. An agent acting for the owner must never sign for someone. |
 | SMTP settings and webhooks | They hold credentials (SMTP password, webhook secret) and decide where Plume sends mail and events. Change them in Settings. |

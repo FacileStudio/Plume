@@ -98,7 +98,10 @@ The domain tables, all with `int64` primary keys:
 `spaces.registre_space_id` are unique, and `documents` is unique on `(owner_id, external_ref)`
 when `external_ref` is set.
 
-Document status moves `draft` → `pending` → `completed` or `declined`.
+Document status moves `draft` → `pending` → `completed` or `declined`. Only a `draft` or
+`declined` document can be deleted (`DELETE /api/documents/{id}`, `plume_delete_document`);
+a `pending` or `completed` one answers 400 `invalid_argument`. Erasing an account or a space
+is a separate path and still removes everything.
 
 ## The signing pipeline
 
