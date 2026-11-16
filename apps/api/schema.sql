@@ -160,7 +160,8 @@ CREATE TABLE public.signers (
     created_at timestamp with time zone DEFAULT now(),
     last_reminded_at timestamp with time zone,
     viewed_at timestamp with time zone,
-    email_opened_at timestamp with time zone
+    email_opened_at timestamp with time zone,
+    token_hash text
 );
 
 CREATE SEQUENCE public.signers_id_seq
@@ -372,6 +373,8 @@ CREATE INDEX idx_fields_signer_id ON public.fields USING btree (signer_id);
 CREATE INDEX idx_signers_document_id ON public.signers USING btree (document_id);
 
 CREATE INDEX idx_signers_token ON public.signers USING btree (token);
+
+CREATE INDEX idx_signers_token_hash ON public.signers USING btree (token_hash);
 
 CREATE UNIQUE INDEX idx_smtp_configs_owner_id ON public.smtp_configs USING btree (owner_id);
 

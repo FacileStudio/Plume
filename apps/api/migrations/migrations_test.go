@@ -65,6 +65,17 @@ func columnDefault(t *testing.T, db *gorm.DB, table, column string) string {
 	return *value
 }
 
+func hasColumn(t *testing.T, db *gorm.DB, table, column string) bool {
+	t.Helper()
+	var count int64
+	err := db.Raw(`SELECT count(*) FROM information_schema.columns
+		WHERE table_schema = current_schema() AND table_name = ? AND column_name = ?`, table, column).Scan(&count).Error
+	if err != nil {
+		t.Fatalf("look for %s.%s: %v", table, column, err)
+	}
+	return count > 0
+}
+
 func baselineUp(t *testing.T) string {
 	t.Helper()
 	raw, err := fs.ReadFile(FS, "00001_baseline.sql")
@@ -80,8 +91,8 @@ func baselineUp(t *testing.T) string {
 
 func wantVersions(t *testing.T, db *gorm.DB) {
 	t.Helper()
-	if got := appliedVersions(t, db); len(got) != 2 || got[0] != 1 || got[1] != 2 {
-		t.Fatalf("applied versions %v, want [1 2]", got)
+	if got := appliedVersions(t, db); len(got) != 3 || got[0] != 1 || got[1] != 2 || got[2] != 3 {
+		t.Fatalf("applied versions %v, want [1 2 3]", got)
 	}
 }
 
@@ -177,8 +188,14 @@ func TestTheDefaultsMigrationGoesDownAndUpAgain(t *testing.T) {
 			t.Errorf("%s.%s still defaults to %q after the Down", column[0], column[1], got)
 		}
 	}
+	if hasColumn(t, db, "signers", "token_hash") {
+		t.Error("signers.token_hash survived the Down")
+	}
 	if _, err := provider.Up(ctx); err != nil {
 		t.Fatalf("up again: %v", err)
+	}
+	if !hasColumn(t, db, "signers", "token_hash") {
+		t.Error("signers.token_hash is missing after the second Up")
 	}
 	if got := columnDefault(t, db, "users", "oidc_token_expiry"); !strings.HasPrefix(got, "'0001-01-01") {
 		t.Fatalf("users.oidc_token_expiry default %q after the second Up", got)

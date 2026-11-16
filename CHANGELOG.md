@@ -6,6 +6,10 @@
 
 - A document can be deleted only while it is a draft or declined. `DELETE /api/documents/{id}` answers 400 `invalid_argument` for a pending (sent) or completed document, `plume_delete_document` refuses it up front with a message instead of asking for confirmation, and the document list hides the delete action for those statuses. Erasing an account or a space is unchanged. The API reference no longer mentions a voided status.
 
+### Security
+
+- Signing link tokens, SMTP passwords and webhook secrets are no longer stored in clear. Every signing-link lookup now matches `signers.token_hash`, the SHA-256 hex of the token (migration `00003_signer_token_hash.sql`), with or without a key. When `PORTE_TOKEN_KEY` is set, `signers.token`, `smtp_configs.password` and `webhooks.secret` are sealed with porte's token sealer (`pv1:` AES-256-GCM, the same key that seals the OIDC tokens) and opened only where a link, an SMTP login or an HMAC is needed. A boot pass converts existing rows, safe on two replicas at once and idempotent, and logs counts only. A sealed value read from the database never works as a signing token. A sealed SMTP password or webhook secret that no configured key opens fails the send or delivery with a clear error instead of using the ciphertext. No response shape, MCP tool or webhook payload changes; the webhook HMAC a receiver computes is unchanged. Without a key (self-hosting) the three values stay in clear and only `token_hash` is added. Losing the key means entering SMTP passwords and webhook secrets again and re-sending pending links; see `docs/architecture.md`.
+
 ## 0.17.4 - 2026-11-16
 
 ### Fixed

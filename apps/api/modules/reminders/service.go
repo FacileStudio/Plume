@@ -7,12 +7,14 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/FacileStudio/Plume/apps/api/internal/secrets"
 	"github.com/FacileStudio/Plume/apps/api/modules/smtp"
 	"github.com/FacileStudio/Plume/apps/api/modules/webhooks"
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 	"github.com/FacileStudio/tronc/errors"
 	"github.com/FacileStudio/tronc/joblock"
 
+	portepg "github.com/FacileStudio/porte/pg"
 	"gorm.io/gorm"
 )
 
@@ -33,6 +35,14 @@ type Service struct {
 	now        func() time.Time
 	tick       time.Duration
 	run        func(context.Context) (int, error)
+	sealer     *portepg.TokenSealer
+}
+
+// WithSealer sets the sealer that opens the stored signing tokens a reminder
+// carries. A nil sealer reads them as they are.
+func (s *Service) WithSealer(sealer *portepg.TokenSealer) *Service {
+	s.sealer = sealer
+	return s
 }
 
 // NewService wires the reminder service to its database, the smtp and webhooks
@@ -67,6 +77,8 @@ func (s *Service) RemindSigner(ctx context.Context, ownerID string, signerID str
 		}
 		return nil, errors.Internal("failed to read signer", err)
 	}
+
+	secrets.Reveal(s.sealer, &signer)
 
 	var doc schemas.Document
 	if err := s.orm.WithContext(ctx).Where("id = ? AND owner_id = ?", signer.DocumentID, uid).First(&doc).Error; err != nil {
@@ -190,6 +202,11 @@ func (s *Service) runForUser(ctx context.Context, user *schemas.User, now time.T
 		if !shouldRemind(r.SignerCreated, r.SignerReminded, user.ReminderIntervalDays, now) {
 			continue
 		}
+		token := secrets.OpenToken(s.sealer, r.SignerToken)
+		if token == "" {
+			slog.Warn("signing link is unreadable, no reminder sent", slog.Int64("signer_id", r.SignerID))
+			continue
+		}
 		if err := s.orm.WithContext(ctx).
 			Model(&schemas.Signer{}).
 			Where("id = ?", r.SignerID).
@@ -200,7 +217,7 @@ func (s *Service) runForUser(ctx context.Context, user *schemas.User, now time.T
 			)
 			continue
 		}
-		go s.smtpSvc.SendSigningEmail(user.ID, r.SignerName, r.SignerEmail, r.DocumentName, r.SignerToken, s.domain)
+		go s.smtpSvc.SendSigningEmail(user.ID, r.SignerName, r.SignerEmail, r.DocumentName, token, s.domain)
 		s.dispatchReminderEvent(ctx, user.ID, r.SignerID, now)
 		sent++
 	}
@@ -216,6 +233,7 @@ func (s *Service) dispatchReminderEvent(ctx context.Context, ownerID int64, sign
 	if err := s.orm.WithContext(ctx).Where("id = ?", signer.DocumentID).First(&doc).Error; err != nil {
 		return
 	}
+	secrets.Reveal(s.sealer, &signer)
 	signer.LastRemindedAt = &remindedAt
 	go s.webhookSvc.Dispatch(ownerID, webhooks.BuildSignerEvent(webhooks.EventSignerReminded, &doc, &signer, s.domain))
 }

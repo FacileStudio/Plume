@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/FacileStudio/Plume/apps/api/internal/nuage"
+	"github.com/FacileStudio/Plume/apps/api/internal/secrets"
 	"github.com/FacileStudio/Plume/apps/api/modules/documents"
 	"github.com/FacileStudio/Plume/apps/api/modules/smtp"
 	"github.com/FacileStudio/Plume/apps/api/modules/webhooks"
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 	"github.com/FacileStudio/tronc/errors"
 
+	portepg "github.com/FacileStudio/porte/pg"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -34,12 +36,30 @@ type Service struct {
 	smtpSvc    *smtp.Service
 	publisher  *nuage.Publisher
 	domain     string
+	sealer     *portepg.TokenSealer
 }
 
 // NewService wires the signers service to its database and the document,
 // webhooks and smtp services it depends on.
 func NewService(orm *gorm.DB, docService *documents.Service, webhookSvc *webhooks.Service, smtpSvc *smtp.Service, publisher *nuage.Publisher, domain string) *Service {
 	return &Service{orm: orm, docService: docService, webhookSvc: webhookSvc, smtpSvc: smtpSvc, publisher: publisher, domain: domain}
+}
+
+// WithSealer sets the sealer that opens the stored signing tokens. A nil sealer
+// reads them as they are.
+func (s *Service) WithSealer(sealer *portepg.TokenSealer) *Service {
+	s.sealer = sealer
+	return s
+}
+
+// findByToken loads the signer behind a signing link, with the usable token
+// in memory.
+func (s *Service) findByToken(ctx context.Context, token string) (schemas.Signer, error) {
+	signer, err := secrets.FindSigner(s.orm.WithContext(ctx), token)
+	if err == nil {
+		secrets.Reveal(s.sealer, &signer)
+	}
+	return signer, err
 }
 
 func (s *Service) ListSigners(ctx context.Context, ownerID string, docID string) ([]SignerResponse, error) {
@@ -55,6 +75,7 @@ func (s *Service) ListSigners(ctx context.Context, ownerID string, docID string)
 
 	out := make([]SignerResponse, len(records))
 	for i := range records {
+		secrets.Reveal(s.sealer, &records[i])
 		out[i] = *toSignerResponse(&records[i])
 	}
 	return out, s.attachAvatars(ctx, out)
@@ -161,6 +182,7 @@ func (s *Service) OwnedSigner(ctx context.Context, ownerID int64, signerID int64
 	if err != nil {
 		return nil, errors.Internal("failed to read signer", err)
 	}
+	secrets.Reveal(s.sealer, &signer)
 	return toSignerResponse(&signer), nil
 }
 
@@ -209,8 +231,7 @@ func (s *Service) deleteWithFields(ctx context.Context, signer *schemas.Signer) 
 }
 
 func (s *Service) GetSigningView(ctx context.Context, token string) (*SigningView, error) {
-	var signer schemas.Signer
-	err := s.orm.WithContext(ctx).Where("token = ?", token).First(&signer).Error
+	signer, err := s.findByToken(ctx, token)
 	if stderrors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errors.NotFound("invalid signing link")
 	}
@@ -305,8 +326,8 @@ func (s *Service) GetSigningView(ctx context.Context, token string) (*SigningVie
 // delivery time, so an open may be recorded before the recipient actually reads
 // the email — we only ever record the first open.
 func (s *Service) MarkEmailOpened(ctx context.Context, token string) {
-	var signer schemas.Signer
-	if err := s.orm.WithContext(ctx).Where("token = ?", token).First(&signer).Error; err != nil {
+	signer, err := s.findByToken(ctx, token)
+	if err != nil {
 		return
 	}
 	if signer.EmailOpenedAt != nil || signer.Status != "pending" {
@@ -333,8 +354,7 @@ func (s *Service) MarkEmailOpened(ctx context.Context, token string) {
 // document being pending and, for a sequential document, its turn. It writes
 // nothing.
 func (s *Service) loadActionableSigner(ctx context.Context, token string, viewerMessage string) (schemas.Signer, *schemas.Document, error) {
-	var signer schemas.Signer
-	err := s.orm.WithContext(ctx).Where("token = ?", token).First(&signer).Error
+	signer, err := s.findByToken(ctx, token)
 	if stderrors.Is(err, gorm.ErrRecordNotFound) {
 		return signer, nil, errors.NotFound("invalid signing link")
 	}
@@ -549,8 +569,7 @@ func (s *Service) DeclineSignature(ctx context.Context, token string, ipAddress 
 }
 
 func (s *Service) GetSigningFilePath(ctx context.Context, token string) (string, error) {
-	var signer schemas.Signer
-	err := s.orm.WithContext(ctx).Where("token = ?", token).First(&signer).Error
+	signer, err := s.findByToken(ctx, token)
 	if stderrors.Is(err, gorm.ErrRecordNotFound) {
 		return "", errors.NotFound("invalid signing link")
 	}
@@ -574,8 +593,7 @@ func (s *Service) GetSigningFilePath(ctx context.Context, token string) (string,
 // state (including completed/declined), so it can power the post-signing audit
 // screen that shows who has signed and who is still outstanding.
 func (s *Service) GetSigningStatus(ctx context.Context, token string) (*SigningStatusResponse, error) {
-	var signer schemas.Signer
-	err := s.orm.WithContext(ctx).Where("token = ?", token).First(&signer).Error
+	signer, err := s.findByToken(ctx, token)
 	if stderrors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errors.NotFound("invalid signing link")
 	}
@@ -710,6 +728,7 @@ func (s *Service) notifyNextSequentialSigners(ctx context.Context, doc *schemas.
 		if nextSigners[i].OrderNum != minOrder {
 			continue
 		}
+		secrets.Reveal(s.sealer, &nextSigners[i])
 		s.orm.WithContext(ctx).Model(&schemas.Signer{}).
 			Where("id = ?", nextSigners[i].ID).
 			Update("last_reminded_at", now)

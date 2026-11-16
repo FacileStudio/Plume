@@ -33,6 +33,12 @@ These come from `troncenv.LoadCore()`, shared by every Go app in the suite.
 The default `DOMAIN` points at the Vite dev server, which is right for `go run .` next to
 `bun run dev` and wrong for anything else. Compose sets it.
 
+## Secrets at rest
+
+| Variable | Required | Default | What it does |
+|---|---|---|---|
+| `PORTE_TOKEN_KEY` | no, set in production | — | One or more comma-separated 32-byte secrets (64 hex characters or base64), newest first. Seals the OIDC tokens porte stores and, since v0.18.0, the signing link tokens, the SMTP passwords and the webhook secrets. Unset, those values stay in clear. Keep the old key in the list while rotating, and never lose it: without it Plume cannot read sealed SMTP passwords or webhook secrets, and cannot rebuild a pending signing link. See [architecture.md](architecture.md#secrets-at-rest) |
+
 ## OIDC
 
 `OIDC_ISSUER` is required when `APP_ENV=production`. Once it is set, three more variables become required and

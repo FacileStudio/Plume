@@ -36,6 +36,7 @@ import (
 	"github.com/FacileStudio/porte/directory"
 	"github.com/FacileStudio/porte/kit"
 	"github.com/FacileStudio/porte/oidc"
+	portepg "github.com/FacileStudio/porte/pg"
 	"github.com/FacileStudio/porte/session"
 	"github.com/FacileStudio/tronc/apiref"
 	troncerrors "github.com/FacileStudio/tronc/errors"
@@ -118,6 +119,8 @@ func run() error {
 		appLogger.Error("failed to build authentication", slog.Any("error", err))
 		return err
 	}
+
+	convertSecretsInBackground(context.Background(), db, porteParts.sealer, appLogger)
 
 	svc := newServices(db, appEnv, appLogger, porteParts)
 	svc.mcp, err = newMCP(context.Background(), appEnv, porteParts, svc, appLogger)
@@ -214,6 +217,7 @@ type authParts struct {
 	users      *kit.Store
 	identities porte.IdentityStore
 	erased     porte.ErasedSubjects
+	sealer     *portepg.TokenSealer
 }
 
 // buildAuth constructs porte: one session manager and the OIDC kit over the
@@ -228,10 +232,11 @@ func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *s
 	if err != nil {
 		return authParts{}, err
 	}
-	store, err := newPorteStore(sqlDB)
+	sealer, err := tokenSealer()
 	if err != nil {
 		return authParts{}, err
 	}
+	store := portepg.New(sqlDB, portepg.WithTokenSealer(sealer))
 	resealInBackground(ctx, store, appLogger)
 	users, err := auth.NewUsers(ctx, sqlDB, appLogger)
 	if err != nil {
@@ -268,13 +273,14 @@ func buildAuth(ctx context.Context, db *gorm.DB, appEnv env.Config, appLogger *s
 	if err != nil {
 		return authParts{}, err
 	}
-	return authParts{sessions: sessions, oidc: oidcKit, users: users, identities: store.Identities(), erased: erased}, nil
+	return authParts{sessions: sessions, oidc: oidcKit, users: users, identities: store.Identities(), erased: erased, sealer: sealer}, nil
 }
 
 func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, porteParts authParts) *services {
-	smtpService := smtp.NewService(db).AllowPrivateHosts(appEnv.SMTPAllowPrivateHosts)
-	webhookService := webhooks.NewService(db)
-	docService := documents.NewService(db, smtpService, webhookService, appEnv.Domain, appEnv.UploadDir)
+	sealer := porteParts.sealer
+	smtpService := smtp.NewService(db).AllowPrivateHosts(appEnv.SMTPAllowPrivateHosts).WithSealer(sealer)
+	webhookService := webhooks.NewService(db).WithSealer(sealer)
+	docService := documents.NewService(db, smtpService, webhookService, appEnv.Domain, appEnv.UploadDir).WithSealer(sealer)
 	signingService := signing.NewService(db, appEnv.UploadDir, docService)
 	spaceService, registre, deletions := newSpaces(db, appEnv, appLogger,
 		erasureDeps{users: porteParts.users, freeze: signingService.FreezeAuditTrail, erased: porteParts.erased})
@@ -283,7 +289,7 @@ func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, portePa
 		smtp:       smtpService,
 		webhooks:   webhookService,
 		documents:  docService,
-		signers:    signers.NewService(db, docService, webhookService, smtpService, newNuagePublisher(db, appEnv, appLogger), appEnv.Domain),
+		signers:    signers.NewService(db, docService, webhookService, smtpService, newNuagePublisher(db, appEnv, appLogger), appEnv.Domain).WithSealer(sealer),
 		fields:     fields.NewService(db, docService),
 		signing:    signingService,
 		verify:     verify.NewService(db, docService),
@@ -291,7 +297,7 @@ func newServices(db *gorm.DB, appEnv env.Config, appLogger *slog.Logger, portePa
 		registre:   registre,
 		deletions:  deletions,
 		clients:    clients.NewService(db),
-		reminders:  reminders.NewService(db, smtpService, webhookService, appEnv.Domain),
+		reminders:  reminders.NewService(db, smtpService, webhookService, appEnv.Domain).WithSealer(sealer),
 		identities: porteParts.identities,
 	}
 }
