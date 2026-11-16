@@ -118,6 +118,12 @@ The binary and the SPA ship in the same image, so rolling back the image rolls b
 The database does not roll back: a migration that added a column has run, and an older
 binary simply ignores the column. Write migrations additive for that reason.
 
+Rolling back to a release older than v0.18.0 after `PORTE_TOKEN_KEY` sealed the secrets keeps
+the database readable (the new `signers.token_hash` column is ignored), but the older binary
+reads the sealed `signers.token`, `smtp_configs.password` and `webhooks.secret` as they are.
+Pending signing links, SMTP sends and webhook signatures then fail until the secrets are
+entered again. Unset the key before the first boot of v0.18.0 if a rollback is likely.
+
 Rolling back to v0.13.x, the last AutoMigrate release, needs one extra step before releasing
 forward again. Its AutoMigrate removes every column default the struct tags do not declare,
 which takes off the defaults `00002_column_defaults.sql` set, while `goose_db_version` still

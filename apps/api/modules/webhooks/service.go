@@ -18,6 +18,7 @@ import (
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 	"github.com/FacileStudio/tronc/errors"
 
+	portepg "github.com/FacileStudio/porte/pg"
 	"gorm.io/gorm"
 )
 
@@ -35,7 +36,37 @@ var retryBackoffs = []time.Duration{
 // Service persists webhook delivery targets and dispatches signed, retrying
 // deliveries to them.
 type Service struct {
-	orm *gorm.DB
+	orm    *gorm.DB
+	sealer *portepg.TokenSealer
+}
+
+// errSecretUnreadable is why a delivery fails when the stored secret is sealed
+// under a key this process does not hold.
+var errSecretUnreadable = stderrors.New("the stored webhook secret cannot be read: PORTE_TOKEN_KEY is missing or changed, save the webhook again with its secret")
+
+// WithSealer sets the sealer that protects webhook secrets at rest. A nil
+// sealer stores and reads them as they are.
+func (s *Service) WithSealer(sealer *portepg.TokenSealer) *Service {
+	s.sealer = sealer
+	return s
+}
+
+// sealSecret is the value to store for a secret the owner just typed.
+func (s *Service) sealSecret(secret string) (string, error) {
+	sealed, err := s.sealer.Seal(secret)
+	if err != nil {
+		return "", errors.Internal("failed to seal the webhook secret", err)
+	}
+	return sealed, nil
+}
+
+// signature is the hex HMAC-SHA256 of body under the webhook's opened secret.
+func (s *Service) signature(wh *schemas.Webhook, body []byte) (string, error) {
+	secret, err := s.sealer.Open(wh.Secret)
+	if err != nil {
+		return "", errSecretUnreadable
+	}
+	return sign(secret, body), nil
 }
 
 // NewService wires the webhooks service to its database.
@@ -51,10 +82,14 @@ func (s *Service) create(ctx context.Context, ownerID int64, req *CreateWebhookR
 		return nil, errors.Invalid(err.Error())
 	}
 
+	secret, err := s.sealSecret(req.Secret)
+	if err != nil {
+		return nil, err
+	}
 	record := &schemas.Webhook{
 		OwnerID: ownerID,
 		URL:     req.URL,
-		Secret:  req.Secret,
+		Secret:  secret,
 		Enabled: true,
 	}
 	if err := s.orm.WithContext(ctx).Create(record).Error; err != nil {
@@ -100,7 +135,11 @@ func (s *Service) update(ctx context.Context, ownerID int64, webhookID int64, re
 
 	record.URL = req.URL
 	if req.Secret != "" {
-		record.Secret = req.Secret
+		secret, err := s.sealSecret(req.Secret)
+		if err != nil {
+			return nil, err
+		}
+		record.Secret = secret
 	}
 	record.Enabled = req.Enabled
 
@@ -235,7 +274,10 @@ func (s *Service) deliverOnce(ctx context.Context, wh *schemas.Webhook, body []b
 		return fmt.Errorf("unsafe URL: %w", err)
 	}
 
-	signature := sign(wh.Secret, body)
+	signature, err := s.signature(wh, body)
+	if err != nil {
+		return err
+	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, wh.URL, bytes.NewReader(body))
 	if err != nil {

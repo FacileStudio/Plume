@@ -14,6 +14,7 @@ import (
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 	"github.com/FacileStudio/tronc/errors"
 
+	portepg "github.com/FacileStudio/porte/pg"
 	"gorm.io/gorm"
 )
 
@@ -24,6 +25,37 @@ const smtpDialTimeout = 10 * time.Second
 type Service struct {
 	orm          *gorm.DB
 	allowPrivate bool
+	sealer       *portepg.TokenSealer
+}
+
+// errPasswordUnreadable is why a send fails when the stored SMTP password is
+// sealed under a key this process does not hold.
+var errPasswordUnreadable = stderrors.New("the stored SMTP password cannot be read: PORTE_TOKEN_KEY is missing or changed, save the SMTP settings again")
+
+// WithSealer sets the sealer that protects SMTP passwords at rest. A nil
+// sealer stores and reads them as they are.
+func (s *Service) WithSealer(sealer *portepg.TokenSealer) *Service {
+	s.sealer = sealer
+	return s
+}
+
+// sealPassword is the value to store for a password the owner just typed.
+func (s *Service) sealPassword(password string) (string, error) {
+	sealed, err := s.sealer.Seal(password)
+	if err != nil {
+		return "", errors.Internal("failed to seal the smtp password", err)
+	}
+	return sealed, nil
+}
+
+// openPassword is the password to authenticate with, or errPasswordUnreadable
+// when the stored value is sealed and no configured key opens it.
+func (s *Service) openPassword(stored string) (string, error) {
+	password, err := s.sealer.Open(stored)
+	if err != nil {
+		return "", errPasswordUnreadable
+	}
+	return password, nil
 }
 
 // NewService wires the smtp service to its database. Hosts on private or
@@ -45,22 +77,15 @@ func (s *Service) saveConfig(ctx context.Context, ownerID int64, req *SaveConfig
 		return nil, err
 	}
 
+	password, err := s.sealPassword(req.Password)
+	if err != nil {
+		return nil, err
+	}
+
 	var record schemas.SmtpConfig
-	err := s.orm.WithContext(ctx).Where("owner_id = ?", ownerID).First(&record).Error
+	err = s.orm.WithContext(ctx).Where("owner_id = ?", ownerID).First(&record).Error
 	if stderrors.Is(err, gorm.ErrRecordNotFound) {
-		record = schemas.SmtpConfig{
-			OwnerID:   ownerID,
-			Host:      req.Host,
-			Port:      req.Port,
-			Username:  req.Username,
-			Password:  req.Password,
-			FromEmail: req.FromEmail,
-			FromName:  req.FromName,
-		}
-		if err := s.orm.WithContext(ctx).Create(&record).Error; err != nil {
-			return nil, errors.Internal("failed to create smtp config", err)
-		}
-		return toResponse(&record), nil
+		return s.createConfig(ctx, ownerID, req, password)
 	}
 	if err != nil {
 		return nil, errors.Internal("failed to read smtp config", err)
@@ -69,14 +94,32 @@ func (s *Service) saveConfig(ctx context.Context, ownerID int64, req *SaveConfig
 	record.Host = req.Host
 	record.Port = req.Port
 	record.Username = req.Username
-	if req.Password != "" {
-		record.Password = req.Password
+	if password != "" {
+		record.Password = password
 	}
 	record.FromEmail = req.FromEmail
 	record.FromName = req.FromName
 
 	if err := s.orm.WithContext(ctx).Save(&record).Error; err != nil {
 		return nil, errors.Internal("failed to update smtp config", err)
+	}
+	return toResponse(&record), nil
+}
+
+// createConfig stores the first SMTP config of an owner, with the password
+// already sealed.
+func (s *Service) createConfig(ctx context.Context, ownerID int64, req *SaveConfigRequest, password string) (*ConfigResponse, error) {
+	record := schemas.SmtpConfig{
+		OwnerID:   ownerID,
+		Host:      req.Host,
+		Port:      req.Port,
+		Username:  req.Username,
+		Password:  password,
+		FromEmail: req.FromEmail,
+		FromName:  req.FromName,
+	}
+	if err := s.orm.WithContext(ctx).Create(&record).Error; err != nil {
+		return nil, errors.Internal("failed to create smtp config", err)
 	}
 	return toResponse(&record), nil
 }
@@ -286,6 +329,10 @@ func sanitizeHeader(s string) string {
 }
 
 func (s *Service) sendEmail(ctx context.Context, config *schemas.SmtpConfig, to string, subject string, htmlBody string) error {
+	password, err := s.openPassword(config.Password)
+	if err != nil {
+		return err
+	}
 	conn, err := s.dial(ctx, config)
 	if err != nil {
 		return err
@@ -305,7 +352,7 @@ func (s *Service) sendEmail(ctx context.Context, config *schemas.SmtpConfig, to 
 	}
 
 	if config.Username != "" {
-		auth := smtp.PlainAuth("", config.Username, config.Password, config.Host)
+		auth := smtp.PlainAuth("", config.Username, password, config.Host)
 		if err := client.Auth(auth); err != nil {
 			return fmt.Errorf("authentication: %w", err)
 		}

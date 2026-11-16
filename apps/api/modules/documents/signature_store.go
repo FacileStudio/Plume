@@ -4,6 +4,7 @@ import (
 	"context"
 	stderrors "errors"
 
+	"github.com/FacileStudio/Plume/apps/api/internal/secrets"
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 	"github.com/FacileStudio/tronc/errors"
 
@@ -100,8 +101,8 @@ func (s *Service) signatureResponse(ctx context.Context, doc *schemas.Document) 
 	out := make([]SignatureSignerStatus, len(signers))
 	for i, sg := range signers {
 		out[i] = SignatureSignerStatus{ID: sg.ID, Name: sg.Name, Email: sg.Email, Role: sg.Role, Status: sg.Status, OrderNum: sg.OrderNum, SignedAt: sg.SignedAt}
-		if sg.Token != "" && s.domain != "" {
-			out[i].SigningURL = s.domain + "/share/" + sg.Token
+		if token := secrets.OpenToken(s.sealer, sg.Token); token != "" && s.domain != "" {
+			out[i].SigningURL = s.domain + "/share/" + token
 		}
 	}
 	return &SignatureResponse{Document: *toResponse(doc), Signers: out}, nil

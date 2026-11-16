@@ -88,11 +88,11 @@ The domain tables, all with `int64` primary keys:
 | `spaces` | `name`, `description`, `owner_id` | groups documents |
 | `space_members` | `space_id`, `user_id`, `role` (default `member`) | unique on `(space_id, user_id)`, cascades on delete |
 | `documents` | `status` (default `draft`), `storage_path`, `original_hash`, `signed_hash`, `owner_id`, `space_id`, `client_id`, `sequential` | has many signers and fields |
-| `signers` | `document_id`, `email`, `role` (default `signer`), `status` (default `pending`), `token`, `order_num`, `signed_at`, `viewed_at`, `email_opened_at`, `ip_address`, `user_agent`, `last_reminded_at` | belongs to a document |
+| `signers` | `document_id`, `email`, `role` (default `signer`), `status` (default `pending`), `token` (sealed when a key is set), `token_hash` (indexed), `order_num`, `signed_at`, `viewed_at`, `email_opened_at`, `ip_address`, `user_agent`, `last_reminded_at` | belongs to a document |
 | `fields` | `document_id`, `signer_id`, `field_type`, `page`, `x`, `y`, `width`, `height`, `required`, `label`, `value` | belongs to a document and a signer |
 | `clients` | `name`, `email`, `company`, `phone`, `notes`, `owner_id` | documents file against one |
-| `webhooks` | `url`, `secret`, `enabled`, `last_sent_at` | per owner |
-| `smtp_configs` | `owner_id` unique, `host`, `port`, `username`, `password`, `from_email`, `from_name` | one per owner |
+| `webhooks` | `url`, `secret` (sealed when a key is set), `enabled`, `last_sent_at` | per owner |
+| `smtp_configs` | `owner_id` unique, `host`, `port`, `username`, `password` (sealed when a key is set), `from_email`, `from_name` | one per owner |
 
 `space_members` is unique on `(space_id, user_id)`, `spaces.facile_id` and
 `spaces.registre_space_id` are unique, and `documents` is unique on `(owner_id, external_ref)`
@@ -102,6 +102,44 @@ Document status moves `draft` → `pending` → `completed` or `declined`. Only 
 `declined` document can be deleted (`DELETE /api/documents/{id}`, `plume_delete_document`);
 a `pending` or `completed` one answers 400 `invalid_argument`. Erasing an account or a space
 is a separate path and still removes everything.
+
+### Secrets at rest
+
+Three values are stored for later use and are protected in the database:
+
+| Value | Column | What is stored |
+|---|---|---|
+| Signing link token | `signers.token_hash` | SHA-256 hex of the token, always |
+| Signing link token | `signers.token` | the token sealed with `PORTE_TOKEN_KEY`; the token itself when no key is set |
+| SMTP password | `smtp_configs.password` | sealed with `PORTE_TOKEN_KEY`; as typed when no key is set |
+| Webhook secret | `webhooks.secret` | sealed with `PORTE_TOKEN_KEY`; as typed when no key is set |
+
+Every lookup by signing token goes through `secrets.FindSigner`, which matches
+`token_hash = sha256(input)`. The hash is written with or without a key. The token column
+still holds a usable token because reminders, the signing email and the owner's copy-link
+need it back, so those paths open it with the key at the point of use. API, MCP and webhook
+responses keep returning the usable link.
+
+Sealing is porte's token sealer (`porte/pg`): AES-256-GCM under a key derived from
+`PORTE_TOKEN_KEY` with HKDF, stored as `pv1:` and the base64url of nonce and ciphertext. The
+same key already seals the OIDC tokens in `porte_identities`. A comma-separated list rotates
+the key: the first seals, every one opens. A sealed value from the database is never accepted
+as a signing token, whatever the input: the lookup falls back to the plaintext `token` column
+only for rows not converted yet, and only for an input that has no `pv1:` prefix and no colon.
+
+At boot, after the migrations, a background pass converts rows written by older releases. It
+fills `token_hash` for every signer that lacks one and, when a key is set, seals `token`,
+`smtp_configs.password` and `webhooks.secret`. Each row is rewritten by an update conditioned
+on the value the pass read, so two replicas running it at once change a row once, and a
+second run changes nothing. It logs counts only. With no key (self-hosting) the pass only
+hashes, and the three values stay in clear.
+
+Losing or changing `PORTE_TOKEN_KEY` without keeping the old key in the list makes the sealed
+values unreadable. A send then fails with a clear error instead of using the ciphertext as a
+password, and webhook deliveries fail the same way. Recover by entering each SMTP password and
+webhook secret again in Settings, and by re-sending the pending signing links (a signer's
+`token_hash` still works for a link already in an inbox, but Plume can no longer rebuild that
+link for a reminder or the copy-link button).
 
 ## The signing pipeline
 

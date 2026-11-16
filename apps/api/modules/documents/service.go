@@ -15,11 +15,13 @@ import (
 
 	"github.com/FacileStudio/Plume/apps/api/internal/hashing"
 	"github.com/FacileStudio/Plume/apps/api/internal/pdfutil"
+	"github.com/FacileStudio/Plume/apps/api/internal/secrets"
 	"github.com/FacileStudio/Plume/apps/api/modules/smtp"
 	"github.com/FacileStudio/Plume/apps/api/modules/webhooks"
 	"github.com/FacileStudio/Plume/apps/api/schemas"
 	"github.com/FacileStudio/tronc/errors"
 
+	portepg "github.com/FacileStudio/porte/pg"
 	"gorm.io/gorm"
 )
 
@@ -32,6 +34,14 @@ type Service struct {
 	webhookSvc *webhooks.Service
 	domain     string
 	uploadDir  string
+	sealer     *portepg.TokenSealer
+}
+
+// WithSealer sets the sealer that protects the signing tokens Send issues. A
+// nil sealer leaves them in clear in signers.token.
+func (s *Service) WithSealer(sealer *portepg.TokenSealer) *Service {
+	s.sealer = sealer
+	return s
 }
 
 // NewService creates a documents Service wired to the database, SMTP and
@@ -389,15 +399,9 @@ func (s *Service) Send(ctx context.Context, ownerID string, docID string) (*Docu
 		return nil, errors.Invalid("document must have at least one signer")
 	}
 
-	for i := range signers {
-		token, err := generateToken()
-		if err != nil {
-			return nil, errors.Internal("failed to generate signing token", err)
-		}
-		signers[i].Token = token
-		if err := s.orm.WithContext(ctx).Save(&signers[i]).Error; err != nil {
-			return nil, errors.Internal("failed to save signer token", err)
-		}
+	tokens, err := s.issueTokens(ctx, signers)
+	if err != nil {
+		return nil, err
 	}
 
 	record.Status = "pending"
@@ -407,11 +411,11 @@ func (s *Service) Send(ctx context.Context, ownerID string, docID string) (*Docu
 
 	uid, _ := strconv.ParseInt(ownerID, 10, 64)
 	now := time.Now().UTC()
-	dispatchInvitation := func(signer *schemas.Signer) {
+	dispatchInvitation := func(i int) {
 		s.orm.WithContext(ctx).Model(&schemas.Signer{}).
-			Where("id = ?", signer.ID).
+			Where("id = ?", signers[i].ID).
 			Update("last_reminded_at", now)
-		go s.smtp.SendSigningEmail(uid, signer.Name, signer.Email, record.Name, signer.Token, s.domain)
+		go s.smtp.SendSigningEmail(uid, signers[i].Name, signers[i].Email, record.Name, tokens[i], s.domain)
 	}
 
 	if record.Sequential {
@@ -429,14 +433,14 @@ func (s *Service) Send(ctx context.Context, ownerID string, docID string) (*Docu
 		if found {
 			for i := range signers {
 				if (signers[i].Role == "signer" || signers[i].Role == "approver") && signers[i].OrderNum == minOrder {
-					dispatchInvitation(&signers[i])
+					dispatchInvitation(i)
 				}
 			}
 		}
 	} else {
 		for i := range signers {
 			if signers[i].Role == "signer" || signers[i].Role == "approver" {
-				dispatchInvitation(&signers[i])
+				dispatchInvitation(i)
 			}
 		}
 	}
@@ -585,6 +589,28 @@ func (s *Service) BackfillHashes(ctx context.Context) (int, error) {
 		}
 	}
 	return updated, nil
+}
+
+// issueTokens gives every signer a fresh signing token, stores it sealed with
+// its hash, and returns the usable tokens in signer order.
+func (s *Service) issueTokens(ctx context.Context, signers []schemas.Signer) ([]string, error) {
+	tokens := make([]string, len(signers))
+	for i := range signers {
+		token, err := generateToken()
+		if err != nil {
+			return nil, errors.Internal("failed to generate signing token", err)
+		}
+		stored, hash, err := secrets.SealToken(s.sealer, token)
+		if err != nil {
+			return nil, errors.Internal("failed to seal signing token", err)
+		}
+		signers[i].Token, signers[i].TokenHash = stored, hash
+		if err := s.orm.WithContext(ctx).Save(&signers[i]).Error; err != nil {
+			return nil, errors.Internal("failed to save signer token", err)
+		}
+		tokens[i] = token
+	}
+	return tokens, nil
 }
 
 func generateToken() (string, error) {
