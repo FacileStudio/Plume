@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/go-pdf/fpdf"
 	"github.com/pdfcpu/pdfcpu/pkg/api"
@@ -36,8 +37,10 @@ type rect struct {
 // config lookup; the distroless container has no home/config dir to read or
 // write.
 func configurePdfcpu() {
-	model.ConfigPath = "disable"
+	configureOnce.Do(func() { model.ConfigPath = "disable" })
 }
+
+var configureOnce sync.Once
 
 // FlattenFields burns the given field overlays into inputPath and writes the
 // result to outputPath. Signature values may be data URLs, stamped as images.
